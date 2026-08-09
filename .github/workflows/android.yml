@@ -6,17 +6,18 @@ name: Android CI
 # GitHub-hosted ubuntu runners ship with the Android SDK preinstalled, so this is the
 # cheapest place to get a real compile + test signal on every push.
 
+# Branch pushes are deliberately NOT built here. A branch with an open PR would otherwise build
+# every commit twice: once for `push` and once for `pull_request`. Trying to collapse those with a
+# concurrency group does not work, because the two events disagree on every ref expression
+# (`github.ref` is refs/pull/N/merge vs refs/heads/<branch>, and `head_ref` is empty on push).
 on:
   push:
-    branches: [main, 'claude/**']
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
-# head_ref rather than ref: on pull_request events github.ref is refs/pull/N/merge while the push
-# event carries refs/heads/<branch>, so keying on ref put them in different groups and every push
-# to a PR branch built the same commit twice.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -33,8 +34,13 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      # cache-read-only defaults to "write only from the default branch", which meant every run on
+      # this branch started completely cold -- re-downloading the Gradle distribution, AGP, Kotlin
+      # and the whole Compose stack. That is why compiles here take ~10 minutes rather than ~4.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
