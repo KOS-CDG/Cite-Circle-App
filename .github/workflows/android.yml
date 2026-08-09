@@ -45,13 +45,9 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      # Prints the buildscript classpath with resolved versions, including the Kotlin that AGP's
-      # built-in Kotlin support bundles. That version is not discoverable offline and the Compose
-      # compiler plugin has to match it exactly, so keep this around as a diagnostic.
-      # continue-on-error so it never masks a real compile failure.
-      - name: Build environment (diagnostic)
-        continue-on-error: true
-        run: ./gradlew buildEnvironment --stacktrace
+      # (A `buildEnvironment` diagnostic step lived here while the Kotlin/Compose-compiler version
+      # mismatch was being chased down. That is resolved and pinned, and the step was costing
+      # ~1-6 minutes per run, so it is gone. Re-add it if the toolchain versions drift again.)
 
       # The Secrets Gradle Plugin reads .env and falls back to .env.example, which carries a
       # placeholder key. The Gemini client is not exercised by any test, so a placeholder is fine.
@@ -64,11 +60,22 @@ jobs:
       # app/schemas/**/1.json is committed, so Room's generated schema must match it exactly.
       # A drift here means someone changed an entity without bumping the database version, which
       # would break @AutoMigration later in a much more confusing way.
+      # Prints the full contents of anything new or changed, not just a diff. A newly generated
+      # schema (say, after a version bump) is untracked, so `git diff` would show nothing at all
+      # and the failure would be useless. Printing it means the schema can be committed straight
+      # from the log without a local Android SDK.
       - name: Check Room schema is committed and unchanged
         run: |
           if [ -n "$(git status --porcelain app/schemas)" ]; then
-            echo "::error::Room schema changed but was not committed. Diff:"
-            git --no-pager diff -- app/schemas
+            echo "::error::Room schema is not committed. Contents follow -- commit these files."
+            git status --porcelain app/schemas
+            for f in app/schemas/*/*.json; do
+              [ -e "$f" ] || continue
+              echo "===== BEGIN $f ====="
+              cat "$f"
+              echo ""
+              echo "===== END $f ====="
+            done
             exit 1
           fi
           echo "Room schema matches the committed version."
