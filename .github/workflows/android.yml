@@ -64,6 +64,11 @@ jobs:
       # schema (say, after a version bump) is untracked, so `git diff` would show nothing at all
       # and the failure would be useless. Printing it means the schema can be committed straight
       # from the log without a local Android SDK.
+      #
+      # Known limitation: this only catches drift when KSP actually re-ran. On a fully cached
+      # build kspDebugKotlin is UP-TO-DATE, Room does not rewrite app/schemas, and the check
+      # passes vacuously. That is acceptable because any commit touching Kotlin sources -- which
+      # is any commit that could change the schema -- re-runs KSP.
       - name: Check Room schema is committed and unchanged
         run: |
           if [ -n "$(git status --porcelain app/schemas)" ]; then

@@ -29,6 +29,7 @@ import com.example.ui.messenger.ConversationListViewModelFactory
 import com.example.ui.messenger.ThreadScreen
 import com.example.ui.messenger.ThreadViewModelFactory
 import com.example.ui.notifications.NotificationDetailScreen
+import com.example.ui.people.PeopleViewModelFactory
 import com.example.ui.notifications.NotificationsScreen
 import com.example.ui.profile.ProfileScreen
 
@@ -108,7 +109,17 @@ fun CiteCircleApp(viewModel: HomeViewModel) {
             composable(Routes.COMPOSER) {
                 ComposerScreen(viewModel = viewModel, onClose = { navController.popBackStack() })
             }
-            composable(Routes.DISCOVER) { DiscoverScreen() }
+            composable(Routes.DISCOVER) {
+                DiscoverScreen(
+                    peopleViewModel = viewModel(
+                        factory = PeopleViewModelFactory(
+                            application.peopleRepository,
+                            messenger,
+                        ),
+                    ),
+                    onOpenThread = { id -> navController.navigate(Routes.thread(id)) },
+                )
+            }
             composable(Routes.LIBRARY) { LibraryScreen() }
             composable(Routes.PROFILE) { ProfileScreen(viewModel) }
 

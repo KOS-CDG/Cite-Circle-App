@@ -1,11 +1,8 @@
 package com.example.ui.discover
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -16,8 +13,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import com.example.ui.components.EmptyState
 import com.example.ui.fields.FieldsScreen
+import com.example.ui.people.PeopleScreen
+import com.example.ui.people.PeopleViewModel
 
 private val tabs = listOf("Fields", "People")
 
@@ -25,11 +23,15 @@ private val tabs = listOf("Fields", "People")
  * Fields used to be its own bottom-nav tab. It now shares Discover with People, which frees a
  * bottom-nav slot for Messages without pushing the bar to six tabs.
  *
- * The People tab is deliberately an empty state rather than fake rows -- the connections graph
- * and the seeded researcher directory land in a later phase.
+ * The People tab hosts researcher discovery and the connections graph. Its "Message" action
+ * opens (or creates) a conversation and deep-links straight into the thread, which is what ties
+ * connections to the messenger rather than leaving them as two unrelated features.
  */
 @Composable
-fun DiscoverScreen() {
+fun DiscoverScreen(
+    peopleViewModel: PeopleViewModel,
+    onOpenThread: (String) -> Unit,
+) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
     Column(
@@ -53,13 +55,13 @@ fun DiscoverScreen() {
 
         when (selectedTab) {
             0 -> FieldsScreen(modifier = Modifier.weight(1f))
-            else -> Box(modifier = Modifier.weight(1f)) {
-                EmptyState(
-                    title = "People are coming",
-                    message = "Researcher discovery and connections arrive with the messaging work.",
-                    icon = Icons.Outlined.Groups,
-                )
-            }
+            else -> PeopleScreen(
+                viewModel = peopleViewModel,
+                onMessage = { userId ->
+                    peopleViewModel.openConversation(userId, onOpenThread)
+                },
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }
