@@ -1,4 +1,4 @@
-package com.example.ui.chat
+package com.example.ui.assistant
 
 import android.graphics.Bitmap
 import android.util.Base64
@@ -26,7 +26,7 @@ data class ChatMessage(
     val isLoading: Boolean = false
 )
 
-class ChatViewModel : ViewModel() {
+class AssistantViewModel : ViewModel() {
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()

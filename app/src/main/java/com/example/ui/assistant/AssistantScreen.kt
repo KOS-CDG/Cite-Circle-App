@@ -1,4 +1,4 @@
-package com.example.ui.chat
+package com.example.ui.assistant
 
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
@@ -29,7 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(viewModel: ChatViewModel = viewModel()) {
+fun AssistantScreen(viewModel: AssistantViewModel = viewModel()) {
     val messages by viewModel.messages.collectAsState()
     var inputText by remember { mutableStateOf("") }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }

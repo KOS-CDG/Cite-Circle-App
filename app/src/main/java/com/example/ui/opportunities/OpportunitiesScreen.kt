@@ -40,7 +40,7 @@ val sampleOpportunities = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OpportunitiesScreen() {
+fun OpportunitiesScreen(modifier: Modifier = Modifier) {
     var selectedFilter by remember { mutableStateOf("All") }
     val filters = listOf("All", "Grant", "Academic Job", "Call for Papers")
     
@@ -50,7 +50,8 @@ fun OpportunitiesScreen() {
         sampleOpportunities.filter { it.type == selectedFilter }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    // modifier param so LibraryScreen can pass weight(1f); see FieldsScreen for why.
+    Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // Filter bar
         ScrollableTabRow(
             selectedTabIndex = filters.indexOf(selectedFilter),

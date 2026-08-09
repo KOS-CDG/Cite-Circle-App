@@ -37,8 +37,9 @@ val sampleLists = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReadingListsScreen() {
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+fun ReadingListsScreen(modifier: Modifier = Modifier) {
+    // modifier param so LibraryScreen can pass weight(1f); see FieldsScreen for why.
+    Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(24.dp),
             horizontalArrangement = Arrangement.SpaceBetween,

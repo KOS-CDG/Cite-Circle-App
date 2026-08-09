@@ -35,6 +35,21 @@ object Gradients {
     )
 
     /**
+     * The citation panel on a post card -- the strongest visual moment in the app. Replaces the
+     * flat `primary` fill it used to have. Text on top uses onPrimary.
+     */
+    @Composable
+    @ReadOnlyComposable
+    fun citationPanel(): Brush = Brush.linearGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primary,
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.82f),
+        ),
+        start = Offset.Zero,
+        end = Offset.Infinite,
+    )
+
+    /**
      * The user's own message bubbles.
      *
      * Note this is a per-bubble gradient. Messenger itself paints one gradient across the entire
