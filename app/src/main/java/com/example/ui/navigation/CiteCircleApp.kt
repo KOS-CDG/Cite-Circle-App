@@ -29,8 +29,11 @@ import com.example.ui.messenger.ConversationListViewModelFactory
 import com.example.ui.messenger.ThreadScreen
 import com.example.ui.messenger.ThreadViewModelFactory
 import com.example.ui.notifications.NotificationDetailScreen
-import com.example.ui.people.PeopleViewModelFactory
 import com.example.ui.notifications.NotificationsScreen
+import com.example.ui.notifications.NotificationsViewModel
+import com.example.ui.notifications.NotificationsViewModelFactory
+import com.example.ui.people.PeopleViewModel
+import com.example.ui.people.PeopleViewModelFactory
 import com.example.ui.profile.ProfileScreen
 
 @Composable
