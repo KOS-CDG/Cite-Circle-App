@@ -4,12 +4,20 @@ import android.app.Application
 import androidx.room.Room
 import com.example.data.AppDatabase
 import com.example.data.PaperRepository
+import com.example.data.messenger.InMemoryMessengerRepository
+import com.example.data.messenger.MessengerRepository
 import com.example.data.prefs.SettingsStore
 
 class MyApplication : Application() {
     lateinit var database: AppDatabase
     lateinit var repository: PaperRepository
     lateinit var settingsStore: SettingsStore
+
+    /**
+     * Application-scoped on purpose. If the messenger repository were owned by a ViewModel,
+     * every message sent would be discarded the moment the thread left the back stack.
+     */
+    val messengerRepository: MessengerRepository by lazy { InMemoryMessengerRepository() }
 
     override fun onCreate() {
         super.onCreate()

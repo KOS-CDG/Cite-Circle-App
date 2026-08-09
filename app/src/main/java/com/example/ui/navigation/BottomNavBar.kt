@@ -2,13 +2,17 @@ package com.example.ui.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.LibraryBooks
+import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.Explore
+import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.LibraryBooks
+import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -42,7 +46,8 @@ data class NavItem(
 val bottomNavItems = listOf(
     NavItem(Routes.FEED, "Feed", Icons.Filled.Home, Icons.Outlined.Home),
     NavItem(Routes.DISCOVER, "Discover", Icons.Filled.Explore, Icons.Outlined.Explore),
-    NavItem(Routes.LIBRARY, "Library", Icons.Filled.LibraryBooks, Icons.Outlined.LibraryBooks),
+    NavItem(Routes.MESSAGES, "Messages", Icons.Filled.Forum, Icons.Outlined.Forum),
+    NavItem(Routes.LIBRARY, "Library", Icons.AutoMirrored.Filled.LibraryBooks, Icons.AutoMirrored.Outlined.LibraryBooks),
     NavItem(Routes.PROFILE, "Profile", Icons.Filled.Person, Icons.Outlined.Person),
 )
 
@@ -50,6 +55,7 @@ val bottomNavItems = listOf(
 fun BottomNavBar(
     currentDestination: NavDestination?,
     onNavigate: (String) -> Unit,
+    unreadMessages: Int = 0,
 ) {
     Column {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
@@ -67,10 +73,29 @@ fun BottomNavBar(
                 val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true
                 NavigationBarItem(
                     icon = {
-                        Icon(
-                            imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
-                            contentDescription = item.label,
-                        )
+                        val badgeCount =
+                            if (item.route == Routes.MESSAGES) unreadMessages else 0
+                        BadgedBox(
+                            badge = {
+                                if (badgeCount > 0) {
+                                    Badge(
+                                        containerColor = MaterialTheme.colorScheme.secondary,
+                                        contentColor = MaterialTheme.colorScheme.onSecondary,
+                                    ) {
+                                        Text("$badgeCount")
+                                    }
+                                }
+                            },
+                        ) {
+                            Icon(
+                                imageVector = if (selected) {
+                                    item.selectedIcon
+                                } else {
+                                    item.unselectedIcon
+                                },
+                                contentDescription = item.label,
+                            )
+                        }
                     },
                     label = {
                         Text(

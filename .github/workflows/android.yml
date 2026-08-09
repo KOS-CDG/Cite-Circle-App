@@ -61,18 +61,17 @@ jobs:
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
-      # Echoed so the generated v1 schema can be committed from the log without needing a local
-      # Android SDK or an authenticated artifact download. Remove once app/schemas/**/1.json is
-      # committed -- see app/schemas/README.md.
-      - name: Print generated Room schema
-        if: always()
+      # app/schemas/**/1.json is committed, so Room's generated schema must match it exactly.
+      # A drift here means someone changed an entity without bumping the database version, which
+      # would break @AutoMigration later in a much more confusing way.
+      - name: Check Room schema is committed and unchanged
         run: |
-          for f in app/schemas/*/*.json; do
-            [ -e "$f" ] || continue
-            echo "===== BEGIN $f ====="
-            cat "$f"
-            echo "===== END $f ====="
-          done
+          if [ -n "$(git status --porcelain app/schemas)" ]; then
+            echo "::error::Room schema changed but was not committed. Diff:"
+            git --no-pager diff -- app/schemas
+            exit 1
+          fi
+          echo "Room schema matches the committed version."
 
       # AppDatabase is deliberately still at version 1 with exportSchema = true so that Room can
       # emit the v1 JSON. That file has to be committed before any schema change, because

@@ -7,16 +7,26 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.HomeViewModel
+import com.example.MyApplication
 import com.example.ui.assistant.AssistantScreen
 import com.example.ui.discover.DiscoverScreen
 import com.example.ui.feed.FeedScreen
 import com.example.ui.library.LibraryScreen
+import com.example.ui.messenger.ConversationListScreen
+import com.example.ui.messenger.ConversationListViewModelFactory
+import com.example.ui.messenger.ThreadScreen
+import com.example.ui.messenger.ThreadViewModelFactory
 import com.example.ui.notifications.NotificationDetailScreen
 import com.example.ui.notifications.NotificationsScreen
 import com.example.ui.profile.ProfileScreen
@@ -24,6 +34,11 @@ import com.example.ui.profile.ProfileScreen
 @Composable
 fun CiteCircleApp(viewModel: HomeViewModel) {
     val navController = rememberNavController()
+    val application = LocalContext.current.applicationContext as MyApplication
+    val messenger = application.messengerRepository
+
+    val unreadMessages by messenger.observeTotalUnread()
+        .collectAsStateWithLifecycle(initialValue = 0)
 
     // Replaces a `var currentRoute by remember` mirrored via addOnDestinationChangedListener.
     // That listener was registered on EVERY recomposition and never removed, so listeners
@@ -49,6 +64,7 @@ fun CiteCircleApp(viewModel: HomeViewModel) {
             if (showChrome) {
                 BottomNavBar(
                     currentDestination = currentDestination,
+                    unreadMessages = unreadMessages,
                     onNavigate = { route ->
                         navController.navigate(route) {
                             // popUpTo the graph's actual start destination rather than a
@@ -86,6 +102,33 @@ fun CiteCircleApp(viewModel: HomeViewModel) {
             composable(Routes.DISCOVER) { DiscoverScreen() }
             composable(Routes.LIBRARY) { LibraryScreen() }
             composable(Routes.PROFILE) { ProfileScreen(viewModel) }
+
+            composable(Routes.MESSAGES) {
+                ConversationListScreen(
+                    viewModel = viewModel(
+                        factory = ConversationListViewModelFactory(messenger),
+                    ),
+                    onOpenThread = { id -> navController.navigate(Routes.thread(id)) },
+                )
+            }
+            // The app's first parameterized route.
+            composable(
+                route = Routes.THREAD,
+                arguments = listOf(
+                    navArgument(Routes.THREAD_ARG) { type = NavType.StringType },
+                ),
+            ) { entry ->
+                val conversationId = entry.arguments?.getString(Routes.THREAD_ARG).orEmpty()
+                ThreadScreen(
+                    viewModel = viewModel(
+                        // Keyed so navigating between threads does not reuse the previous
+                        // thread's ViewModel.
+                        key = "thread-$conversationId",
+                        factory = ThreadViewModelFactory(messenger, conversationId),
+                    ),
+                    onBack = { navController.popBackStack() },
+                )
+            }
 
             composable(Routes.ASSISTANT) {
                 AssistantScreen(onBack = { navController.popBackStack() })

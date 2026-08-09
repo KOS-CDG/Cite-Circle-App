@@ -1,0 +1,73 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "77bb8ca550b08ec5090c74b355c246b2",
+    "entities": [
+      {
+        "tableName": "saved_papers",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `authorInitials` TEXT NOT NULL, `authorName` TEXT NOT NULL, `timeAgo` TEXT NOT NULL, `affiliation` TEXT NOT NULL, `content` TEXT NOT NULL, `citation` TEXT NOT NULL, `isEndorsed` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "authorInitials",
+            "columnName": "authorInitials",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "authorName",
+            "columnName": "authorName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeAgo",
+            "columnName": "timeAgo",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "affiliation",
+            "columnName": "affiliation",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "content",
+            "columnName": "content",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "citation",
+            "columnName": "citation",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isEndorsed",
+            "columnName": "isEndorsed",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '77bb8ca550b08ec5090c74b355c246b2')"
+    ]
+  }
+}
