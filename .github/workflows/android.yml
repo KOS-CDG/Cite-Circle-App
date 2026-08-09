@@ -1,0 +1,68 @@
+name: Android CI
+
+# This repository had no CI at all, which meant nothing ever verified that the project
+# compiles -- and the project did not, in fact, compile (see the Phase 0 commit).
+#
+# GitHub-hosted ubuntu runners ship with the Android SDK preinstalled, so this is the
+# cheapest place to get a real compile + test signal on every push.
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Assemble and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # The Secrets Gradle Plugin reads .env and falls back to .env.example, which carries a
+      # placeholder key. The Gemini client is not exercised by any test, so a placeholder is fine.
+      - name: Compile debug
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      # AppDatabase is deliberately still at version 1 with exportSchema = true so that Room can
+      # emit the v1 JSON. That file has to be committed before any schema change, because
+      # @AutoMigration needs the exported schema for both endpoints and v1 cannot be regenerated
+      # once the version moves. Publishing it here means it can just be downloaded and committed
+      # rather than requiring a local Android SDK. See app/schemas/README.md.
+      - name: Upload generated Room schemas
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: room-schemas
+          path: app/schemas/
+          if-no-files-found: warn
+
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-reports
+          path: |
+            app/build/reports/tests/
+            app/build/outputs/
+          if-no-files-found: ignore
