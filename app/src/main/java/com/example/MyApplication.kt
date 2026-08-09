@@ -30,6 +30,6 @@ class MyApplication : Application() {
             .fallbackToDestructiveMigration(dropAllTables = true)
             .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
             .build()
-        repository = PaperRepository(database.savedPaperDao())
+        repository = PaperRepository(database.savedPaperDao(), database.commentDao())
     }
 }

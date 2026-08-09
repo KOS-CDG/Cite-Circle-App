@@ -119,7 +119,9 @@ fun ProfileScreen(viewModel: HomeViewModel) {
         items(papers, key = { it.id }) { paper ->
             PostCard(
                 paper = paper,
-                onToggleEndorse = viewModel::toggleEndorsement,
+                onReact = { reaction ->
+                    viewModel.setReaction(paper.id, reaction.key, paper.myReaction)
+                },
             )
         }
     }

@@ -21,6 +21,7 @@ import com.example.HomeViewModel
 import com.example.MyApplication
 import com.example.ui.assistant.AssistantScreen
 import com.example.ui.discover.DiscoverScreen
+import com.example.ui.feed.ComposerScreen
 import com.example.ui.feed.FeedScreen
 import com.example.ui.library.LibraryScreen
 import com.example.ui.messenger.ConversationListScreen
@@ -98,7 +99,15 @@ fun CiteCircleApp(viewModel: HomeViewModel) {
                 )
             }
 
-            composable(Routes.FEED) { FeedScreen(viewModel) }
+            composable(Routes.FEED) {
+                FeedScreen(
+                    viewModel = viewModel,
+                    onOpenComposer = { navController.navigate(Routes.COMPOSER) },
+                )
+            }
+            composable(Routes.COMPOSER) {
+                ComposerScreen(viewModel = viewModel, onClose = { navController.popBackStack() })
+            }
             composable(Routes.DISCOVER) { DiscoverScreen() }
             composable(Routes.LIBRARY) { LibraryScreen() }
             composable(Routes.PROFILE) { ProfileScreen(viewModel) }

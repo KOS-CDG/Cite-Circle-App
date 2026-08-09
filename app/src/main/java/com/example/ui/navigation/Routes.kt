@@ -11,6 +11,7 @@ package com.example.ui.navigation
 object Routes {
     const val AUTH = "auth"
     const val FEED = "feed"
+    const val COMPOSER = "composer"
     const val DISCOVER = "discover"
     const val LIBRARY = "library"
     const val PROFILE = "profile"
@@ -31,5 +32,5 @@ object Routes {
     fun thread(conversationId: String) = "messages/thread/$conversationId"
 
     /** Destinations that hide the app chrome (top bar and bottom bar). */
-    val chromeless = setOf(AUTH, ASSISTANT, NOTIFICATION_DETAIL, THREAD, NEW_MESSAGE)
+    val chromeless = setOf(AUTH, ASSISTANT, NOTIFICATION_DETAIL, THREAD, NEW_MESSAGE, COMPOSER)
 }
