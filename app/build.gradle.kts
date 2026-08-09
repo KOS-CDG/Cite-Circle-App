@@ -2,6 +2,7 @@ import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesS
 
 plugins {
   alias(libs.plugins.android.application)
+  alias(libs.plugins.kotlin.android)
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.google.devtools.ksp)
@@ -54,9 +55,9 @@ android {
     buildConfig = true
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
-  // Room's exported JSON schemas are committed to source control (see AppDatabase.kt) and are
-  // read by MigrationTestHelper from androidTest.
-  sourceSets["androidTest"].assets.srcDir("$projectDir/schemas")
+  // Note: when a MigrationTestHelper test is added under androidTest, it will need
+  // app/schemas wired in as an asset dir. Not done here because AGP 9 deprecates
+  // sourceSets[...].assets.srcDir(), and there is no such test yet to justify the churn.
   dependenciesInfo {
     includeInApk = false
     includeInBundle = true
