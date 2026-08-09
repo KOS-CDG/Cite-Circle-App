@@ -103,6 +103,8 @@ fun NotificationsScreen(
                         viewModel.markRead(notification.id)
                         onOpenDetail(notification.id)
                     },
+                    // Marking one read moves it between the New and Earlier groups.
+                    modifier = Modifier.animateItem(),
                 )
             }
         }
@@ -116,6 +118,8 @@ fun NotificationsScreen(
                         viewModel.markRead(notification.id)
                         onOpenDetail(notification.id)
                     },
+                    // Marking one read moves it between the New and Earlier groups.
+                    modifier = Modifier.animateItem(),
                 )
             }
         }
@@ -157,11 +161,12 @@ internal fun NotificationType.icon(): ImageVector = when (this) {
 private fun NotificationRow(
     notification: AppNotification,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val unread = !notification.isRead
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .background(

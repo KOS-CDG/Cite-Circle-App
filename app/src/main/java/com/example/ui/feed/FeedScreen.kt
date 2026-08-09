@@ -82,6 +82,9 @@ fun FeedScreen(
                     viewModel.setReaction(paper.id, reaction.key, paper.myReaction)
                 },
                 onComment = { openComments = paper.id },
+                // animateItem (not the removed animateItemPlacement) so a newly composed post
+                // slides its neighbours down rather than making them jump.
+                modifier = Modifier.animateItem(),
             )
         }
     }

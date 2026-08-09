@@ -43,12 +43,13 @@ fun PostCard(
     paper: SavedPaper,
     onReact: (Reaction) -> Unit,
     onComment: () -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
     val field = AcademicField.fromKey(paper.fieldKey)
     val accent = field.accent()
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         ),

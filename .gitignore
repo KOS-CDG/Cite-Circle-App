@@ -16,3 +16,7 @@
 local.properties
 .env
 debug.keystore
+
+# Roborazzi captures. Not goldens -- nothing runs in verify mode, so these are pure build
+# output, regenerated on every test run and published by CI as an artifact.
+app/src/test/screenshots/

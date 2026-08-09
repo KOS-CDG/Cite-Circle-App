@@ -95,6 +95,17 @@ jobs:
           path: app/schemas/
           if-no-files-found: warn
 
+      # The whole point of the Roborazzi suite: this repository cannot be built or run without an
+      # Android SDK, so CI is the only place the redesign can actually be *looked at*. Downloading
+      # this artifact is how you review the palette and the components in both schemes.
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: app/src/test/screenshots/
+          if-no-files-found: warn
+
       - name: Upload test reports
         uses: actions/upload-artifact@v4
         if: failure()

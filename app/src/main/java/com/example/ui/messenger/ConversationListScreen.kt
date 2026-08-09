@@ -128,7 +128,13 @@ fun ConversationListScreen(
                     contentPadding = PaddingValues(bottom = Spacing.xxxl + Spacing.xl),
                 ) {
                     items(filtered, key = { it.id }) { row ->
-                        ConversationRow(row = row, onClick = { onOpenThread(row.id) })
+                        // Conversations reorder by lastMessageAt whenever a message arrives, so
+                        // without this the list snaps.
+                        ConversationRow(
+                            row = row,
+                            onClick = { onOpenThread(row.id) },
+                            modifier = Modifier.animateItem(),
+                        )
                     }
                 }
             }
@@ -174,11 +180,12 @@ private fun SearchPill(
 private fun ConversationRow(
     row: ConversationRowUi,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val unread = row.unreadCount > 0
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             // The single clearest unread signal: a tinted row, not just a bolder font.
