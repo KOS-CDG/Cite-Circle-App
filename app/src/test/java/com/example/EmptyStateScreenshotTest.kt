@@ -4,7 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FolderOff
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
-import com.example.ui.theme.InkAndFieldNotesTheme
+import com.example.ui.theme.CiteCircleTheme
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
@@ -32,7 +32,7 @@ class EmptyStateScreenshotTest {
   @Test
   fun emptyState_light() {
     composeTestRule.setContent {
-      InkAndFieldNotesTheme(darkTheme = false) {
+      CiteCircleTheme(darkTheme = false) {
         EmptyState("No Fields Found", "Try adjusting your search criteria.", Icons.Outlined.FolderOff)
       }
     }
@@ -42,7 +42,7 @@ class EmptyStateScreenshotTest {
   @Test
   fun emptyState_dark() {
     composeTestRule.setContent {
-      InkAndFieldNotesTheme(darkTheme = true) {
+      CiteCircleTheme(darkTheme = true) {
         EmptyState("No Fields Found", "Try adjusting your search criteria.", Icons.Outlined.FolderOff)
       }
     }

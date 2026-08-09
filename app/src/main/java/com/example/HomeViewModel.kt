@@ -5,23 +5,32 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.data.PaperRepository
 import com.example.data.SavedPaper
+import com.example.data.prefs.SettingsStore
+import com.example.data.prefs.ThemeMode
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 
-import kotlinx.coroutines.flow.take
+class HomeViewModel(
+    private val repository: PaperRepository,
+    private val settingsStore: SettingsStore,
+) : ViewModel() {
 
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+    /**
+     * SYSTEM / LIGHT / DARK, persisted via DataStore. The composable layer resolves SYSTEM into an
+     * actual boolean, since that needs isSystemInDarkTheme().
+     */
+    val themeMode: StateFlow<ThemeMode> = settingsStore.themeMode
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = ThemeMode.SYSTEM,
+        )
 
-class HomeViewModel(private val repository: PaperRepository) : ViewModel() {
-    private val _isDarkMode = MutableStateFlow(false)
-    val isDarkMode: StateFlow<Boolean> = _isDarkMode.asStateFlow()
-
-    fun toggleTheme() {
-        _isDarkMode.update { !it }
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { settingsStore.setThemeMode(mode) }
     }
 
     val savedPapers: StateFlow<List<SavedPaper>> = repository.allPapers
@@ -76,11 +85,14 @@ class HomeViewModel(private val repository: PaperRepository) : ViewModel() {
     }
 }
 
-class HomeViewModelFactory(private val repository: PaperRepository) : ViewModelProvider.Factory {
+class HomeViewModelFactory(
+    private val repository: PaperRepository,
+    private val settingsStore: SettingsStore,
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(HomeViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return HomeViewModel(repository) as T
+            return HomeViewModel(repository, settingsStore) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

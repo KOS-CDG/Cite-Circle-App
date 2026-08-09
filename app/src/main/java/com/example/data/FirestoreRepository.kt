@@ -6,14 +6,21 @@ import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
 class FirestoreRepository {
-    private val db = FirebaseFirestore.getInstance()
-    private val auth = FirebaseAuth.getInstance()
+    // Lazy and failure-tolerant on purpose. These were eager property initializers, and
+    // HomeViewModel holds a FirestoreRepository as a `private val`, so both Firebase singletons
+    // were being spun up at app start against a placeholder google-services.json
+    // (project_id "dummy-project"). Nothing here can succeed until Firebase is really
+    // provisioned -- auth.currentUser is always null, so the sync below returns immediately --
+    // so there is no reason to touch the SDK unless a caller actually asks for a sync.
+    private val db by lazy { runCatching { FirebaseFirestore.getInstance() }.getOrNull() }
+    private val auth by lazy { runCatching { FirebaseAuth.getInstance() }.getOrNull() }
 
     suspend fun syncPapersToCloud(papers: List<SavedPaper>) {
-        val user = auth.currentUser ?: return
-        val batch = db.batch()
-        val userRef = db.collection("users").document(user.uid)
-        
+        val firestore = db ?: return
+        val user = auth?.currentUser ?: return
+        val batch = firestore.batch()
+        val userRef = firestore.collection("users").document(user.uid)
+
         try {
             papers.forEach { paper ->
                 val paperRef = userRef.collection("saved_papers").document(paper.id)

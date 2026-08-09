@@ -4,13 +4,16 @@ import android.app.Application
 import androidx.room.Room
 import com.example.data.AppDatabase
 import com.example.data.PaperRepository
+import com.example.data.prefs.SettingsStore
 
 class MyApplication : Application() {
     lateinit var database: AppDatabase
     lateinit var repository: PaperRepository
+    lateinit var settingsStore: SettingsStore
 
     override fun onCreate() {
         super.onCreate()
+        settingsStore = SettingsStore(this)
         // Destructive fallback is deliberate and safe here: every row in this database is seeded
         // sample data (see HomeViewModel.init), so there is no user-authored content to lose.
         // Without it, bumping the schema version throws

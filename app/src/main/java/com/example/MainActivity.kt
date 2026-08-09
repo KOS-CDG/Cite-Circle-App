@@ -35,7 +35,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.*
-import com.example.ui.theme.InkAndFieldNotesTheme
+import com.example.data.prefs.ThemeMode
+import com.example.ui.theme.CiteCircleTheme
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,11 +46,16 @@ class MainActivity : ComponentActivity() {
       val context = androidx.compose.ui.platform.LocalContext.current
       val application = context.applicationContext as MyApplication
       val viewModel: HomeViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-          factory = HomeViewModelFactory(application.repository)
+          factory = HomeViewModelFactory(application.repository, application.settingsStore)
       )
-      val isDarkMode by viewModel.isDarkMode.collectAsStateWithLifecycle()
+      val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+      val darkTheme = when (themeMode) {
+        ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+      }
 
-      InkAndFieldNotesTheme(darkTheme = isDarkMode) {
+      CiteCircleTheme(darkTheme = darkTheme) {
         FolioApp(viewModel)
       }
     }
@@ -613,8 +619,17 @@ fun ProfileScreen(viewModel: HomeViewModel) {
             Text("Senior Researcher • Oxford", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
           }
         }
-        val isDarkMode by viewModel.isDarkMode.collectAsStateWithLifecycle()
-        IconButton(onClick = { viewModel.toggleTheme() }) {
+        val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+        val isDarkMode = when (themeMode) {
+          ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
+          ThemeMode.LIGHT -> false
+          ThemeMode.DARK -> true
+        }
+        IconButton(
+          onClick = {
+            viewModel.setThemeMode(if (isDarkMode) ThemeMode.LIGHT else ThemeMode.DARK)
+          }
+        ) {
           Icon(
             if (isDarkMode) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
             contentDescription = "Toggle Theme",
