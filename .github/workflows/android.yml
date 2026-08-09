@@ -54,8 +54,12 @@ jobs:
       - name: Compile debug
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: Unit tests
-        run: ./gradlew testDebugUnitTest --stacktrace
+      # -Proborazzi.test.record=true is load-bearing, not a flag worth trimming. Roborazzi's
+      # captureRoboImage() is a no-op unless record, compare or verify mode is explicitly on, so a
+      # plain testDebugUnitTest runs every screenshot test, passes, and writes zero images. That
+      # failed silently once already. The record flag is the only thing that makes the suite real.
+      - name: Unit tests and screenshots
+        run: ./gradlew testDebugUnitTest -Proborazzi.test.record=true --stacktrace
 
       # app/schemas/**/1.json is committed, so Room's generated schema must match it exactly.
       # A drift here means someone changed an entity without bumping the database version, which
@@ -100,11 +104,15 @@ jobs:
       # this artifact is how you review the palette and the components in both schemes.
       - name: Upload screenshots
         uses: actions/upload-artifact@v4
-        if: always()
+        # success(), not always(): paired with if-no-files-found: error, an always() step would
+        # add a second, misleading failure on top of every genuine compile or test failure.
+        if: success()
         with:
           name: screenshots
           path: app/src/test/screenshots/
-          if-no-files-found: warn
+          # error, not warn: an empty directory here means the captures silently stopped being
+          # produced, which is precisely how this went unnoticed the first time.
+          if-no-files-found: error
 
       - name: Upload test reports
         uses: actions/upload-artifact@v4
