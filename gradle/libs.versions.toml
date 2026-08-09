@@ -8,7 +8,12 @@ lifecycleRuntimeKtx = "2.8.7"
 lifecycleViewmodelCompose = "2.8.7"
 lifecycleRuntimeCompose = "2.8.7"
 activityCompose = "1.10.1"
-kotlin = "2.2.10"
+# Must match the Kotlin compiler that AGP's built-in Kotlin support bundles, because
+# org.jetbrains.kotlin.plugin.compose plugs into that compiler. At 2.2.10 the build died with
+# "AbstractMethodError: ComposePluginRegistrar does not define ... getPluginId()" -- that method
+# arrived on CompilerPluginRegistrar in Kotlin 2.3, so AGP 9.1.1's compiler is 2.3.x.
+# The `buildEnvironment` step in CI prints the exact version if this needs adjusting again.
+kotlin = "2.3.21"
 composeBom = "2024.09.00"
 googleDevtoolsKsp = "2.3.5"
 navigationCompose = "2.8.9"
@@ -106,12 +111,10 @@ googleid = { group = "com.google.android.libraries.identity.googleid", name = "g
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
-# Must be applied explicitly. Without it, AGP 9's built-in Kotlin support owns compileDebugKotlin
-# and supplies its own (2.3.x) compiler, while kotlin-compose below resolves to the `kotlin`
-# version ref -- and a 2.2.10 ComposePluginRegistrar against a 2.3.x compiler dies with
-# "AbstractMethodError: ... does not define ... getPluginId()". Keeping KGP and the Compose
-# compiler plugin on the same version ref is what makes them agree.
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+# NOTE: org.jetbrains.kotlin.android must NOT be applied. AGP 9.1.1 has built-in Kotlin support
+# which already registers the `kotlin` project extension, so applying KGP fails with
+# "Cannot add extension with name 'kotlin'". AGP owns compileDebugKotlin and supplies the
+# compiler; anything that plugs into that compiler has to match the version AGP bundles.
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 google-devtools-ksp = { id = "com.google.devtools.ksp", version.ref = "googleDevtoolsKsp" }

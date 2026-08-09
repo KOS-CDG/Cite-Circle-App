@@ -36,6 +36,14 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      # Prints the buildscript classpath with resolved versions, including the Kotlin that AGP's
+      # built-in Kotlin support bundles. That version is not discoverable offline and the Compose
+      # compiler plugin has to match it exactly, so keep this around as a diagnostic.
+      # continue-on-error so it never masks a real compile failure.
+      - name: Build environment (diagnostic)
+        continue-on-error: true
+        run: ./gradlew buildEnvironment --stacktrace
+
       # The Secrets Gradle Plugin reads .env and falls back to .env.example, which carries a
       # placeholder key. The Gemini client is not exercised by any test, so a placeholder is fine.
       - name: Compile debug
