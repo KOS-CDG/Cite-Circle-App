@@ -20,7 +20,10 @@ object Routes {
     const val ASSISTANT = "assistant"
 
     const val NOTIFICATIONS = "notifications"
-    const val NOTIFICATION_DETAIL = "notification_detail"
+    const val NOTIFICATION_ARG = "notificationId"
+    const val NOTIFICATION_DETAIL = "notifications/{notificationId}"
+
+    fun notificationDetail(id: String) = "notifications/$id"
 
     // Reserved for the messenger (Phase 4). `messages/thread/{id}` rather than `messages/{id}`
     // so it can never collide with `messages/new`.

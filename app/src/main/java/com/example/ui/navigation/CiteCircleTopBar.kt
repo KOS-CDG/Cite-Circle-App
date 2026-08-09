@@ -15,6 +15,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,6 +36,7 @@ import com.example.ui.theme.wordmark
 fun CiteCircleTopBar(
     onNotificationsClick: () -> Unit,
     onAssistantClick: () -> Unit,
+    unreadNotifications: Int = 0,
 ) {
     Column(
         modifier = Modifier
@@ -64,12 +67,25 @@ fun CiteCircleTopBar(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 TopBarIconButton(onClick = onNotificationsClick) {
-                    Icon(
-                        Icons.Outlined.Notifications,
-                        contentDescription = "Notifications",
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onSurface,
-                    )
+                    BadgedBox(
+                        badge = {
+                            if (unreadNotifications > 0) {
+                                Badge(
+                                    containerColor = MaterialTheme.colorScheme.secondary,
+                                    contentColor = MaterialTheme.colorScheme.onSecondary,
+                                ) {
+                                    Text("$unreadNotifications")
+                                }
+                            }
+                        },
+                    ) {
+                        Icon(
+                            Icons.Outlined.Notifications,
+                            contentDescription = "Notifications",
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
                 }
                 TopBarIconButton(onClick = onAssistantClick) {
                     Icon(

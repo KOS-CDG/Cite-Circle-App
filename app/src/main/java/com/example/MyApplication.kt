@@ -6,6 +6,8 @@ import com.example.data.AppDatabase
 import com.example.data.PaperRepository
 import com.example.data.messenger.InMemoryMessengerRepository
 import com.example.data.messenger.MessengerRepository
+import com.example.data.notifications.InMemoryNotificationRepository
+import com.example.data.notifications.NotificationRepository
 import com.example.data.people.InMemoryPeopleRepository
 import com.example.data.people.PeopleRepository
 import com.example.data.prefs.SettingsStore
@@ -20,6 +22,10 @@ class MyApplication : Application() {
      * every message sent would be discarded the moment the thread left the back stack.
      */
     val messengerRepository: MessengerRepository by lazy { InMemoryMessengerRepository() }
+
+    val notificationRepository: NotificationRepository by lazy {
+        InMemoryNotificationRepository()
+    }
 
     /** Reads its user records from the messenger, so the two can never disagree about a person. */
     val peopleRepository: PeopleRepository by lazy {

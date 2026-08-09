@@ -85,11 +85,8 @@ jobs:
           fi
           echo "Room schema matches the committed version."
 
-      # AppDatabase is deliberately still at version 1 with exportSchema = true so that Room can
-      # emit the v1 JSON. That file has to be committed before any schema change, because
-      # @AutoMigration needs the exported schema for both endpoints and v1 cannot be regenerated
-      # once the version moves. Publishing it here means it can just be downloaded and committed
-      # rather than requiring a local Android SDK. See app/schemas/README.md.
+      # Kept as a convenience copy of the generated schemas. The drift check above is the thing
+      # that actually enforces they are committed.
       - name: Upload generated Room schemas
         uses: actions/upload-artifact@v4
         if: always()

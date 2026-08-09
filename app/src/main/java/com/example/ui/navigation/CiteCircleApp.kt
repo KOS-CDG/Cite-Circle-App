@@ -42,6 +42,16 @@ fun CiteCircleApp(viewModel: HomeViewModel) {
     val unreadMessages by messenger.observeTotalUnread()
         .collectAsStateWithLifecycle(initialValue = 0)
 
+    // Hoisted to the shell so the bell badge stays live regardless of which tab is showing.
+    val notificationsViewModel: NotificationsViewModel = viewModel(
+        factory = NotificationsViewModelFactory(application.notificationRepository),
+    )
+    val unreadNotifications by notificationsViewModel.unreadCount.collectAsStateWithLifecycle()
+
+    val peopleViewModel: PeopleViewModel = viewModel(
+        factory = PeopleViewModelFactory(application.peopleRepository, messenger),
+    )
+
     // Replaces a `var currentRoute by remember` mirrored via addOnDestinationChangedListener.
     // That listener was registered on EVERY recomposition and never removed, so listeners
     // accumulated without bound.
@@ -59,6 +69,7 @@ fun CiteCircleApp(viewModel: HomeViewModel) {
                 CiteCircleTopBar(
                     onNotificationsClick = { navController.navigate(Routes.NOTIFICATIONS) },
                     onAssistantClick = { navController.navigate(Routes.ASSISTANT) },
+                    unreadNotifications = unreadNotifications,
                 )
             }
         },
@@ -111,12 +122,7 @@ fun CiteCircleApp(viewModel: HomeViewModel) {
             }
             composable(Routes.DISCOVER) {
                 DiscoverScreen(
-                    peopleViewModel = viewModel(
-                        factory = PeopleViewModelFactory(
-                            application.peopleRepository,
-                            messenger,
-                        ),
-                    ),
+                    peopleViewModel = peopleViewModel,
                     onOpenThread = { id -> navController.navigate(Routes.thread(id)) },
                 )
             }
@@ -156,11 +162,29 @@ fun CiteCircleApp(viewModel: HomeViewModel) {
 
             composable(Routes.NOTIFICATIONS) {
                 NotificationsScreen(
-                    onOpenDetail = { navController.navigate(Routes.NOTIFICATION_DETAIL) },
+                    viewModel = notificationsViewModel,
+                    onOpenDetail = { id ->
+                        navController.navigate(Routes.notificationDetail(id))
+                    },
                 )
             }
-            composable(Routes.NOTIFICATION_DETAIL) {
-                NotificationDetailScreen(onBack = { navController.popBackStack() })
+            composable(
+                route = Routes.NOTIFICATION_DETAIL,
+                arguments = listOf(
+                    navArgument(Routes.NOTIFICATION_ARG) { type = NavType.StringType },
+                ),
+            ) { entry ->
+                NotificationDetailScreen(
+                    viewModel = notificationsViewModel,
+                    notificationId = entry.arguments
+                        ?.getString(Routes.NOTIFICATION_ARG).orEmpty(),
+                    onBack = { navController.popBackStack() },
+                    onMessage = { userId ->
+                        peopleViewModel.openConversation(userId) { id ->
+                            navController.navigate(Routes.thread(id))
+                        }
+                    },
+                )
             }
         }
     }
