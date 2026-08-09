@@ -87,7 +87,9 @@ fun CiteCircleApp(viewModel: HomeViewModel) {
             composable(Routes.LIBRARY) { LibraryScreen() }
             composable(Routes.PROFILE) { ProfileScreen(viewModel) }
 
-            composable(Routes.ASSISTANT) { AssistantScreen() }
+            composable(Routes.ASSISTANT) {
+                AssistantScreen(onBack = { navController.popBackStack() })
+            }
 
             composable(Routes.NOTIFICATIONS) {
                 NotificationsScreen(

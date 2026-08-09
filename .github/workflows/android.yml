@@ -12,8 +12,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# head_ref rather than ref: on pull_request events github.ref is refs/pull/N/merge while the push
+# event carries refs/heads/<branch>, so keying on ref put them in different groups and every push
+# to a PR branch built the same commit twice.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
