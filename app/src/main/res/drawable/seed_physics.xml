@@ -1,0 +1,64 @@
+<!--
+  Seed post imagery. One per academic field, so a post's image reinforces the accent colour its
+  card already carries.
+
+  Vector rather than PNG: these ship in the APK at a few hundred bytes each, stay sharp at any
+  density, and can be reviewed in a diff. Gradient fills in vector drawables need API 24, which is
+  exactly this project's minSdk.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="400dp"
+    android:height="225dp"
+    android:viewportWidth="400"
+    android:viewportHeight="225">
+
+    <path android:pathData="M0,0h400v225h-400z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="400"
+                android:endY="225">
+                <item android:offset="0" android:color="#1D4ED8" />
+                <item android:offset="1" android:color="#6D28D9" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Orbital paths. -->
+    <path
+        android:pathData="M200,112.5m-140,0a140,52 0 1,0 280,0a140,52 0 1,0 -280,0"
+        android:strokeColor="#66FFFFFF"
+        android:strokeWidth="3" />
+    <group
+        android:pivotX="200"
+        android:pivotY="112.5"
+        android:rotation="60">
+        <path
+            android:pathData="M200,112.5m-140,0a140,52 0 1,0 280,0a140,52 0 1,0 -280,0"
+            android:strokeColor="#59FFFFFF"
+            android:strokeWidth="3" />
+    </group>
+    <group
+        android:pivotX="200"
+        android:pivotY="112.5"
+        android:rotation="120">
+        <path
+            android:pathData="M200,112.5m-140,0a140,52 0 1,0 280,0a140,52 0 1,0 -280,0"
+            android:strokeColor="#59FFFFFF"
+            android:strokeWidth="3" />
+    </group>
+
+    <!-- Nucleus and two particles. -->
+    <path
+        android:pathData="M200,112.5m-18,0a18,18 0 1,0 36,0a18,18 0 1,0 -36,0"
+        android:fillColor="#F2FFFFFF" />
+    <path
+        android:pathData="M328,138m-9,0a9,9 0 1,0 18,0a9,9 0 1,0 -18,0"
+        android:fillColor="#CCFFE7B8" />
+    <path
+        android:pathData="M92,74m-7,0a7,7 0 1,0 14,0a7,7 0 1,0 -14,0"
+        android:fillColor="#CCFFD9E0" />
+</vector>

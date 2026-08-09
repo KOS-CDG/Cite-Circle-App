@@ -1,0 +1,44 @@
+<!--
+  Seed post imagery for Computational Linguistics. See seed_physics.xml for why these are vectors.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="400dp"
+    android:height="225dp"
+    android:viewportWidth="400"
+    android:viewportHeight="225">
+
+    <path android:pathData="M0,0h400v225h-400z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="400"
+                android:endY="225">
+                <item android:offset="0" android:color="#A21CAF" />
+                <item android:offset="1" android:color="#701A75" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- A speech waveform: symmetric bars around the centre line. -->
+    <path android:pathData="M32,101h14v23h-14z" android:fillColor="#73FFFFFF" />
+    <path android:pathData="M58,84h14v57h-14z" android:fillColor="#8CFFFFFF" />
+    <path android:pathData="M84,56h14v113h-14z" android:fillColor="#BFFFFFFF" />
+    <path android:pathData="M110,74h14v77h-14z" android:fillColor="#A6FFFFFF" />
+    <path android:pathData="M136,38h14v149h-14z" android:fillColor="#F2FFFFFF" />
+    <path android:pathData="M162,66h14v93h-14z" android:fillColor="#A6FFFFFF" />
+    <path android:pathData="M188,90h14v45h-14z" android:fillColor="#8CFFFFFF" />
+    <path android:pathData="M214,52h14v121h-14z" android:fillColor="#D9FFFFFF" />
+    <path android:pathData="M240,78h14v69h-14z" android:fillColor="#A6FFFFFF" />
+    <path android:pathData="M266,96h14v33h-14z" android:fillColor="#73FFFFFF" />
+    <path android:pathData="M292,68h14v89h-14z" android:fillColor="#BFFFFFFF" />
+    <path android:pathData="M318,88h14v49h-14z" android:fillColor="#8CFFFFFF" />
+    <path android:pathData="M344,104h14v17h-14z" android:fillColor="#73FFFFFF" />
+
+    <path
+        android:pathData="M24,112.5h352"
+        android:strokeColor="#59FFE7B8"
+        android:strokeWidth="2" />
+</vector>

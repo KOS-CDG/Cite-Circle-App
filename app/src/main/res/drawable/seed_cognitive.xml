@@ -1,0 +1,39 @@
+<!-- Seed post imagery for Cognitive Science. See seed_physics.xml for why these are vectors. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="400dp"
+    android:height="225dp"
+    android:viewportWidth="400"
+    android:viewportHeight="225">
+
+    <path android:pathData="M0,0h400v225h-400z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="400"
+                android:startY="0"
+                android:endX="0"
+                android:endY="225">
+                <item android:offset="0" android:color="#7C3AED" />
+                <item android:offset="1" android:color="#4C1D95" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Edges first, so the nodes sit on top of them. -->
+    <path android:pathData="M78,64L168,40" android:strokeColor="#59FFFFFF" android:strokeWidth="3" />
+    <path android:pathData="M78,64L136,124" android:strokeColor="#59FFFFFF" android:strokeWidth="3" />
+    <path android:pathData="M168,40L262,74" android:strokeColor="#59FFFFFF" android:strokeWidth="3" />
+    <path android:pathData="M136,124L262,74" android:strokeColor="#59FFFFFF" android:strokeWidth="3" />
+    <path android:pathData="M136,124L206,178" android:strokeColor="#59FFFFFF" android:strokeWidth="3" />
+    <path android:pathData="M262,74L206,178" android:strokeColor="#59FFFFFF" android:strokeWidth="3" />
+    <path android:pathData="M262,74L332,132" android:strokeColor="#59FFFFFF" android:strokeWidth="3" />
+    <path android:pathData="M206,178L332,132" android:strokeColor="#59FFFFFF" android:strokeWidth="3" />
+
+    <path android:pathData="M78,64m-13,0a13,13 0 1,0 26,0a13,13 0 1,0 -26,0" android:fillColor="#D9FFFFFF" />
+    <path android:pathData="M168,40m-10,0a10,10 0 1,0 20,0a10,10 0 1,0 -20,0" android:fillColor="#BFFFD9E0" />
+    <path android:pathData="M136,124m-16,0a16,16 0 1,0 32,0a16,16 0 1,0 -32,0" android:fillColor="#F2FFFFFF" />
+    <path android:pathData="M262,74m-18,0a18,18 0 1,0 36,0a18,18 0 1,0 -36,0" android:fillColor="#F2FFE7B8" />
+    <path android:pathData="M206,178m-11,0a11,11 0 1,0 22,0a11,11 0 1,0 -22,0" android:fillColor="#BFFFFFFF" />
+    <path android:pathData="M332,132m-14,0a14,14 0 1,0 28,0a14,14 0 1,0 -28,0" android:fillColor="#D9FFFFFF" />
+</vector>

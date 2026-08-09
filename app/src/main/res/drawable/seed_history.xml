@@ -1,0 +1,36 @@
+<!-- Seed post imagery for Ancient History. See seed_physics.xml for why these are vectors. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="400dp"
+    android:height="225dp"
+    android:viewportWidth="400"
+    android:viewportHeight="225">
+
+    <path android:pathData="M0,0h400v225h-400z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="400"
+                android:endY="225">
+                <item android:offset="0" android:color="#C2410C" />
+                <item android:offset="1" android:color="#7C2D12" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Pediment. -->
+    <path
+        android:pathData="M200,34L326,80h-252z"
+        android:fillColor="#D9FFFFFF" />
+    <!-- Architrave. -->
+    <path android:pathData="M66,84h268v14h-268z" android:fillColor="#BFFFFFFF" />
+    <!-- Four columns with fluting implied by the alpha step. -->
+    <path android:pathData="M90,102h26v78h-26z" android:fillColor="#A6FFFFFF" />
+    <path android:pathData="M152,102h26v78h-26z" android:fillColor="#8CFFFFFF" />
+    <path android:pathData="M222,102h26v78h-26z" android:fillColor="#8CFFFFFF" />
+    <path android:pathData="M284,102h26v78h-26z" android:fillColor="#A6FFFFFF" />
+    <!-- Stylobate. -->
+    <path android:pathData="M58,184h284v16h-284z" android:fillColor="#BFFFFFFF" />
+</vector>

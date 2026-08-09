@@ -1,0 +1,52 @@
+<!-- Seed post imagery for Molecular Biology. See seed_physics.xml for why these are vectors. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="400dp"
+    android:height="225dp"
+    android:viewportWidth="400"
+    android:viewportHeight="225">
+
+    <path android:pathData="M0,0h400v225h-400z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="225"
+                android:endX="400"
+                android:endY="0">
+                <item android:offset="0" android:color="#14532D" />
+                <item android:offset="1" android:color="#15803D" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Two strands of a helix, drawn as opposed sine curves. -->
+    <path
+        android:pathData="M56,20C176,60 176,165 56,205"
+        android:strokeColor="#A6FFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M56,20C-64,60 -64,165 56,205"
+        android:strokeColor="#59FFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M232,20C352,60 352,165 232,205"
+        android:strokeColor="#A6FFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M232,20C112,60 112,165 232,205"
+        android:strokeColor="#59FFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round" />
+
+    <!-- Base-pair rungs. -->
+    <path android:pathData="M74,58h108" android:strokeColor="#80FFE7B8" android:strokeWidth="5" />
+    <path android:pathData="M92,112h72" android:strokeColor="#80FFE7B8" android:strokeWidth="5" />
+    <path android:pathData="M74,166h108" android:strokeColor="#80FFE7B8" android:strokeWidth="5" />
+    <path android:pathData="M250,58h108" android:strokeColor="#80FFE7B8" android:strokeWidth="5" />
+    <path android:pathData="M268,112h72" android:strokeColor="#80FFE7B8" android:strokeWidth="5" />
+    <path android:pathData="M250,166h108" android:strokeColor="#80FFE7B8" android:strokeWidth="5" />
+</vector>

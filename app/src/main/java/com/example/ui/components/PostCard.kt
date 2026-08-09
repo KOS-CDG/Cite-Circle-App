@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -21,8 +22,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.example.data.SavedPaper
 import com.example.ui.theme.AcademicField
 import com.example.ui.theme.Gradients
@@ -114,6 +117,23 @@ fun PostCard(
                 style = MaterialTheme.typography.postBody,
                 color = MaterialTheme.colorScheme.onSurface,
             )
+
+            // The imageUrl column has existed since the v2 migration without anything ever
+            // rendering it. Seeded posts point at bundled drawables via android.resource://, which
+            // Coil resolves natively -- remote URLs would render as blank boxes with the network
+            // off, which is exactly when a demo gets looked at.
+            paper.imageUrl?.takeIf { it.isNotBlank() }?.let { url ->
+                Spacer(modifier = Modifier.height(Spacing.md))
+                AsyncImage(
+                    model = url,
+                    contentDescription = "Figure attached to this post",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f)
+                        .clip(MaterialTheme.shapes.medium),
+                    contentScale = ContentScale.Crop,
+                )
+            }
 
             Spacer(modifier = Modifier.height(Spacing.base))
             CitationBlock(paper.citation)

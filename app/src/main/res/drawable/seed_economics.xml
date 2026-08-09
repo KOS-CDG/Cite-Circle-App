@@ -1,0 +1,44 @@
+<!-- Seed post imagery for Macroeconomics. See seed_physics.xml for why these are vectors. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="400dp"
+    android:height="225dp"
+    android:viewportWidth="400"
+    android:viewportHeight="225">
+
+    <path android:pathData="M0,0h400v225h-400z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="225"
+                android:endX="400"
+                android:endY="0">
+                <item android:offset="0" android:color="#134E4A" />
+                <item android:offset="1" android:color="#0F766E" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Baseline. -->
+    <path android:pathData="M40,182h320" android:strokeColor="#59FFFFFF" android:strokeWidth="3" />
+
+    <!-- Ascending series. -->
+    <path android:pathData="M56,146h34v36h-34z" android:fillColor="#73FFFFFF" />
+    <path android:pathData="M104,124h34v58h-34z" android:fillColor="#8CFFFFFF" />
+    <path android:pathData="M152,132h34v50h-34z" android:fillColor="#73FFFFFF" />
+    <path android:pathData="M200,96h34v86h-34z" android:fillColor="#A6FFFFFF" />
+    <path android:pathData="M248,74h34v108h-34z" android:fillColor="#BFFFFFFF" />
+    <path android:pathData="M296,44h34v138h-34z" android:fillColor="#F2FFFFFF" />
+
+    <!-- Trend line over the top, with a marker at the final point. -->
+    <path
+        android:pathData="M73,140L121,118L169,126L217,90L265,68L313,38"
+        android:strokeColor="#FFFFE7B8"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M313,38m-9,0a9,9 0 1,0 18,0a9,9 0 1,0 -18,0"
+        android:fillColor="#FFFFE7B8" />
+</vector>

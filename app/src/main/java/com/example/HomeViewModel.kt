@@ -11,8 +11,8 @@ import com.example.data.prefs.ThemeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 
 class HomeViewModel(
@@ -44,10 +44,14 @@ class HomeViewModel(
 
     init {
         viewModelScope.launch {
-            repository.allPapers.take(1).collect { papers ->
-                if (papers.isEmpty()) {
-                    seedPosts().forEach { repository.savePaper(it) }
-                }
+            // Seed when the table is empty OR when the seed itself has moved on. The empty-table
+            // check alone meant an install that had ever been opened was frozen on whatever the
+            // seed looked like that day.
+            val seen = settingsStore.seedVersion.first()
+            val papers = repository.allPapers.first()
+            if (papers.isEmpty() || seen < SettingsStore.CURRENT_SEED_VERSION) {
+                seedPosts().forEach { repository.savePaper(it) }
+                settingsStore.setSeedVersion(SettingsStore.CURRENT_SEED_VERSION)
             }
         }
     }
@@ -111,9 +115,7 @@ class HomeViewModel(
         viewModelScope.launch {
             repository.savePaper(paper)
             // Sync all papers to cloud (in a real app this might be more targeted)
-            repository.allPapers.take(1).collect { papers ->
-                firestoreRepo.syncPapersToCloud(papers + paper)
-            }
+            firestoreRepo.syncPapersToCloud(repository.allPapers.first() + paper)
         }
     }
 
@@ -182,6 +184,7 @@ private fun seedPosts(): List<SavedPaper> {
             createdAt = minutes(180),
             authorId = "u-thorne",
             fieldKey = "physics",
+            imageUrl = figure("physics"),
             insightfulCount = 12,
         ),
         SavedPaper(
@@ -197,7 +200,104 @@ private fun seedPosts(): List<SavedPaper> {
             createdAt = minutes(600),
             authorId = "u-okafor",
             fieldKey = "biology",
+            imageUrl = figure("biology"),
             citeWorthyCount = 5,
         ),
+        SavedPaper(
+            id = "p-4",
+            authorInitials = "EL",
+            authorName = "Prof. Erik Lindqvist",
+            timeAgo = "",
+            affiliation = "UPPSALA",
+            content = "Three seasons of survey work at the harbour site are finally reconciled. " +
+                "The revised chronology moves the second phase almost a century later than the " +
+                "1974 report assumed.",
+            citation = "Lindqvist, E. (2026). Revised Chronology of the Northern Harbour. " +
+                "Scandinavian Archaeology, 61(1).",
+            createdAt = minutes(1_450),
+            authorId = "u-lindqvist",
+            fieldKey = "history",
+            imageUrl = figure("history"),
+            insightfulCount = 8,
+            citeWorthyCount = 3,
+        ),
+        SavedPaper(
+            id = "p-5",
+            authorInitials = "SN",
+            authorName = "Dr. Sofia Navarro",
+            timeAgo = "",
+            affiliation = "BARCELONA",
+            content = "Negative result worth recording: the attention-priming effect did not " +
+                "replicate at n=240. We are publishing it anyway, because the original is cited " +
+                "far more than it is tested.",
+            citation = "Navarro, S. (2026). A Failed Replication of Attention Priming. " +
+                "Cognitive Reports, 9(3).",
+            createdAt = minutes(2_100),
+            authorId = "u-navarro",
+            fieldKey = "cognitive",
+            imageUrl = figure("cognitive"),
+        ),
+        SavedPaper(
+            id = "p-6",
+            authorInitials = "KT",
+            authorName = "Dr. Kenji Tanaka",
+            timeAgo = "",
+            affiliation = "KYOTO",
+            content = "Updated the regional output series with the revised 2025 deflators. The " +
+                "post-2021 divergence between the two prefectures is smaller than the earlier " +
+                "figures implied.",
+            citation = "Tanaka, K. (2026). Regional Output Under Revised Deflators. " +
+                "Journal of Applied Macroeconomics, 38(2).",
+            createdAt = minutes(3_300),
+            authorId = "u-tanaka",
+            fieldKey = "economics",
+            imageUrl = figure("economics"),
+            insightfulCount = 4,
+        ),
+        SavedPaper(
+            id = "p-7",
+            authorInitials = "NM",
+            authorName = "Dr. Nomsa Mbeki",
+            timeAgo = "",
+            affiliation = "CAPE TOWN",
+            content = "Looking for a collaborator with mass-spec capacity for a short follow-up. " +
+                "Happy to share the prep protocol either way -- it took us most of a year to " +
+                "get it stable.",
+            citation = "Mbeki, N. (2025). A Stable Preparation Protocol for Low-Yield Samples. " +
+                "Methods in Molecular Biology, 88(6).",
+            createdAt = minutes(4_800),
+            authorId = "u-mbeki",
+            fieldKey = "biology",
+        ),
+        SavedPaper(
+            id = "p-8",
+            authorInitials = "JD",
+            authorName = "Dr. Jane Doe",
+            timeAgo = "",
+            affiliation = "OXFORD",
+            content = "Teaching note: the corpus we use in the second-year seminar is now " +
+                "mirrored with the annotation layer included. Much easier to set exercises on.",
+            citation = "Doe, J. (2025). An Annotated Teaching Corpus. " +
+                "Folio Preprints, CC-771-QA.",
+            createdAt = minutes(7_200),
+            authorId = "u-me",
+            fieldKey = "linguistics",
+            imageUrl = figure("linguistics"),
+            citeWorthyCount = 2,
+        ),
     )
+}
+
+/**
+ * Bundled figure for a field, as an android.resource:// URI. Coil resolves that scheme natively,
+ * so seeded posts render with the network off -- which is exactly when a demo gets looked at.
+ * Remote URLs would show as blank boxes offline or on a 404.
+ *
+ * The allowlist is deliberate rather than string-interpolating any key straight into a path: an
+ * unknown field then yields no image, instead of a URI pointing at a drawable that does not exist.
+ */
+private fun figure(fieldKey: String): String? = when (fieldKey) {
+    "physics", "biology", "history", "linguistics", "cognitive", "economics" ->
+        "android.resource://${BuildConfig.APPLICATION_ID}/drawable/seed_$fieldKey"
+    else -> null
 }
