@@ -1,0 +1,6 @@
+{
+  "name": "Cite Circle",
+  "description": "An academic social platform for researchers and students, featuring publishing, citations, and communities.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
