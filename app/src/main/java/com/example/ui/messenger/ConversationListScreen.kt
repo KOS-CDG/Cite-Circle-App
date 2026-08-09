@@ -19,9 +19,11 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material3.Badge
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -47,6 +49,7 @@ import com.example.ui.theme.meta
 fun ConversationListScreen(
     viewModel: ConversationListViewModel,
     onOpenThread: (String) -> Unit,
+    onNewMessage: () -> Unit,
 ) {
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
     val activeNow by viewModel.activeNow.collectAsStateWithLifecycle()
@@ -57,75 +60,89 @@ fun ConversationListScreen(
             it.preview.contains(query, ignoreCase = true)
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-    ) {
-        SearchPill(
-            query = query,
-            onQueryChange = { query = it },
-            modifier = Modifier.padding(
-                horizontal = Spacing.screenHorizontal,
-                vertical = Spacing.sm,
-            ),
-        )
-
-        if (activeNow.isNotEmpty()) {
-            Text(
-                "ACTIVE NOW",
-                style = MaterialTheme.typography.eyebrow,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+        ) {
+            SearchPill(
+                query = query,
+                onQueryChange = { query = it },
                 modifier = Modifier.padding(
                     horizontal = Spacing.screenHorizontal,
-                    vertical = Spacing.xs,
+                    vertical = Spacing.sm,
                 ),
             )
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = Spacing.screenHorizontal),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                items(activeNow, key = { it.id }) { user ->
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Avatar(
-                            initials = user.initials,
-                            seed = user.id,
-                            size = Spacing.avatarLg,
-                            showPresence = true,
-                            isOnline = true,
-                            ring = true,
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.xs))
-                        Text(
-                            user.name.substringAfter(' ').substringBefore(' '),
-                            style = MaterialTheme.typography.meta,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                        )
+
+            if (activeNow.isNotEmpty()) {
+                Text(
+                    "ACTIVE NOW",
+                    style = MaterialTheme.typography.eyebrow,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(
+                        horizontal = Spacing.screenHorizontal,
+                        vertical = Spacing.xs,
+                    ),
+                )
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = Spacing.screenHorizontal),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                ) {
+                    items(activeNow, key = { it.id }) { user ->
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Avatar(
+                                initials = user.initials,
+                                seed = user.id,
+                                size = Spacing.avatarLg,
+                                showPresence = true,
+                                isOnline = true,
+                                ring = true,
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.xs))
+                            Text(
+                                user.name.substringAfter(' ').substringBefore(' '),
+                                style = MaterialTheme.typography.meta,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(Spacing.sm))
+            }
+
+            if (filtered.isEmpty()) {
+                EmptyState(
+                    title = "No conversations",
+                    message = if (query.isBlank()) {
+                        "Start a conversation from a researcher's profile."
+                    } else {
+                        "Nothing matches \"$query\"."
+                    },
+                    icon = Icons.Outlined.Forum,
+                )
+            } else {
+                LazyColumn(
+                    // Bottom padding clears the FAB so the last row is never trapped under it.
+                    contentPadding = PaddingValues(bottom = Spacing.xxxl + Spacing.xl),
+                ) {
+                    items(filtered, key = { it.id }) { row ->
+                        ConversationRow(row = row, onClick = { onOpenThread(row.id) })
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(Spacing.sm))
         }
 
-        if (filtered.isEmpty()) {
-            EmptyState(
-                title = "No conversations",
-                message = if (query.isBlank()) {
-                    "Start a conversation from a researcher's profile."
-                } else {
-                    "Nothing matches \"$query\"."
-                },
-                icon = Icons.Outlined.Forum,
-            )
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(bottom = Spacing.xxl),
-            ) {
-                items(filtered, key = { it.id }) { row ->
-                    ConversationRow(row = row, onClick = { onOpenThread(row.id) })
-                }
-            }
+        FloatingActionButton(
+            onClick = onNewMessage,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(Spacing.base),
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+        ) {
+            Icon(Icons.Filled.Edit, contentDescription = "New message")
         }
     }
 }

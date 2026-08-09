@@ -6,6 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -26,6 +27,7 @@ import com.example.ui.feed.FeedScreen
 import com.example.ui.library.LibraryScreen
 import com.example.ui.messenger.ConversationListScreen
 import com.example.ui.messenger.ConversationListViewModelFactory
+import com.example.ui.messenger.NewMessageScreen
 import com.example.ui.messenger.ThreadScreen
 import com.example.ui.messenger.ThreadViewModelFactory
 import com.example.ui.notifications.NotificationDetailScreen
@@ -35,10 +37,12 @@ import com.example.ui.notifications.NotificationsViewModelFactory
 import com.example.ui.people.PeopleViewModel
 import com.example.ui.people.PeopleViewModelFactory
 import com.example.ui.profile.ProfileScreen
+import kotlinx.coroutines.launch
 
 @Composable
 fun CiteCircleApp(viewModel: HomeViewModel) {
     val navController = rememberNavController()
+    val scope = rememberCoroutineScope()
     val application = LocalContext.current.applicationContext as MyApplication
     val messenger = application.messengerRepository
 
@@ -138,6 +142,23 @@ fun CiteCircleApp(viewModel: HomeViewModel) {
                         factory = ConversationListViewModelFactory(messenger),
                     ),
                     onOpenThread = { id -> navController.navigate(Routes.thread(id)) },
+                    onNewMessage = { navController.navigate(Routes.NEW_MESSAGE) },
+                )
+            }
+            composable(Routes.NEW_MESSAGE) {
+                NewMessageScreen(
+                    people = messenger.allUsers(),
+                    onBack = { navController.popBackStack() },
+                    onStart = { userIds ->
+                        scope.launch {
+                            val id = messenger.startConversation(userIds)
+                            navController.navigate(Routes.thread(id)) {
+                                // Drop the picker from the back stack so Back from the thread
+                                // returns to the conversation list, not to the picker.
+                                popUpTo(Routes.NEW_MESSAGE) { inclusive = true }
+                            }
+                        }
+                    },
                 )
             }
             // The app's first parameterized route.
