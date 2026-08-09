@@ -41,9 +41,13 @@ fun FeedScreen(
     viewModel: HomeViewModel,
     onOpenComposer: () -> Unit,
 ) {
-    val papers by viewModel.savedPapers.collectAsStateWithLifecycle()
+    val papersState by viewModel.savedPapers.collectAsStateWithLifecycle()
     var openComments by remember { mutableStateOf<String?>(null) }
     val shimmer = rememberShimmerBrush()
+
+    // Captured into a plain local because a delegated property has a custom getter and so cannot
+    // be smart-cast: the null check below would not narrow the type of `papersState` itself.
+    val papers = papersState
 
     openComments?.let { postId ->
         CommentSheet(
