@@ -31,6 +31,7 @@ private val tabs = listOf("Fields", "People")
 fun DiscoverScreen(
     peopleViewModel: PeopleViewModel,
     onOpenThread: (String) -> Unit,
+    onOpenProfile: (String) -> Unit,
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -60,6 +61,7 @@ fun DiscoverScreen(
                 onMessage = { userId ->
                     peopleViewModel.openConversation(userId, onOpenThread)
                 },
+                onOpenProfile = onOpenProfile,
                 modifier = Modifier.weight(1f),
             )
         }

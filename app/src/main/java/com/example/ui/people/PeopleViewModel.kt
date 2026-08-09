@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.messenger.MessengerRepository
 import com.example.data.people.PeopleRepository
 import com.example.data.people.Person
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -21,6 +22,8 @@ class PeopleViewModel(
 
     val suggested: StateFlow<List<Person>> = repository.observeSuggested()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun observePerson(userId: String): Flow<Person?> = repository.observePerson(userId)
 
     fun connect(userId: String) = repository.connect(userId)
 

@@ -2,6 +2,7 @@ package com.example.ui.people
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,6 +53,7 @@ import com.example.ui.theme.numeric
 fun PeopleScreen(
     viewModel: PeopleViewModel,
     onMessage: (userId: String) -> Unit,
+    onOpenProfile: (userId: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val people by viewModel.people.collectAsStateWithLifecycle()
@@ -85,6 +87,7 @@ fun PeopleScreen(
                         SuggestedPersonCard(
                             person = person,
                             onConnect = { viewModel.connect(person.user.id) },
+                            onClick = { onOpenProfile(person.user.id) },
                         )
                     }
                 }
@@ -109,6 +112,7 @@ fun PeopleScreen(
                 onConnect = { viewModel.connect(person.user.id) },
                 onDisconnect = { viewModel.disconnect(person.user.id) },
                 onMessage = { onMessage(person.user.id) },
+                onClick = { onOpenProfile(person.user.id) },
             )
         }
     }
@@ -122,9 +126,12 @@ fun PeopleScreen(
 private fun SuggestedPersonCard(
     person: Person,
     onConnect: () -> Unit,
+    onClick: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.width(180.dp),
+        modifier = Modifier
+            .width(180.dp)
+            .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         ),
@@ -191,10 +198,12 @@ private fun PersonRow(
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
     onMessage: () -> Unit,
+    onClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
 
             .padding(
                 horizontal = Spacing.screenHorizontal,

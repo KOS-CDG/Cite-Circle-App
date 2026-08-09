@@ -131,10 +131,30 @@ fun CiteCircleApp(viewModel: HomeViewModel) {
                 DiscoverScreen(
                     peopleViewModel = peopleViewModel,
                     onOpenThread = { id -> navController.navigate(Routes.thread(id)) },
+                    onOpenProfile = { id -> navController.navigate(Routes.person(id)) },
                 )
             }
             composable(Routes.LIBRARY) { LibraryScreen() }
-            composable(Routes.PROFILE) { ProfileScreen(viewModel) }
+            composable(Routes.PROFILE) {
+                ProfileScreen(
+                    viewModel = viewModel,
+                    peopleViewModel = peopleViewModel,
+                    onMessage = { id -> navController.navigate(Routes.thread(id)) },
+                )
+            }
+            composable(
+                route = Routes.PERSON,
+                arguments = listOf(
+                    navArgument(Routes.PROFILE_ARG) { type = NavType.StringType },
+                ),
+            ) { entry ->
+                ProfileScreen(
+                    viewModel = viewModel,
+                    peopleViewModel = peopleViewModel,
+                    userId = entry.arguments?.getString(Routes.PROFILE_ARG).orEmpty(),
+                    onMessage = { id -> navController.navigate(Routes.thread(id)) },
+                )
+            }
 
             composable(Routes.MESSAGES) {
                 ConversationListScreen(

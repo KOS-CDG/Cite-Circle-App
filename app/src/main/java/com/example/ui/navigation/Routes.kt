@@ -15,6 +15,10 @@ object Routes {
     const val DISCOVER = "discover"
     const val LIBRARY = "library"
     const val PROFILE = "profile"
+    const val PROFILE_ARG = "userId"
+    const val PERSON = "people/{userId}"
+
+    fun person(userId: String) = "people/$userId"
 
     /** The Gemini AI assistant. Not messaging -- see the messenger routes below. */
     const val ASSISTANT = "assistant"
@@ -35,5 +39,5 @@ object Routes {
     fun thread(conversationId: String) = "messages/thread/$conversationId"
 
     /** Destinations that hide the app chrome (top bar and bottom bar). */
-    val chromeless = setOf(AUTH, ASSISTANT, NOTIFICATION_DETAIL, THREAD, NEW_MESSAGE, COMPOSER)
+    val chromeless = setOf(AUTH, ASSISTANT, NOTIFICATION_DETAIL, THREAD, NEW_MESSAGE, COMPOSER, PERSON)
 }
