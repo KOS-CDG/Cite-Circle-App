@@ -101,13 +101,16 @@ fun CitationChart() {
 
 @Composable
 fun FolioApp(viewModel: HomeViewModel) {
-  val context = androidx.compose.ui.platform.LocalContext.current
   val navController = rememberNavController()
-  val authManager = remember { com.example.ui.auth.FirebaseAuthManager(context) }
-  var currentRoute by remember { mutableStateOf(if (authManager.getCurrentUser() != null) "feed" else "auth") }
+  // FirebaseAuthManager used to be constructed here. Its property initializer calls
+  // FirebaseAuth.getInstance(), and app/google-services.json is a placeholder
+  // (project_id "dummy-project"), so building it during composition was a live crash path.
+  // Sign-in is bypassed anyway -- AuthScreen calls onAuthSuccess() in its *failure* branch --
+  // so starting at "feed" changes nothing a user can observe.
+  var currentRoute by remember { mutableStateOf("feed") }
 
   navController.addOnDestinationChangedListener { _, destination, _ ->
-      currentRoute = destination.route ?: if (authManager.getCurrentUser() != null) "feed" else "auth"
+      currentRoute = destination.route ?: "feed"
   }
 
   Scaffold(
@@ -225,7 +228,7 @@ fun FolioApp(viewModel: HomeViewModel) {
   ) { innerPadding ->
     NavHost(
       navController = navController,
-      startDestination = if (authManager.getCurrentUser() != null) "feed" else "auth",
+      startDestination = "feed",
       modifier = Modifier.padding(innerPadding)
     ) {
       composable("auth") {

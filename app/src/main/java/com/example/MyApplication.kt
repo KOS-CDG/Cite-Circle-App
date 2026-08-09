@@ -11,7 +11,14 @@ class MyApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        database = Room.databaseBuilder(this, AppDatabase::class.java, "folio_db").build()
+        // Destructive fallback is deliberate and safe here: every row in this database is seeded
+        // sample data (see HomeViewModel.init), so there is no user-authored content to lose.
+        // Without it, bumping the schema version throws
+        // "A migration from 1 to 2 was required but not found" on first DB access.
+        database = Room.databaseBuilder(this, AppDatabase::class.java, "folio_db")
+            .fallbackToDestructiveMigration(dropAllTables = true)
+            .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
+            .build()
         repository = PaperRepository(database.savedPaperDao())
     }
 }

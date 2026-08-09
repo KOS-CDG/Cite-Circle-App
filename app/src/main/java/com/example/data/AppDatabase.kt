@@ -37,7 +37,18 @@ interface SavedPaperDao {
     suspend fun updateEndorsement(id: String, endorsed: Boolean)
 }
 
-@Database(entities = [SavedPaper::class], version = 1, exportSchema = false)
+/**
+ * exportSchema is intentionally `true`, and the version is intentionally still 1.
+ *
+ * Room can only generate an `@AutoMigration(from = 1, to = 2)` if the exported JSON schema for
+ * BOTH endpoints exists on disk. This project shipped with `exportSchema = false`, so no v1 JSON
+ * was ever written -- and it cannot be produced retroactively once the version moves past 1.
+ *
+ * So: build once at version 1 with this flag on, and commit the generated
+ * `app/schemas/com.example.data.AppDatabase/1.json`. Every later schema change is then a
+ * one-line annotation instead of hand-written SQL that has to match Room's internal schema hash.
+ */
+@Database(entities = [SavedPaper::class], version = 1, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun savedPaperDao(): SavedPaperDao
 }
