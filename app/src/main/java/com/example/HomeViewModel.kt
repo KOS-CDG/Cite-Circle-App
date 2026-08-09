@@ -35,11 +35,18 @@ class HomeViewModel(
         viewModelScope.launch { settingsStore.setThemeMode(mode) }
     }
 
-    val savedPapers: StateFlow<List<SavedPaper>> = repository.allPapers
+    /**
+     * null means "Room has not answered yet", which is different from "there are no posts". The
+     * initial value used to be emptyList(), so the feed rendered its empty state for a frame on
+     * every cold start -- you saw "Nothing here yet" flash before the seeded posts arrived. The
+     * screens now show loading placeholders for null and the empty state only for a real empty
+     * list.
+     */
+    val savedPapers: StateFlow<List<SavedPaper>?> = repository.allPapers
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
+            initialValue = null
         )
 
     init {

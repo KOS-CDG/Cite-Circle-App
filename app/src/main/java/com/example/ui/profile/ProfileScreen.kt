@@ -48,6 +48,7 @@ import com.example.data.prefs.ThemeMode
 import com.example.ui.components.Avatar
 import com.example.ui.components.CitationChart
 import com.example.ui.components.PostCard
+import com.example.ui.navigation.avatarSharedKey
 import com.example.ui.people.PeopleViewModel
 import com.example.ui.theme.Gradients
 import com.example.ui.theme.Spacing
@@ -83,11 +84,13 @@ fun ProfileScreen(
 
     val current = person ?: return
 
-    // Own profile shows the user's own posts; someone else's shows theirs.
+    // Own profile shows the user's own posts; someone else's shows theirs. A null papers list
+    // means Room has not answered yet, which for this screen is the same as having nothing to
+    // show -- the profile header above carries the screen while it settles.
     val visiblePapers = if (isSelf) {
-        papers.filter { it.authorId == CURRENT_USER_ID || it.authorId.isEmpty() }
+        papers.orEmpty().filter { it.authorId == CURRENT_USER_ID || it.authorId.isEmpty() }
     } else {
-        papers.filter { it.authorId == userId }
+        papers.orEmpty().filter { it.authorId == userId }
     }
 
     LazyColumn(
@@ -218,6 +221,8 @@ private fun ProfileHeader(
                     size = Spacing.avatarXl,
                     showPresence = true,
                     isOnline = person.user.isOnline,
+                    // Receiving end of the transition from a person row in Discover.
+                    sharedKey = avatarSharedKey(person.user.id),
                 )
             }
 

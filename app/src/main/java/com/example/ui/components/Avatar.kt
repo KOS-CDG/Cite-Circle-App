@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -15,6 +16,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.ui.navigation.LocalNavAnimatedScope
+import com.example.ui.navigation.LocalSharedTransitionScope
 import com.example.ui.theme.Gradients
 import com.example.ui.theme.PresenceOnline
 import com.example.ui.theme.Spacing
@@ -27,6 +30,7 @@ import com.example.ui.theme.Spacing
  * person is always the same colour and a list of people looks varied without any image assets.
  */
 @Composable
+@OptIn(ExperimentalSharedTransitionApi::class)
 fun Avatar(
     initials: String,
     seed: String,
@@ -35,8 +39,24 @@ fun Avatar(
     showPresence: Boolean = false,
     isOnline: Boolean = false,
     ring: Boolean = false,
+    sharedKey: String? = null,
 ) {
-    Box(modifier = modifier.size(size)) {
+    // Opt-in and null-safe: outside a NavHost both scopes are absent and this is a plain avatar,
+    // which is what keeps the screenshot tests composable.
+    val sharedScope = LocalSharedTransitionScope.current
+    val animatedScope = LocalNavAnimatedScope.current
+    val sharedModifier = if (sharedKey != null && sharedScope != null && animatedScope != null) {
+        with(sharedScope) {
+            Modifier.sharedElement(
+                state = rememberSharedContentState(key = sharedKey),
+                animatedVisibilityScope = animatedScope,
+            )
+        }
+    } else {
+        Modifier
+    }
+
+    Box(modifier = modifier.then(sharedModifier).size(size)) {
         Box(
             modifier = Modifier
                 .size(size)

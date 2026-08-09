@@ -42,6 +42,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.people.ConnectionState
 import com.example.data.people.Person
 import com.example.ui.components.Avatar
+import com.example.ui.navigation.avatarSharedKey
 import com.example.ui.theme.Gradients
 import com.example.ui.theme.Spacing
 import com.example.ui.theme.accent
@@ -217,6 +218,8 @@ private fun PersonRow(
             size = Spacing.avatarLg,
             showPresence = true,
             isOnline = person.user.isOnline,
+            // Flies to the large avatar on that person's profile.
+            sharedKey = avatarSharedKey(person.user.id),
         )
         Spacer(modifier = Modifier.width(Spacing.md))
         Column(modifier = Modifier.weight(1f)) {

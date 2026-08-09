@@ -1,10 +1,13 @@
 package com.example.ui.navigation
 
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -39,6 +42,7 @@ import com.example.ui.people.PeopleViewModelFactory
 import com.example.ui.profile.ProfileScreen
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun CiteCircleApp(viewModel: HomeViewModel) {
     val navController = rememberNavController()
@@ -100,10 +104,13 @@ fun CiteCircleApp(viewModel: HomeViewModel) {
             }
         },
     ) { innerPadding ->
+        // SharedTransitionLayout has to sit outside the NavHost: it is the common parent that both
+        // the person row and the profile are drawn inside, and a shared element cannot cross it.
+        SharedTransitionLayout(modifier = Modifier.padding(innerPadding)) {
+        CompositionLocalProvider(LocalSharedTransitionScope provides this) {
         NavHost(
             navController = navController,
             startDestination = Routes.FEED,
-            modifier = Modifier.padding(innerPadding),
         ) {
             // Not the start destination and nothing navigates here today -- sign-in is bypassed
             // (AuthScreen calls onAuthSuccess() in its failure branch) and google-services.json
@@ -128,11 +135,15 @@ fun CiteCircleApp(viewModel: HomeViewModel) {
                 ComposerScreen(viewModel = viewModel, onClose = { navController.popBackStack() })
             }
             composable(Routes.DISCOVER) {
-                DiscoverScreen(
-                    peopleViewModel = peopleViewModel,
-                    onOpenThread = { id -> navController.navigate(Routes.thread(id)) },
-                    onOpenProfile = { id -> navController.navigate(Routes.person(id)) },
-                )
+                // The AnimatedContentScope is per-destination, so it is provided here rather than
+                // once around the NavHost.
+                CompositionLocalProvider(LocalNavAnimatedScope provides this) {
+                    DiscoverScreen(
+                        peopleViewModel = peopleViewModel,
+                        onOpenThread = { id -> navController.navigate(Routes.thread(id)) },
+                        onOpenProfile = { id -> navController.navigate(Routes.person(id)) },
+                    )
+                }
             }
             composable(Routes.LIBRARY) { LibraryScreen() }
             composable(Routes.PROFILE) {
@@ -148,12 +159,14 @@ fun CiteCircleApp(viewModel: HomeViewModel) {
                     navArgument(Routes.PROFILE_ARG) { type = NavType.StringType },
                 ),
             ) { entry ->
-                ProfileScreen(
-                    viewModel = viewModel,
-                    peopleViewModel = peopleViewModel,
-                    userId = entry.arguments?.getString(Routes.PROFILE_ARG).orEmpty(),
-                    onMessage = { id -> navController.navigate(Routes.thread(id)) },
-                )
+                CompositionLocalProvider(LocalNavAnimatedScope provides this) {
+                    ProfileScreen(
+                        viewModel = viewModel,
+                        peopleViewModel = peopleViewModel,
+                        userId = entry.arguments?.getString(Routes.PROFILE_ARG).orEmpty(),
+                        onMessage = { id -> navController.navigate(Routes.thread(id)) },
+                    )
+                }
             }
 
             composable(Routes.MESSAGES) {
@@ -230,6 +243,11 @@ fun CiteCircleApp(viewModel: HomeViewModel) {
                     },
                 )
             }
+        }
+        // Closes CompositionLocalProvider and SharedTransitionLayout. Their bodies are left at the
+        // NavHost's original indentation on purpose -- re-indenting 140 lines to add two wrappers
+        // would bury the actual change in whitespace.
+        }
         }
     }
 }

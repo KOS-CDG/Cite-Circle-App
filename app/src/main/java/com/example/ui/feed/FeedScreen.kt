@@ -32,6 +32,8 @@ import com.example.HomeViewModel
 import com.example.ui.components.Avatar
 import com.example.ui.components.EmptyState
 import com.example.ui.components.PostCard
+import com.example.ui.components.PostCardSkeleton
+import com.example.ui.components.rememberShimmerBrush
 import com.example.ui.theme.Spacing
 
 @Composable
@@ -41,6 +43,7 @@ fun FeedScreen(
 ) {
     val papers by viewModel.savedPapers.collectAsStateWithLifecycle()
     var openComments by remember { mutableStateOf<String?>(null) }
+    val shimmer = rememberShimmerBrush()
 
     openComments?.let { postId ->
         CommentSheet(
@@ -64,28 +67,40 @@ fun FeedScreen(
             ComposerRow(onClick = onOpenComposer)
         }
 
-        if (papers.isEmpty()) {
-            item(key = "empty") {
-                // The feed previously had no empty state at all -- it rendered a blank column.
-                EmptyState(
-                    title = "Nothing here yet",
-                    message = "Posts from researchers you follow will appear here.",
-                    icon = Icons.AutoMirrored.Outlined.Article,
-                )
+        when {
+            // Still waiting on Room. Placeholders rather than the empty state, which used to
+            // flash for a frame on every cold start.
+            papers == null -> {
+                items(3, key = { "skeleton-$it" }) { index ->
+                    PostCardSkeleton(brush = shimmer, withImage = index == 1)
+                }
             }
-        }
 
-        items(papers, key = { it.id }) { paper ->
-            PostCard(
-                paper = paper,
-                onReact = { reaction ->
-                    viewModel.setReaction(paper.id, reaction.key, paper.myReaction)
-                },
-                onComment = { openComments = paper.id },
-                // animateItem (not the removed animateItemPlacement) so a newly composed post
-                // slides its neighbours down rather than making them jump.
-                modifier = Modifier.animateItem(),
-            )
+            papers.isEmpty() -> {
+                item(key = "empty") {
+                    // The feed previously had no empty state at all -- it rendered a blank column.
+                    EmptyState(
+                        title = "Nothing here yet",
+                        message = "Posts from researchers you follow will appear here.",
+                        icon = Icons.AutoMirrored.Outlined.Article,
+                    )
+                }
+            }
+
+            else -> {
+                items(papers, key = { it.id }) { paper ->
+                    PostCard(
+                        paper = paper,
+                        onReact = { reaction ->
+                            viewModel.setReaction(paper.id, reaction.key, paper.myReaction)
+                        },
+                        onComment = { openComments = paper.id },
+                        // animateItem (not the removed animateItemPlacement) so a newly composed
+                        // post slides its neighbours down rather than making them jump.
+                        modifier = Modifier.animateItem(),
+                    )
+                }
+            }
         }
     }
 }
