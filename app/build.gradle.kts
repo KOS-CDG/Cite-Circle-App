@@ -32,12 +32,6 @@ android {
       keyAlias = "upload"
       keyPassword = System.getenv("KEY_PASSWORD")
     }
-    create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
-    }
   }
 
   buildTypes {
@@ -47,7 +41,11 @@ android {
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
-    debug { signingConfig = signingConfigs.getByName("debugConfig") }
+    // Signed with the standard auto-generated Android debug keystore
+    // (~/.android/debug.keystore), which every Android Studio / SDK install
+    // creates on first use. This keeps `assembleDebug` working from a fresh
+    // clone without checking a keystore into the repository.
+    debug {}
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
