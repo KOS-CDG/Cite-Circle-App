@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # No Gradle wrapper is checked in, so the action installs Gradle itself.
+      # Tracking the current release rather than a pin, because the Gradle version
+      # AGP requires moves with AGP.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: current
+
+      # app/build.gradle.kts signs the debug variant with $rootDir/debug.keystore,
+      # which is gitignored and therefore absent on a fresh clone. README.md tells
+      # humans to delete that signingConfig line locally; CI generates the keystore
+      # instead so the committed build config is exercised as written.
+      - name: Generate debug keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore debug.keystore \
+            -storepass android \
+            -keypass android \
+            -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Assemble debug
+        run: gradle :app:assembleDebug --console=plain --stacktrace
+
+      # Records Roborazzi screenshots so they upload as artifacts and can be
+      # eyeballed on the PR; reference images are not committed.
+      - name: Unit tests
+        run: gradle :app:testDebugUnitTest -Proborazzi.test.record=true --console=plain --stacktrace
+
+      # Informational: lint currently reports pre-existing issues, so it should not
+      # gate the build until that backlog is dealt with.
+      - name: Lint
+        continue-on-error: true
+        run: gradle :app:lint --console=plain
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-reports
+          path: |
+            app/build/reports/
+            app/src/test/screenshots/
+          if-no-files-found: ignore
+          retention-days: 14
