@@ -22,8 +22,8 @@ View your app in AI Studio: https://ai.studio/apps/d8379e77-32a4-4a3e-b0eb-a0fd0
   AI chat screen needs it
 
 The Gradle wrapper is checked in, so you do not need Gradle installed. It pins
-Gradle 9.1.0 to match the Android Gradle Plugin version in
-`gradle/libs.versions.toml`.
+Gradle 9.3.1, the minimum the Android Gradle Plugin 9.1.1 in
+`gradle/libs.versions.toml` will accept.
 
 ## Install on your phone
 
