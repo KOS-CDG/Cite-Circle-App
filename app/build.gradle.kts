@@ -8,6 +8,7 @@ plugins {
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.secrets)
   alias(libs.plugins.google.services)
+  alias(libs.plugins.kover)
 }
 
 android {
@@ -74,6 +75,27 @@ secrets {
 
 googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
 
+// Coverage reporting. No `verify` threshold is configured yet -- establish a baseline from the
+// first CI run, then gate on it in a follow-up change.
+kover {
+  reports {
+    filters {
+      excludes {
+        // Generated code: Room DAO/database implementations, BuildConfig, Compose lambda holders.
+        classes(
+          "*_Impl",
+          "*_Impl\$*",
+          "com.example.BuildConfig",
+          "*ComposableSingletons*",
+          "*\$\$serializer",
+        )
+        // Pure styling declarations with no branching worth covering.
+        packages("com.example.ui.theme")
+      }
+    }
+  }
+}
+
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.
 dependencies {
@@ -127,9 +149,12 @@ dependencies {
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)
+  testImplementation(libs.androidx.room.testing)
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
+  testImplementation(libs.mockwebserver)
   testImplementation(libs.robolectric)
+  testImplementation(libs.turbine)
   testImplementation(libs.roborazzi)
   testImplementation(libs.roborazzi.compose)
   testImplementation(libs.roborazzi.junit.rule)

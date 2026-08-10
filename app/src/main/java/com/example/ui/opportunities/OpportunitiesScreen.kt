@@ -38,17 +38,19 @@ val sampleOpportunities = listOf(
     Opportunity("3", "Call for Papers", "Special Issue: Entropy in Distributed Systems", "Journal of Archival Science", "Submission: Dec 10, 2026", "We invite papers exploring localized data cluster architectures.")
 )
 
+val opportunityFilters = listOf("All", "Grant", "Academic Job", "Call for Papers")
+
+/** Narrows [opportunities] to [filter], where "All" means no filtering. */
+fun filterOpportunities(opportunities: List<Opportunity>, filter: String): List<Opportunity> =
+    if (filter == "All") opportunities else opportunities.filter { it.type == filter }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OpportunitiesScreen() {
     var selectedFilter by remember { mutableStateOf("All") }
-    val filters = listOf("All", "Grant", "Academic Job", "Call for Papers")
-    
-    val filteredOpportunities = if (selectedFilter == "All") {
-        sampleOpportunities
-    } else {
-        sampleOpportunities.filter { it.type == selectedFilter }
-    }
+    val filters = opportunityFilters
+
+    val filteredOpportunities = filterOpportunities(sampleOpportunities, selectedFilter)
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // Filter bar

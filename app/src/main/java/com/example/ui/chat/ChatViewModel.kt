@@ -26,7 +26,10 @@ data class ChatMessage(
     val isLoading: Boolean = false
 )
 
-class ChatViewModel : ViewModel() {
+class ChatViewModel(
+    private val service: GeminiApiService = RetrofitClient.service,
+    private val apiKey: String = BuildConfig.GEMINI_API_KEY,
+) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
@@ -55,8 +58,6 @@ class ChatViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
-                val apiKey = BuildConfig.GEMINI_API_KEY
-                
                 val tools = if (useSearchGrounding) {
                     listOf(Tool(googleSearch = JsonObject(emptyMap())))
                 } else null
@@ -67,7 +68,7 @@ class ChatViewModel : ViewModel() {
                     tools = tools
                 )
 
-                val response = RetrofitClient.service.generateContent(currentModel, apiKey, request)
+                val response = service.generateContent(currentModel, apiKey, request)
                 val responseText = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No response text"
                 
                 conversationHistory.add(Content(role = "model", parts = listOf(Part(text = responseText))))

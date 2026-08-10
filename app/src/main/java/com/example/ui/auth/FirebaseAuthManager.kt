@@ -13,11 +13,19 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.example.R
 import kotlinx.coroutines.tasks.await
 
-class FirebaseAuthManager(private val context: Context) {
+/**
+ * The one operation [AuthScreen] needs. Split out so the screen can be tested without an
+ * initialized FirebaseApp or a real Credential Manager.
+ */
+interface GoogleSignIn {
+    suspend fun signInWithGoogle(): Boolean
+}
+
+class FirebaseAuthManager(private val context: Context) : GoogleSignIn {
     private val auth = FirebaseAuth.getInstance()
     private val credentialManager = CredentialManager.create(context)
 
-    suspend fun signInWithGoogle(): Boolean {
+    override suspend fun signInWithGoogle(): Boolean {
         try {
             val webClientId = context.getString(R.string.default_web_client_id)
             if (webClientId == "YOUR_WEB_CLIENT_ID") {

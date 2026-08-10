@@ -90,13 +90,20 @@ object RetrofitClient {
         .writeTimeout(60, TimeUnit.SECONDS)
         .build()
 
-    val service: GeminiApiService by lazy {
-        val json = Json { ignoreUnknownKeys = true }
-        val retrofit = Retrofit.Builder()
-            .baseUrl(BASE_URL)
+    val json = Json { ignoreUnknownKeys = true }
+
+    /**
+     * Builds a service against [baseUrl]. Exposed so tests can point the *real* Retrofit and
+     * converter configuration at a local mock server, rather than re-declaring it and testing
+     * a copy of the setup instead of the shipping one.
+     */
+    fun create(baseUrl: String = BASE_URL): GeminiApiService =
+        Retrofit.Builder()
+            .baseUrl(baseUrl)
             .client(okHttpClient)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
-        retrofit.create(GeminiApiService::class.java)
-    }
+            .create(GeminiApiService::class.java)
+
+    val service: GeminiApiService by lazy { create() }
 }

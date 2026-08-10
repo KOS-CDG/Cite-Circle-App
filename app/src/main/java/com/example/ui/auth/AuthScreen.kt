@@ -14,9 +14,9 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
 @Composable
-fun AuthScreen(onAuthSuccess: () -> Unit) {
+fun AuthScreen(onAuthSuccess: () -> Unit, signIn: GoogleSignIn? = null) {
     val context = LocalContext.current
-    val authManager = remember { FirebaseAuthManager(context) }
+    val authManager = signIn ?: remember { FirebaseAuthManager(context) }
     val scope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(false) }
 

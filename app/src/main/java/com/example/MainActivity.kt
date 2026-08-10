@@ -341,6 +341,19 @@ fun PostCard(paper: com.example.data.SavedPaper, viewModel: HomeViewModel) {
   }
 }
 
+/**
+ * Renders an APA-formatted [citation] in the requested [format] ("APA", "MLA" or "CHICAGO").
+ *
+ * Known limitation: the MLA and CHICAGO conversions only recognise the literal year 2026, so a
+ * citation from any other year is returned unchanged and renders as APA under an MLA/Chicago
+ * label. See the ignored test in CitationFormatTest for the intended behaviour.
+ */
+fun formatCitation(citation: String, format: String): String = when (format) {
+  "MLA" -> citation.replace(" (2026). ", ". ")
+  "CHICAGO" -> citation.replace(" (2026).", ", 2026.")
+  else -> citation
+}
+
 @Composable
 fun CitationBlock(citation: String) {
   var format by remember { mutableStateOf("APA") }
@@ -373,11 +386,7 @@ fun CitationBlock(citation: String) {
       }
       Spacer(modifier = Modifier.height(12.dp))
       
-      val displayCitation = when (format) {
-          "MLA" -> citation.replace(" (2026). ", ". ") 
-          "CHICAGO" -> citation.replace(" (2026).", ", 2026.") 
-          else -> citation
-      }
+      val displayCitation = formatCitation(citation, format)
       Text(displayCitation, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, lineHeight = 20.sp), color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f))
       
       Spacer(modifier = Modifier.height(16.dp))

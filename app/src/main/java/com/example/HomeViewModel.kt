@@ -3,6 +3,8 @@ package com.example
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.data.FirestoreRepository
+import com.example.data.PaperCloudSync
 import com.example.data.PaperRepository
 import com.example.data.SavedPaper
 import kotlinx.coroutines.flow.SharingStarted
@@ -16,7 +18,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-class HomeViewModel(private val repository: PaperRepository) : ViewModel() {
+class HomeViewModel(
+    private val repository: PaperRepository,
+    private val cloudSync: PaperCloudSync,
+) : ViewModel() {
     private val _isDarkMode = MutableStateFlow(false)
     val isDarkMode: StateFlow<Boolean> = _isDarkMode.asStateFlow()
 
@@ -51,14 +56,14 @@ class HomeViewModel(private val repository: PaperRepository) : ViewModel() {
         }
     }
 
-    private val firestoreRepo = com.example.data.FirestoreRepository()
-
     fun savePaper(paper: SavedPaper) {
         viewModelScope.launch {
             repository.savePaper(paper)
-            // Sync all papers to cloud (in a real app this might be more targeted)
+            // Sync all papers to cloud (in a real app this might be more targeted).
+            // `allPapers` is read after the insert, so it already contains `paper` -- appending it
+            // again would sync a duplicate.
             repository.allPapers.take(1).collect { papers ->
-                firestoreRepo.syncPapersToCloud(papers + paper)
+                cloudSync.syncPapersToCloud(papers)
             }
         }
     }
@@ -76,11 +81,14 @@ class HomeViewModel(private val repository: PaperRepository) : ViewModel() {
     }
 }
 
-class HomeViewModelFactory(private val repository: PaperRepository) : ViewModelProvider.Factory {
+class HomeViewModelFactory(
+    private val repository: PaperRepository,
+    private val cloudSync: PaperCloudSync = FirestoreRepository(),
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(HomeViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return HomeViewModel(repository) as T
+            return HomeViewModel(repository, cloudSync) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
