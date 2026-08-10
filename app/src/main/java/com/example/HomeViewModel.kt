@@ -9,11 +9,13 @@ import com.example.data.Comment
 import com.example.data.ImageStore
 import com.example.data.PaperRepository
 import com.example.data.SavedPaper
+import com.example.data.VenueCount
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.take
@@ -34,6 +36,29 @@ data class ListState<T>(
 ) {
     /** True only once loading has finished and there is still nothing to show. */
     val isEmpty: Boolean get() = !isLoading && items.isEmpty()
+}
+
+/**
+ * One entry in the activity feed.
+ *
+ * Derived from what is actually in the database — replies and quote posts — rather than
+ * pushed by a server. The screen this backs previously rendered two fixed cards about a
+ * fictional Dr. Julian Thorne.
+ */
+sealed interface ActivityItem {
+    val timestamp: Long
+    /** The post to open when this entry is tapped. */
+    val targetPaperId: String
+
+    data class Replied(val comment: Comment, val paperTitle: String) : ActivityItem {
+        override val timestamp: Long get() = comment.createdAt
+        override val targetPaperId: String get() = comment.paperId
+    }
+
+    data class Cited(val quote: SavedPaper) : ActivityItem {
+        override val timestamp: Long get() = quote.publishedAt
+        override val targetPaperId: String get() = quote.id
+    }
 }
 
 /**
@@ -80,6 +105,39 @@ class HomeViewModel(
 
     fun comments(paperId: String): Flow<ListState<Comment>> =
         repository.comments(paperId).map { ListState(items = it, isLoading = false) }
+
+    /**
+     * Replies and quote posts, interleaved newest-first.
+     *
+     * Titles are resolved against the library rather than joined in SQL, because a reply on a
+     * post that has since been withdrawn should still render — it just loses its title.
+     */
+    val activity: StateFlow<ListState<ActivityItem>> = combine(
+        repository.recentComments,
+        repository.recentQuotes,
+        repository.allPapers
+    ) { comments, quotes, papers ->
+        val titles = papers.associate { it.id to it.title.ifBlank { it.content } }
+        val items = comments.map { ActivityItem.Replied(it, titles[it.paperId].orEmpty()) } +
+            quotes.map { ActivityItem.Cited(it) }
+        ListState(items = items.sortedByDescending { it.timestamp }, isLoading = false)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = ListState()
+    )
+
+    /** Venues that actually appear in the library, most-published first. */
+    val venues: StateFlow<ListState<VenueCount>> = repository.venueCounts
+        .map { ListState(items = it, isLoading = false) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = ListState()
+        )
+
+    fun papersInVenue(venue: String): Flow<ListState<SavedPaper>> =
+        repository.papersInVenue(venue).map { ListState(items = it, isLoading = false) }
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()

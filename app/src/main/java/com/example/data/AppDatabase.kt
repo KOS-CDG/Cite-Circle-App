@@ -83,6 +83,9 @@ data class Comment(
     val createdAt: Long
 )
 
+/** One row of the Discover tab: a venue that actually appears in the library, and how often. */
+data class VenueCount(val name: String, val count: Int)
+
 @Dao
 interface SavedPaperDao {
     @Query("SELECT * FROM saved_papers ORDER BY publishedAt DESC")
@@ -90,6 +93,19 @@ interface SavedPaperDao {
 
     @Query("SELECT * FROM saved_papers WHERE isBookmarked = 1 ORDER BY publishedAt DESC")
     fun getBookmarkedPapers(): Flow<List<SavedPaper>>
+
+    /** Quote posts, newest first — one half of the activity feed. */
+    @Query("SELECT * FROM saved_papers WHERE quotedId != '' ORDER BY publishedAt DESC LIMIT 50")
+    fun getRecentQuotes(): Flow<List<SavedPaper>>
+
+    @Query(
+        "SELECT venue AS name, COUNT(*) AS count FROM saved_papers " +
+            "WHERE venue != '' GROUP BY venue ORDER BY count DESC, name ASC"
+    )
+    fun getVenueCounts(): Flow<List<VenueCount>>
+
+    @Query("SELECT * FROM saved_papers WHERE venue = :venue ORDER BY publishedAt DESC")
+    fun getPapersInVenue(venue: String): Flow<List<SavedPaper>>
 
     @Query("SELECT * FROM saved_papers WHERE id = :id")
     fun getPaper(id: String): Flow<SavedPaper?>
@@ -123,6 +139,10 @@ interface SavedPaperDao {
 interface CommentDao {
     @Query("SELECT * FROM comments WHERE paperId = :paperId ORDER BY createdAt ASC")
     fun commentsFor(paperId: String): Flow<List<Comment>>
+
+    /** Replies across every post, newest first — the other half of the activity feed. */
+    @Query("SELECT * FROM comments ORDER BY createdAt DESC LIMIT 50")
+    fun recentComments(): Flow<List<Comment>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(comment: Comment)
@@ -243,8 +263,13 @@ class PaperRepository(private val database: AppDatabase) {
 
     val allPapers: Flow<List<SavedPaper>> = dao.getAllPapers()
     val bookmarkedPapers: Flow<List<SavedPaper>> = dao.getBookmarkedPapers()
+    val recentQuotes: Flow<List<SavedPaper>> = dao.getRecentQuotes()
+    val recentComments: Flow<List<Comment>> = commentDao.recentComments()
+    val venueCounts: Flow<List<VenueCount>> = dao.getVenueCounts()
 
     fun paper(id: String): Flow<SavedPaper?> = dao.getPaper(id)
+
+    fun papersInVenue(venue: String): Flow<List<SavedPaper>> = dao.getPapersInVenue(venue)
 
     fun comments(paperId: String): Flow<List<Comment>> = commentDao.commentsFor(paperId)
 

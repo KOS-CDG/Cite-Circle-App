@@ -1,5 +1,6 @@
 package com.example
 
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -15,6 +16,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,6 +33,11 @@ import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
+import com.example.data.AuthorIdentity
+import com.example.data.ProfileStats
+import com.example.data.SavedPaper
+import com.example.data.cumulativeEntriesByMonth
+import com.example.data.formatTimeAgo
 import com.example.ui.components.EmptyState
 import com.example.ui.components.ListRowSkeleton
 import com.example.ui.components.PostCardSkeleton
@@ -96,7 +103,8 @@ fun FolioApp(viewModel: HomeViewModel) {
     currentRoute == "compose" ||
     currentRoute.startsWith("share/") ||
     currentRoute.startsWith("post/") ||
-    currentRoute.startsWith("quote/")
+    currentRoute.startsWith("quote/") ||
+    currentRoute.startsWith("venue/")
 
   Scaffold(
     modifier = Modifier.fillMaxSize(),
@@ -128,13 +136,22 @@ fun FolioApp(viewModel: HomeViewModel) {
           )
       }
       composable("feed") { HomeScreen(viewModel, navController) }
-      composable("fields") { FieldsScreen() }
+      composable("fields") { FieldsScreen(viewModel, navController) }
       composable("lists") { com.example.ui.lists.ReadingListsScreen(viewModel, navController) }
       composable("opps") { com.example.ui.opportunities.OpportunitiesScreen() }
       composable("profile") { ProfileScreen(viewModel, navController) }
       composable("chat") { com.example.ui.chat.ChatScreen() }
-      composable("notifications") { NotificationsScreen(navController) }
-      composable("notification_detail") { NotificationDetailScreen(navController) }
+      composable("notifications") { NotificationsScreen(viewModel, navController) }
+      composable(
+        route = "venue/{name}",
+        arguments = listOf(navArgument("name") { type = NavType.StringType })
+      ) { entry ->
+        VenueScreen(
+          venue = entry.arguments?.getString("name").orEmpty(),
+          viewModel = viewModel,
+          navController = navController
+        )
+      }
       composable("compose") {
         ComposePostScreen(viewModel = viewModel, onDone = { navController.popBackStack() })
       }
@@ -305,180 +322,7 @@ private fun FeedSkeleton() {
   }
 }
 
-@Composable
-fun CitationChart() {
-  Card(
-    modifier = Modifier.fillMaxWidth().height(180.dp),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    shape = MaterialTheme.shapes.medium,
-    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-  ) {
-    Column(modifier = Modifier.padding(16.dp)) {
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Text(
-          "Citation impact",
-          style = MaterialTheme.typography.titleMedium,
-          color = MaterialTheme.colorScheme.onSurface
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Text(
-            "h-index ",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-          )
-          Text(
-            "24",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.secondary
-          )
-        }
-      }
-      Spacer(modifier = Modifier.height(16.dp))
-      val lineColor = MaterialTheme.colorScheme.primary
-      androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-        val path = Path()
-        val dataPoints = listOf(10f, 15f, 30f, 25f, 40f, 60f, 85f, 110f)
-        val maxPoint = dataPoints.maxOrNull() ?: 1f
-        val width = size.width
-        val height = size.height
-        val stepX = width / (dataPoints.size - 1).coerceAtLeast(1)
 
-        dataPoints.forEachIndexed { index, value ->
-          val x = index * stepX
-          val y = height - ((value / maxPoint) * height)
-          if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
-          drawCircle(color = lineColor, radius = 3.dp.toPx(), center = Offset(x, y))
-        }
-        drawPath(path = path, color = lineColor, style = Stroke(width = 2.dp.toPx()))
-      }
-    }
-  }
-}
-
-@Composable
-fun NotificationsScreen(navController: NavController) {
-  LazyColumn(
-    modifier = Modifier.fillMaxSize(),
-    contentPadding = PaddingValues(horizontal = Gutter, vertical = 12.dp),
-    verticalArrangement = Arrangement.spacedBy(12.dp)
-  ) {
-    item {
-      Text(
-        "Notifications",
-        style = MaterialTheme.typography.headlineSmall,
-        color = MaterialTheme.colorScheme.onBackground,
-        modifier = Modifier.padding(vertical = 8.dp)
-      )
-    }
-    item { CitationNotificationCard(read = false, navController = navController) }
-    item { CitationNotificationCard(read = true, navController = navController) }
-  }
-}
-
-@Composable
-fun CitationNotificationCard(read: Boolean, navController: NavController) {
-  Card(
-    modifier = Modifier
-      .fillMaxWidth()
-      .clickable { navController.navigate("notification_detail") },
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    shape = MaterialTheme.shapes.medium,
-    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-  ) {
-    Column(modifier = Modifier.padding(16.dp)) {
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        if (!read) {
-          Box(
-            modifier = Modifier
-              .size(8.dp)
-              .clip(CircleShape)
-              .background(MaterialTheme.colorScheme.primary)
-          )
-          Spacer(modifier = Modifier.width(8.dp))
-        }
-        Text(
-          "New citation",
-          style = MaterialTheme.typography.labelLarge,
-          color = if (read) MaterialTheme.colorScheme.onSurfaceVariant
-          else MaterialTheme.colorScheme.primary
-        )
-      }
-      Spacer(modifier = Modifier.height(10.dp))
-      Text(
-        "Your publication has been formally referenced by Dr. Julian Thorne in a new preprint released to the Theoretical Physics circle.",
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurface
-      )
-
-      Spacer(modifier = Modifier.height(14.dp))
-      Text(
-        "Entropy and the Architecture of Distributed Knowledge Systems",
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onSurface
-      )
-      Spacer(modifier = Modifier.height(4.dp))
-      Text(
-        "Published Oct 2023 · CC-882-XJ",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-      )
-
-      Spacer(modifier = Modifier.height(14.dp))
-      QuoteBlock(
-        "…as proposed in Thorne's recent synthesis, the friction within localized data " +
-          "clusters mirrors the thermodynamic decay observed in early archival structures " +
-          "(Thorne, 2023)."
-      )
-
-      Spacer(modifier = Modifier.height(14.dp))
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        Avatar("JT", 32.dp)
-        Spacer(modifier = Modifier.width(10.dp))
-        Column {
-          Text(
-            "Dr. Julian Thorne",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface
-          )
-          Text(
-            "CERN",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-          )
-        }
-      }
-    }
-  }
-}
-
-/** A pulled quotation, marked by a rule rather than by quotation styling alone. */
-@Composable
-fun QuoteBlock(text: String) {
-  Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .clip(MaterialTheme.shapes.small)
-      .background(MaterialTheme.colorScheme.surfaceVariant)
-      .height(IntrinsicSize.Min)
-  ) {
-    Box(
-      modifier = Modifier
-        .width(3.dp)
-        .fillMaxHeight()
-        .background(MaterialTheme.colorScheme.primary)
-    )
-    Text(
-      text,
-      style = MaterialTheme.typography.bodyMedium,
-      color = MaterialTheme.colorScheme.onSurface,
-      modifier = Modifier.padding(14.dp)
-    )
-  }
-}
 
 @Composable
 fun Avatar(initials: String, size: androidx.compose.ui.unit.Dp) {
@@ -498,24 +342,206 @@ fun Avatar(initials: String, size: androidx.compose.ui.unit.Dp) {
   }
 }
 
+
+
+/**
+ * Cumulative entries over the last six months.
+ *
+ * Hidden entirely when [cumulativeEntriesByMonth] finds nothing worth drawing — a chart with
+ * one flat value is decoration. The previous version drew a fixed eight-point line and an
+ * "h-index 24" that were the same no matter what was in the database.
+ */
+@Composable
+fun CitationChart(papers: List<SavedPaper>) {
+  val series = remember(papers) { cumulativeEntriesByMonth(papers) }
+  if (series.isEmpty()) return
+
+  Card(
+    modifier = Modifier.fillMaxWidth().height(180.dp),
+    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    shape = MaterialTheme.shapes.medium,
+    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+  ) {
+    Column(modifier = Modifier.padding(16.dp)) {
+      Text(
+        "Entries over time",
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurface
+      )
+      Spacer(modifier = Modifier.height(4.dp))
+      Text(
+        "Last ${series.size} months",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+      )
+      Spacer(modifier = Modifier.height(12.dp))
+      val lineColor = MaterialTheme.colorScheme.primary
+      androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+        val path = Path()
+        val maxPoint = series.max().coerceAtLeast(1f)
+        val stepX = size.width / (series.size - 1).coerceAtLeast(1)
+        series.forEachIndexed { index, value ->
+          val x = index * stepX
+          val y = size.height - ((value / maxPoint) * size.height)
+          if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+          drawCircle(color = lineColor, radius = 3.dp.toPx(), center = Offset(x, y))
+        }
+        drawPath(path = path, color = lineColor, style = Stroke(width = 2.dp.toPx()))
+      }
+    }
+  }
+}
+
+/**
+ * What has happened in your circle: replies and citations, newest first.
+ *
+ * Derived from the database rather than pushed by a server, which is why it is framed as
+ * activity rather than as notifications.
+ */
+@Composable
+fun NotificationsScreen(viewModel: HomeViewModel, navController: NavController) {
+  val activity by viewModel.activity.collectAsStateWithLifecycle()
+
+  Column(modifier = Modifier.fillMaxSize()) {
+    Text(
+      "Activity",
+      style = MaterialTheme.typography.headlineSmall,
+      color = MaterialTheme.colorScheme.onBackground,
+      modifier = Modifier.padding(horizontal = Gutter, vertical = 12.dp)
+    )
+
+    when {
+      activity.isLoading -> Column(
+        modifier = Modifier.padding(horizontal = Gutter),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+      ) { repeat(3) { ListRowSkeleton() } }
+
+      activity.isEmpty -> EmptyState(
+        title = "Nothing has happened yet",
+        message = "Replies and citations on entries in your circle will show up here.",
+        icon = Icons.Outlined.Notifications
+      )
+
+      else -> LazyColumn(
+        contentPadding = PaddingValues(horizontal = Gutter, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+      ) {
+        items(activity.items, key = { it.timestamp.toString() + it.targetPaperId }) { item ->
+          ActivityRow(item) { navController.navigate("post/${item.targetPaperId}") }
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun ActivityRow(item: ActivityItem, onClick: () -> Unit) {
+  val initials: String
+  val headline: String
+  val body: String
+  val icon: ImageVector
+
+  when (item) {
+    is ActivityItem.Replied -> {
+      initials = item.comment.authorInitials
+      headline = "${item.comment.authorName} replied"
+      body = item.comment.body
+      icon = Icons.Outlined.ChatBubbleOutline
+    }
+    is ActivityItem.Cited -> {
+      initials = item.quote.authorInitials
+      headline = "${item.quote.authorName} cited ${item.quote.quotedAuthorName}"
+      body = item.quote.content.ifBlank { item.quote.quotedTitle }
+      icon = Icons.Outlined.Repeat
+    }
+  }
+
+  Card(
+    modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    shape = MaterialTheme.shapes.medium,
+    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+  ) {
+    Row(modifier = Modifier.padding(16.dp)) {
+      Avatar(initials, 40.dp)
+      Spacer(Modifier.width(12.dp))
+      Column(modifier = Modifier.weight(1f)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Icon(
+            icon,
+            contentDescription = null,
+            modifier = Modifier.size(14.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+          Spacer(Modifier.width(6.dp))
+          Text(
+            headline,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+          )
+        }
+        if (item is ActivityItem.Replied && item.paperTitle.isNotBlank()) {
+          Spacer(Modifier.height(2.dp))
+          Text(
+            "on ${item.paperTitle}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+          )
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+          body,
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurface,
+          maxLines = 3,
+          overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+          formatTimeAgo(item.timestamp),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+      }
+    }
+  }
+}
+
+/**
+ * Discover: the venues that actually appear in the library, and a search that reaches both
+ * venues and the posts themselves.
+ *
+ * Previously six hardcoded field names with invented researcher counts and a chevron that
+ * went nowhere.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FieldsScreen() {
-  var searchQuery by remember { mutableStateOf("") }
-  val fields = listOf(
-    "Theoretical Physics", "Molecular Biology", "Ancient History",
-    "Computational Linguistics", "Cognitive Science", "Macroeconomics"
-  )
-  val filteredFields = fields.filter { it.contains(searchQuery, ignoreCase = true) }
+fun FieldsScreen(viewModel: HomeViewModel, navController: NavController) {
+  var query by rememberSaveable { mutableStateOf("") }
+  val venues by viewModel.venues.collectAsStateWithLifecycle()
+  val feed by viewModel.feed.collectAsStateWithLifecycle()
+
+  val trimmed = query.trim()
+  val matchingVenues = venues.items.filter { it.name.contains(trimmed, ignoreCase = true) }
+  val matchingPosts = if (trimmed.isBlank()) emptyList() else feed.items.filter {
+    it.title.contains(trimmed, ignoreCase = true) ||
+      it.content.contains(trimmed, ignoreCase = true) ||
+      it.authors.contains(trimmed, ignoreCase = true) ||
+      it.authorName.contains(trimmed, ignoreCase = true)
+  }
 
   Column(modifier = Modifier.fillMaxSize()) {
     OutlinedTextField(
-      value = searchQuery,
-      onValueChange = { searchQuery = it },
+      value = query,
+      onValueChange = { query = it },
       modifier = Modifier.fillMaxWidth().padding(Gutter),
       placeholder = {
         Text(
-          "Search fields",
+          "Search venues and entries",
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -537,48 +563,127 @@ fun FieldsScreen() {
       shape = MaterialTheme.shapes.small
     )
 
-    if (filteredFields.isEmpty()) {
-      EmptyState(
-        title = "No fields found",
-        message = "Try a different search term.",
-        icon = Icons.Outlined.SearchOff
+    when {
+      venues.isLoading -> Column(
+        modifier = Modifier.padding(horizontal = Gutter),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+      ) { repeat(3) { ListRowSkeleton() } }
+
+      matchingVenues.isEmpty() && matchingPosts.isEmpty() -> EmptyState(
+        title = if (trimmed.isBlank()) "Nothing to discover yet" else "No matches",
+        message = if (trimmed.isBlank()) {
+          "Venues appear here once entries in your library name one."
+        } else {
+          "No venue or entry matches \"$trimmed\"."
+        },
+        icon = Icons.Outlined.Search
       )
-    } else {
-      LazyColumn(
+
+      else -> LazyColumn(
         contentPadding = PaddingValues(horizontal = Gutter, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
       ) {
-        items(filteredFields) { field ->
-          Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .clip(MaterialTheme.shapes.medium)
-              .background(MaterialTheme.colorScheme.surface)
-              .clickable { }
-              .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-          ) {
-            Column {
-              Text(
-                field,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
-              )
-              Spacer(modifier = Modifier.height(2.dp))
-              Text(
-                "${(fields.indexOf(field) + 1) * 120} researchers",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+        if (matchingVenues.isNotEmpty()) {
+          item { DiscoverHeading("Venues") }
+          items(matchingVenues, key = { "venue-" + it.name }) { venue ->
+            Row(
+              modifier = Modifier
+                .fillMaxWidth()
+                .clip(MaterialTheme.shapes.medium)
+                .background(MaterialTheme.colorScheme.surface)
+                .clickable { navController.navigate("venue/" + Uri.encode(venue.name)) }
+                .padding(16.dp),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+              Column {
+                Text(
+                  venue.name,
+                  style = MaterialTheme.typography.titleMedium,
+                  color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                  "${venue.count} ${if (venue.count == 1) "entry" else "entries"}",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+              }
+              @Suppress("DEPRECATION")
+              Icon(
+                Icons.Default.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
               )
             }
-            @Suppress("DEPRECATION")
-            Icon(
-              Icons.Default.KeyboardArrowRight,
-              contentDescription = null,
-              tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
           }
+        }
+        if (matchingPosts.isNotEmpty()) {
+          item { DiscoverHeading("Entries") }
+          items(matchingPosts, key = { "post-" + it.id }) { paper ->
+            PostCard(paper, viewModel, navController)
+          }
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun DiscoverHeading(text: String) {
+  Text(
+    text,
+    style = MaterialTheme.typography.titleSmall,
+    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+  )
+}
+
+/** Every entry published in one venue. */
+@Composable
+fun VenueScreen(venue: String, viewModel: HomeViewModel, navController: NavController) {
+  val flow = remember(venue) { viewModel.papersInVenue(venue) }
+  val papers by flow.collectAsStateWithLifecycle(initialValue = ListState())
+
+  Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Row(
+      modifier = Modifier.fillMaxWidth().statusBarsPadding().height(56.dp),
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      IconButton(onClick = { navController.popBackStack() }) {
+        Icon(
+          Icons.Filled.ArrowBack,
+          contentDescription = "Back",
+          tint = MaterialTheme.colorScheme.onBackground
+        )
+      }
+      Text(
+        venue,
+        style = MaterialTheme.typography.titleLarge,
+        color = MaterialTheme.colorScheme.onBackground,
+        maxLines = 1,
+        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+      )
+    }
+
+    when {
+      papers.isLoading -> Column(
+        modifier = Modifier.padding(horizontal = Gutter),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+      ) { repeat(2) { PostCardSkeleton() } }
+
+      papers.isEmpty -> EmptyState(
+        title = "No entries",
+        message = "Nothing in your library names this venue any more.",
+        icon = Icons.Outlined.Search
+      )
+
+      else -> LazyColumn(
+        contentPadding = PaddingValues(horizontal = Gutter, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+      ) {
+        items(papers.items, key = { it.id }) { paper ->
+          PostCard(paper, viewModel, navController)
         }
       }
     }
@@ -590,6 +695,8 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
   val feed by viewModel.feed.collectAsStateWithLifecycle()
   val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
   val isDarkMode by viewModel.isDarkMode.collectAsStateWithLifecycle()
+  val identity = remember { AuthorIdentity.current() }
+  val stats = remember(feed.items) { ProfileStats.from(feed.items) }
 
   RefreshableBox(isRefreshing = isRefreshing, onRefresh = viewModel::refresh) {
     LazyColumn(
@@ -604,55 +711,80 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
           shape = MaterialTheme.shapes.medium,
           elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-          Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-              Avatar("JD", 56.dp)
-              Spacer(modifier = Modifier.width(14.dp))
-              Column {
-                Text(
-                  "Dr. Jane Doe",
-                  style = MaterialTheme.typography.titleLarge,
-                  color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                  "Senior Researcher · Oxford",
-                  style = MaterialTheme.typography.bodyMedium,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant
+          Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Avatar(identity.initials, 56.dp)
+                Spacer(Modifier.width(14.dp))
+                Column {
+                  Text(
+                    identity.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                  )
+                  Spacer(Modifier.height(2.dp))
+                  Text(
+                    identity.affiliation,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                  )
+                }
+              }
+              IconButton(onClick = { viewModel.toggleTheme() }) {
+                Icon(
+                  if (isDarkMode) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
+                  contentDescription = if (isDarkMode) "Switch to light theme"
+                  else "Switch to dark theme",
+                  tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
               }
             }
-            IconButton(onClick = { viewModel.toggleTheme() }) {
-              Icon(
-                if (isDarkMode) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
-                contentDescription = if (isDarkMode) "Switch to light theme"
-                else "Switch to dark theme",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-              )
+
+            Spacer(Modifier.height(16.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Spacer(Modifier.height(16.dp))
+
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+              StatTile(stats.entries, "Entries")
+              StatTile(stats.endorsements, "Endorsements")
+              StatTile(stats.citations, "Citations")
             }
           }
         }
       }
 
-      item { CitationChart() }
+      item { CitationChart(feed.items) }
 
       item {
         Text(
-          "Publications",
+          "Your entries",
           style = MaterialTheme.typography.titleMedium,
           color = MaterialTheme.colorScheme.onBackground,
           modifier = Modifier.padding(top = 8.dp)
         )
       }
 
-      if (feed.isLoading) {
-        items(2) { ListRowSkeleton() }
-      } else {
-        items(feed.items, key = { it.id }) { paper ->
+      when {
+        feed.isLoading -> items(2) { ListRowSkeleton() }
+
+        feed.isEmpty -> item {
+          EmptyState(
+            title = "No entries yet",
+            message = "Anything you publish appears here.",
+            icon = Icons.Outlined.Article,
+            actionLabel = "Write an entry",
+            onAction = { navController.navigate("compose") }
+          )
+        }
+
+        else -> items(feed.items, key = { it.id }) { paper ->
           PostCard(paper, viewModel, navController)
         }
       }
@@ -661,103 +793,18 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
 }
 
 @Composable
-fun NotificationDetailScreen(navController: NavController) {
-  Column(
-    modifier = Modifier
-      .fillMaxSize()
-      .background(MaterialTheme.colorScheme.background)
-  ) {
-    Row(
-      modifier = Modifier.fillMaxWidth().statusBarsPadding().height(56.dp),
-      verticalAlignment = Alignment.CenterVertically
-    ) {
-      IconButton(onClick = { navController.popBackStack() }) {
-        Icon(
-          Icons.Filled.ArrowBack,
-          contentDescription = "Back",
-          tint = MaterialTheme.colorScheme.onBackground
-        )
-      }
-      Text(
-        "Citation details",
-        style = MaterialTheme.typography.titleLarge,
-        color = MaterialTheme.colorScheme.onBackground
-      )
-    }
-
-    Card(
-      modifier = Modifier.fillMaxWidth().padding(Gutter),
-      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-      shape = MaterialTheme.shapes.medium,
-      elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-      Column(modifier = Modifier.padding(16.dp)) {
-        SectionHeading("Citation context")
-        Spacer(modifier = Modifier.height(10.dp))
-        QuoteBlock(
-          "…as proposed in Thorne's recent synthesis, the friction within localized data " +
-            "clusters mirrors the thermodynamic decay observed in early archival structures " +
-            "(Thorne, 2023)."
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Spacer(modifier = Modifier.height(20.dp))
-
-        SectionHeading("Citing author")
-        Spacer(modifier = Modifier.height(10.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Avatar("JT", 40.dp)
-          Spacer(modifier = Modifier.width(12.dp))
-          Column {
-            Text(
-              "Dr. Julian Thorne",
-              style = MaterialTheme.typography.titleMedium,
-              color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-              "CERN · Theoretical Physics",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-          }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Spacer(modifier = Modifier.height(20.dp))
-
-        SectionHeading("Referenced section")
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-          "Section 4.2: Thermodynamic Decay in Archival Structures",
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurface
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-        Button(
-          onClick = { },
-          modifier = Modifier.fillMaxWidth().height(48.dp),
-          shape = MaterialTheme.shapes.extraLarge,
-          colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
-          )
-        ) {
-          Text("View full paper", style = MaterialTheme.typography.labelLarge)
-        }
-      }
-    }
+private fun StatTile(value: Int, label: String) {
+  Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Text(
+      value.toString(),
+      style = MaterialTheme.typography.headlineSmall,
+      color = MaterialTheme.colorScheme.primary
+    )
+    Spacer(Modifier.height(2.dp))
+    Text(
+      label,
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
   }
-}
-
-/** Sentence-case section heading, replacing the all-caps 2sp-tracked micro-labels. */
-@Composable
-fun SectionHeading(text: String) {
-  Text(
-    text,
-    style = MaterialTheme.typography.labelLarge,
-    color = MaterialTheme.colorScheme.onSurfaceVariant
-  )
 }
