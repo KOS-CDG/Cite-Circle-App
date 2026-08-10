@@ -49,6 +49,22 @@ Notes:
 - `gradle.properties` enables the configuration cache, parallel execution, and
   `kotlin.compiler.execution.strategy=in-process`. If you hit "Could not connect to
   Kotlin compile daemon", that setting is the existing workaround — don't remove it.
+
+  **But it breaks on newer Gradle.** In-process compilation runs the Kotlin compiler
+  inside the Gradle daemon, sharing its classpath. Gradle 9.7's embedded Kotlin then
+  collides with the Compose compiler plugin built for Kotlin 2.2.10 and the build dies
+  before parsing a single source file:
+
+  ```
+  e: Plugin androidx.compose.compiler.plugins.kotlin.ComposePluginRegistrar is
+     incompatible with the current version of the compiler.
+  Caused by: java.lang.AbstractMethodError: ComposePluginRegistrar does not define or
+     inherit an implementation of 'abstract String getPluginId()'
+  ```
+
+  Override per-invocation rather than editing `gradle.properties`:
+  `-Pkotlin.compiler.execution.strategy=daemon`. That is what
+  `.github/workflows/ci.yml` does.
 - The `release` build type is signed from `KEYSTORE_PATH` / `STORE_PASSWORD` /
   `KEY_PASSWORD` env vars, defaulting to `$rootDir/my-upload-key.jks` (not in the repo).
 - `debug` is signed with `$rootDir/debug.keystore`, which is **gitignored and absent**.

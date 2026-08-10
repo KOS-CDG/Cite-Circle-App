@@ -14,6 +14,23 @@ jobs:
     name: Build and test
     runs-on: ubuntu-latest
 
+    env:
+      # gradle.properties sets kotlin.compiler.execution.strategy=in-process as a
+      # workaround for "Could not connect to Kotlin compile daemon" on some local
+      # setups. In CI that setting makes the Kotlin compiler run inside the Gradle
+      # daemon and share its classpath, where Gradle 9.7's embedded Kotlin collides
+      # with the Compose compiler plugin built for Kotlin 2.2.10:
+      #
+      #   AbstractMethodError: ComposePluginRegistrar does not define or inherit an
+      #   implementation of 'abstract String getPluginId()' of CompilerPluginRegistrar
+      #
+      # Overridden here rather than edited in gradle.properties, which local
+      # developers still rely on. The daemon strategy gives the compiler a clean
+      # classpath controlled by the Kotlin Gradle plugin.
+      GRADLE_ARGS: >-
+        --console=plain
+        -Pkotlin.compiler.execution.strategy=daemon
+
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -53,18 +70,18 @@ jobs:
       - name: Assemble debug
         run: |
           set -o pipefail
-          gradle :app:assembleDebug --console=plain 2>&1 | tee -a build.log
+          gradle :app:assembleDebug $GRADLE_ARGS 2>&1 | tee -a build.log
 
       - name: Unit tests
         run: |
           set -o pipefail
-          gradle :app:testDebugUnitTest -Proborazzi.test.record=true --console=plain 2>&1 | tee -a build.log
+          gradle :app:testDebugUnitTest -Proborazzi.test.record=true $GRADLE_ARGS 2>&1 | tee -a build.log
 
       - name: Lint
         continue-on-error: true
         run: |
           set -o pipefail
-          gradle :app:lint --console=plain 2>&1 | tee -a build.log
+          gradle :app:lint $GRADLE_ARGS 2>&1 | tee -a build.log
 
       # Runs only on failure, so its output is the last thing in the log — the part
       # that survives truncation when the log is read back through an API.
