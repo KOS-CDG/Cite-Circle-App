@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -105,7 +106,12 @@ fun ChatScreen(viewModel: ChatViewModel = viewModel()) {
                     onClick = { selectedImageUri = null },
                     modifier = Modifier.align(Alignment.TopEnd)
                 ) {
-                    Text("X", color = Color.Red)
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "Remove image",
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
         }
@@ -155,16 +161,19 @@ fun ChatScreen(viewModel: ChatViewModel = viewModel()) {
 @Composable
 fun MessageBubble(message: ChatMessage) {
     val alignment = if (message.isUser) Alignment.CenterEnd else Alignment.CenterStart
-    val bgColor = if (message.isUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-    val textColor = if (message.isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+    // The sender's own messages carry the brand colour, as in every messaging surface.
+    val bgColor = if (message.isUser) MaterialTheme.colorScheme.primary
+    else MaterialTheme.colorScheme.surfaceVariant
+    val textColor = if (message.isUser) MaterialTheme.colorScheme.onPrimary
+    else MaterialTheme.colorScheme.onSurface
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = alignment) {
         Column(
             modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
+                .clip(MaterialTheme.shapes.medium)
                 .background(bgColor)
                 .padding(12.dp)
-                .widthIn(max = 250.dp)
+                .widthIn(max = 280.dp)
         ) {
             if (message.isLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp))

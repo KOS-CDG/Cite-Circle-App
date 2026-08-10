@@ -7,7 +7,7 @@ import java.util.concurrent.TimeUnit
 enum class CitationStyle(val label: String) {
     APA("APA"),
     MLA("MLA"),
-    CHICAGO("CHICAGO");
+    CHICAGO("Chicago");
 
     companion object {
         val DEFAULT = APA

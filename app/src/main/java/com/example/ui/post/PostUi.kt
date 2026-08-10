@@ -1,11 +1,9 @@
 package com.example.ui.post
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
@@ -21,19 +19,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.example.Avatar
 import com.example.HomeViewModel
 import com.example.data.CitationFormatter
 import com.example.data.CitationStyle
@@ -46,10 +41,14 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 /**
- * A post in the feed.
+ * A post in the feed: a flat white card on the neutral page.
  *
- * Tapping anywhere that is not an action opens the detail screen, where the comment thread
- * lives. Pass a null [onClick] on the detail screen itself, where the card is not a link.
+ * Cards carry no border and no shadow. Separation comes from the page colour showing through
+ * the gaps between them, which is how both reference apps build a feed — a hairline outline
+ * on every card reads as a form, not a stream.
+ *
+ * Tapping anywhere that is not an action opens the detail screen. Pass a null [onClick] on
+ * the detail screen itself, where the card is not a link.
  */
 @Composable
 fun PostCard(
@@ -61,13 +60,12 @@ fun PostCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(elevation = 2.dp, shape = RoundedCornerShape(4.dp), spotColor = Color(0x0D1A1A1A))
             .then(onClick?.let { action -> Modifier.clickable { action() } } ?: Modifier),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(4.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f))
+        shape = MaterialTheme.shapes.medium,
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(modifier = Modifier.padding(24.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             if (paper.isQuote) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
@@ -78,44 +76,36 @@ fun PostCard(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "CITED FROM ${paper.quotedAuthorName.uppercase()}",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 10.sp,
-                            letterSpacing = 1.sp,
-                            fontWeight = FontWeight.Bold
-                        ),
+                        "Cited from ${paper.quotedAuthorName}",
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
             }
 
             PostHeader(paper)
 
-            Spacer(Modifier.height(16.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.05f), thickness = 1.dp)
-            Spacer(Modifier.height(16.dp))
-
             if (paper.content.isNotBlank()) {
+                Spacer(Modifier.height(12.dp))
                 Text(
                     paper.content,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    lineHeight = 24.sp
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
             if (paper.imageUri.isNotBlank()) {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
                 PostImage(paper.imageUri)
             }
 
             if (paper.isQuote) {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
                 QuotedCard(paper)
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(12.dp))
             CitationBlock(paper)
 
             Spacer(Modifier.height(4.dp))
@@ -129,46 +119,31 @@ fun PostCard(
 @Composable
 fun PostHeader(paper: SavedPaper) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                paper.authorInitials,
-                color = MaterialTheme.colorScheme.onPrimary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 10.sp
-            )
-        }
+        Avatar(paper.authorInitials, 40.dp)
         Spacer(Modifier.width(12.dp))
         Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    paper.authorName,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "• ${formatTimeAgo(paper.publishedAt)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Text(
+                paper.authorName,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
             Text(
                 paper.affiliation,
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 1.sp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                formatTimeAgo(paper.publishedAt),
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
 }
 
-/** An image attached to a post, loaded from the copy [ImageStore] made in app storage. */
+/** An image attached to a post, loaded from the copy ImageStore made in app storage. */
 @Composable
 fun PostImage(path: String) {
     AsyncImage(
@@ -178,50 +153,45 @@ fun PostImage(path: String) {
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = 320.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .border(
-                1.dp,
-                MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f),
-                RoundedCornerShape(4.dp)
-            )
+            .clip(MaterialTheme.shapes.small)
     )
 }
 
-/** The snapshot of the post being quoted, rendered as an inset card. */
+/** The snapshot of the post being quoted, rendered as an inset panel. */
 @Composable
 fun QuotedCard(paper: SavedPaper) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(4.dp))
+            .clip(MaterialTheme.shapes.small)
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .border(
                 1.dp,
-                MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f),
-                RoundedCornerShape(4.dp)
+                MaterialTheme.colorScheme.outlineVariant,
+                MaterialTheme.shapes.small
             )
-            .padding(16.dp)
+            .padding(14.dp)
     ) {
         Text(
             paper.quotedAuthorName,
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurface
         )
         if (paper.quotedTitle.isNotBlank()) {
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
                 paper.quotedTitle,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Normal),
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
         }
         if (paper.quotedContent.isNotBlank()) {
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
                 paper.quotedContent,
-                style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis
@@ -239,7 +209,7 @@ fun PostActionBar(
     commentOpensThread: Boolean = true
 ) {
     Column {
-        HorizontalDivider(color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.05f))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -250,6 +220,7 @@ fun PostActionBar(
                 contentDescription = if (paper.isEndorsed) "Remove endorsement" else "Endorse",
                 count = paper.endorsementCount,
                 active = paper.isEndorsed,
+                activeColor = MaterialTheme.colorScheme.secondary,
                 onClick = { viewModel.toggleEndorsement(paper.id, paper.isEndorsed) }
             )
             PostAction(
@@ -267,7 +238,7 @@ fun PostActionBar(
             )
             PostAction(
                 icon = if (paper.isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                contentDescription = if (paper.isBookmarked) "Remove bookmark" else "Save to reading list",
+                contentDescription = if (paper.isBookmarked) "Remove bookmark" else "Save",
                 active = paper.isBookmarked,
                 onClick = { viewModel.toggleBookmark(paper.id, paper.isBookmarked) }
             )
@@ -287,139 +258,126 @@ private fun PostAction(
     count: Int = 0,
     active: Boolean = false,
     enabled: Boolean = true,
+    activeColor: Color = MaterialTheme.colorScheme.primary,
     onClick: () -> Unit
 ) {
-    val tint = if (active) MaterialTheme.colorScheme.primary
-    else MaterialTheme.colorScheme.onSurfaceVariant
+    val tint = if (active) activeColor else MaterialTheme.colorScheme.onSurfaceVariant
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
-            .clip(RoundedCornerShape(2.dp))
+            .clip(MaterialTheme.shapes.extraSmall)
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
             // Keeps the tap target at the 48dp minimum without inflating the visual row.
             .padding(horizontal = 10.dp, vertical = 12.dp)
     ) {
-        Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(18.dp), tint = tint)
+        Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(20.dp), tint = tint)
         if (count > 0) {
             Spacer(Modifier.width(6.dp))
             Text(
                 count.toString(),
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold
-                ),
+                style = MaterialTheme.typography.labelMedium,
                 color = tint
             )
         }
     }
 }
 
-/** The dark citation slab, with style switching and working .bib/.ris export. */
+/**
+ * The citation panel: the one deliberately saturated surface in the app, and the thing that
+ * makes a post recognisable as coming from Cite Circle when it is screenshotted.
+ */
 @Composable
 fun CitationBlock(paper: SavedPaper) {
     var style by remember { mutableStateOf(CitationStyle.DEFAULT) }
     val styleable = CitationFormatter.isStyleable(paper)
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(4.dp))
+            .clip(MaterialTheme.shapes.small)
             .background(MaterialTheme.colorScheme.primary)
-            .padding(20.dp)
+            .padding(16.dp)
     ) {
-        Column {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "CITATION",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 2.sp),
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                )
-                if (styleable) {
-                    Row {
-                        CitationStyle.entries.forEach { option ->
-                            val selected = option == style
-                            Text(
-                                option.label,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                color = if (selected) MaterialTheme.colorScheme.tertiary
-                                else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f),
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .clickable { style = option }
-                                    .border(
-                                        1.dp,
-                                        if (selected) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
-                                        else Color.Transparent,
-                                        RoundedCornerShape(2.dp)
-                                    )
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-                } else {
-                    // Legacy rows carry a verbatim citation string that cannot honestly be
-                    // restyled, so no toggle is offered rather than one that does nothing.
-                    Text(
-                        "VERBATIM",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 10.sp,
-                            letterSpacing = 1.sp,
-                            fontFamily = FontFamily.Monospace
-                        ),
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f)
-                    )
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
-                CitationFormatter.format(paper, style),
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    lineHeight = 20.sp
-                ),
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
+                "Citation",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f)
             )
-
-            Spacer(Modifier.height(16.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f))
-            Spacer(Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                val context = LocalContext.current
-                val scope = rememberCoroutineScope()
-                ExportFormat.entries.forEach { format ->
-                    OutlinedButton(
-                        onClick = { scope.launch { ShareUtils.shareExport(context, paper, format) } },
-                        modifier = Modifier.weight(1f).height(40.dp),
-                        shape = RoundedCornerShape(2.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.3f)),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        )
-                    ) {
-                        Icon(
-                            Icons.Outlined.Download,
-                            contentDescription = "Export ${format.label}",
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
+            if (styleable) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    CitationStyle.entries.forEach { option ->
+                        val selected = option == style
                         Text(
-                            format.label,
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                            option.label,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
+                            ),
+                            color = if (selected) MaterialTheme.colorScheme.tertiary
+                            else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(percent = 50))
+                                .background(
+                                    if (selected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.12f)
+                                    else Color.Transparent
+                                )
+                                .clickable { style = option }
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
                         )
                     }
+                }
+            } else {
+                // Legacy rows carry a verbatim citation string that cannot honestly be
+                // restyled, so no toggle is offered rather than one that does nothing.
+                Text(
+                    "Verbatim",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
+                )
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+
+        Text(
+            CitationFormatter.format(paper, style),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onPrimary
+        )
+
+        Spacer(Modifier.height(14.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
+            ExportFormat.entries.forEach { format ->
+                OutlinedButton(
+                    onClick = { scope.launch { ShareUtils.shareExport(context, paper, format) } },
+                    modifier = Modifier.weight(1f).height(38.dp),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.45f)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                ) {
+                    Icon(
+                        Icons.Outlined.Download,
+                        contentDescription = null,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(format.label, style = MaterialTheme.typography.labelMedium)
                 }
             }
         }

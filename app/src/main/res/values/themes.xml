@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar" />
+    <!--
+      Light-by-default, so the window behind Compose matches the bright page colour instead
+      of inheriting whatever the device default is. Without this the first frame and any
+      window-background flash can come up dark under an otherwise white app.
+    -->
+    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:windowBackground">@color/page_neutral</item>
+    </style>
 </resources>

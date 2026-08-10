@@ -4,8 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -18,14 +16,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.example.Avatar
 import com.example.HomeViewModel
+import com.example.ListState
 import com.example.data.Comment
 import com.example.data.formatTimeAgo
+import com.example.ui.components.CommentSkeleton
 
 /**
  * A single post with its comment thread.
@@ -42,7 +41,8 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
     // Remembered per id: calling comments() on every recomposition would build a new Flow
     // and restart the query each time.
     val commentFlow = remember(paperId) { viewModel.comments(paperId) }
-    val comments by commentFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+    val commentState by commentFlow.collectAsStateWithLifecycle(initialValue = ListState())
+    val comments = commentState.items
 
     var draft by rememberSaveable { mutableStateOf("") }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
@@ -77,16 +77,24 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
                     viewModel.removePaper(paper)
                     navController.popBackStack()
                 }) {
-                    Text("WITHDRAW", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Withdraw",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = false }) {
-                    Text("CANCEL", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "Cancel",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             },
             containerColor = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(4.dp)
+            shape = MaterialTheme.shapes.large
         )
     }
 
@@ -96,7 +104,11 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
             .background(MaterialTheme.colorScheme.background)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(end = 12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .height(56.dp)
+                .padding(end = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -109,12 +121,9 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
                     )
                 }
                 Text(
-                    "ENTRY",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 2.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = MaterialTheme.colorScheme.primary
+                    "Entry",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
             IconButton(onClick = { confirmDelete = true }) {
@@ -128,8 +137,8 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
 
         LazyColumn(
             modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
                 // onClick null: already on the detail screen, so the card is not a link.
@@ -141,31 +150,30 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
                     Icon(
                         Icons.Outlined.ChatBubbleOutline,
                         contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.secondary
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        if (comments.isEmpty()) "DISCUSSION" else "DISCUSSION · ${comments.size}",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            letterSpacing = 2.sp,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = MaterialTheme.colorScheme.secondary
+                        if (comments.isEmpty()) "Discussion" else "Discussion · ${comments.size}",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
-            if (comments.isEmpty()) {
-                item {
+            when {
+                commentState.isLoading -> items(2) { CommentSkeleton() }
+
+                comments.isEmpty() -> item {
                     Text(
-                        "No responses yet. Open the discussion.",
+                        "No responses yet. Start the discussion.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            } else {
-                items(comments, key = { it.id }) { comment ->
+
+                else -> items(comments, key = { it.id }) { comment ->
                     CommentRow(comment, onDelete = { viewModel.deleteComment(comment) })
                 }
             }
@@ -187,32 +195,26 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
 @Composable
 private fun CommentRow(comment: Comment, onDelete: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth()) {
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.secondary),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                comment.authorInitials,
-                color = MaterialTheme.colorScheme.onSecondary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 9.sp
-            )
-        }
+        Avatar(comment.authorInitials, 32.dp)
         Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
+        // The bubble is what separates a reply from the post body at a glance.
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clip(MaterialTheme.shapes.small)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .padding(horizontal = 12.dp, vertical = 10.dp)
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     comment.authorName,
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
                     formatTimeAgo(comment.createdAt),
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -220,8 +222,7 @@ private fun CommentRow(comment: Comment, onDelete: () -> Unit) {
             Text(
                 comment.body,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                lineHeight = 22.sp
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
         IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
@@ -229,7 +230,7 @@ private fun CommentRow(comment: Comment, onDelete: () -> Unit) {
                 Icons.Filled.Close,
                 contentDescription = "Delete comment",
                 modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -239,7 +240,7 @@ private fun CommentRow(comment: Comment, onDelete: () -> Unit) {
 @Composable
 private fun CommentComposer(value: String, onValueChange: (String) -> Unit, onSend: () -> Unit) {
     Column(modifier = Modifier.background(MaterialTheme.colorScheme.surface)) {
-        HorizontalDivider(color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -261,12 +262,12 @@ private fun CommentComposer(value: String, onValueChange: (String) -> Unit, onSe
                 },
                 textStyle = MaterialTheme.typography.bodyMedium,
                 maxLines = 4,
-                shape = RoundedCornerShape(4.dp),
+                shape = MaterialTheme.shapes.extraLarge,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f),
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             )
             Spacer(Modifier.width(8.dp))
@@ -299,7 +300,11 @@ private fun MissingPost(navController: NavController) {
         )
         Spacer(Modifier.height(16.dp))
         TextButton(onClick = { navController.popBackStack() }) {
-            Text("BACK TO REGISTRY", color = MaterialTheme.colorScheme.primary)
+            Text(
+                "Back to feed",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }

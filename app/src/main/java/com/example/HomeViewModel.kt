@@ -14,11 +14,27 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
+
+/**
+ * A list plus whether it has actually loaded yet.
+ *
+ * Previously every list was a bare `StateFlow<List<T>>` seeded with `emptyList()`, which made
+ * "still loading" and "genuinely empty" the same value — so the empty state flashed on every
+ * cold start before the first Room emission arrived. Skeletons need to know the difference.
+ */
+data class ListState<T>(
+    val items: List<T> = emptyList(),
+    val isLoading: Boolean = true
+) {
+    /** True only once loading has finished and there is still nothing to show. */
+    val isEmpty: Boolean get() = !isLoading && items.isEmpty()
+}
 
 /**
  * Backs the feed, the post detail screen and every social action on a post.
@@ -38,6 +54,23 @@ class HomeViewModel(
         _isDarkMode.update { !it }
     }
 
+    val feed: StateFlow<ListState<SavedPaper>> = repository.allPapers
+        .map { ListState(items = it, isLoading = false) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = ListState()
+        )
+
+    val bookmarks: StateFlow<ListState<SavedPaper>> = repository.bookmarkedPapers
+        .map { ListState(items = it, isLoading = false) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = ListState()
+        )
+
+    /** Convenience for screens that only need to look a post up by id. */
     val savedPapers: StateFlow<List<SavedPaper>> = repository.allPapers
         .stateIn(
             scope = viewModelScope,
@@ -45,14 +78,31 @@ class HomeViewModel(
             initialValue = emptyList()
         )
 
-    val bookmarkedPapers: StateFlow<List<SavedPaper>> = repository.bookmarkedPapers
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
+    fun comments(paperId: String): Flow<ListState<Comment>> =
+        repository.comments(paperId).map { ListState(items = it, isLoading = false) }
 
-    fun comments(paperId: String): Flow<List<Comment>> = repository.comments(paperId)
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    /**
+     * Pull-to-refresh.
+     *
+     * Room already pushes changes reactively, so there is nothing local to re-fetch. What
+     * this does perform is a real cloud sync attempt; with the placeholder Firebase config it
+     * fails fast inside FirestoreRepository and the spinner simply ends. No artificial delay
+     * is inserted to make it feel busier than it is.
+     */
+    fun refresh() {
+        if (_isRefreshing.value) return
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            try {
+                syncToCloud()
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
+    }
 
     init {
         viewModelScope.launch {

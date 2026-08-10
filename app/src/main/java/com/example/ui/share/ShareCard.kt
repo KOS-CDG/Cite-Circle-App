@@ -25,7 +25,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -37,10 +36,10 @@ import com.example.HomeViewModel
 import com.example.data.CitationFormatter
 import com.example.data.CitationStyle
 import com.example.data.SavedPaper
-import com.example.ui.theme.CharcoalInk
-import com.example.ui.theme.ForestGreen
-import com.example.ui.theme.InkAndFieldNotesTheme
-import com.example.ui.theme.ParchmentCream
+import com.example.ui.theme.BrandBlue
+import com.example.ui.theme.SurfaceWhite
+import com.example.ui.theme.CiteCircleTheme
+import com.example.ui.theme.TextPrimaryLight
 import kotlinx.coroutines.launch
 
 /** Holds the hosted [ComposeView] across recompositions without being observable state. */
@@ -78,7 +77,7 @@ fun ShareCardContent(paper: SavedPaper, style: CitationStyle) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ParchmentCream)
+            .background(SurfaceWhite)
             .padding(36.dp)
     ) {
         Row(
@@ -87,25 +86,19 @@ fun ShareCardContent(paper: SavedPaper, style: CitationStyle) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "CITE CIRCLE",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    letterSpacing = 3.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                color = ForestGreen
+                "Cite Circle",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                color = BrandBlue
             )
             Text(
                 style.label,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    letterSpacing = 2.sp,
-                    fontFamily = FontFamily.Monospace
-                ),
-                color = CharcoalInk.copy(alpha = 0.45f)
+                style = MaterialTheme.typography.labelSmall,
+                color = TextPrimaryLight.copy(alpha = 0.45f)
             )
         }
 
         Spacer(Modifier.height(12.dp))
-        HorizontalDivider(color = ForestGreen.copy(alpha = 0.25f), thickness = 1.dp)
+        HorizontalDivider(color = BrandBlue.copy(alpha = 0.25f), thickness = 1.dp)
         Spacer(Modifier.height(28.dp))
 
         Text(
@@ -114,7 +107,7 @@ fun ShareCardContent(paper: SavedPaper, style: CitationStyle) {
                 fontWeight = FontWeight.Normal,
                 lineHeight = 36.sp
             ),
-            color = ForestGreen,
+            color = BrandBlue,
             maxLines = 4,
             overflow = TextOverflow.Ellipsis
         )
@@ -124,7 +117,7 @@ fun ShareCardContent(paper: SavedPaper, style: CitationStyle) {
             Text(
                 paper.authors.split(';').joinToString(" · ") { it.trim() },
                 style = MaterialTheme.typography.bodyMedium,
-                color = CharcoalInk.copy(alpha = 0.75f),
+                color = TextPrimaryLight.copy(alpha = 0.75f),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
@@ -134,11 +127,8 @@ fun ShareCardContent(paper: SavedPaper, style: CitationStyle) {
             Spacer(Modifier.height(8.dp))
             Text(
                 listOf(paper.venue, paper.year).filter { it.isNotBlank() }.joinToString(" • "),
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = 1.sp
-                ),
-                color = CharcoalInk.copy(alpha = 0.5f),
+                style = MaterialTheme.typography.labelSmall,
+                color = TextPrimaryLight.copy(alpha = 0.5f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -149,27 +139,21 @@ fun ShareCardContent(paper: SavedPaper, style: CitationStyle) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(4.dp))
-                .background(ForestGreen)
+                .clip(MaterialTheme.shapes.small)
+                .background(BrandBlue)
                 .padding(24.dp)
         ) {
             Column {
                 Text(
-                    "CITATION",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 10.sp,
-                        letterSpacing = 2.sp
-                    ),
-                    color = ParchmentCream.copy(alpha = 0.6f)
+                    "Citation",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    color = SurfaceWhite.copy(alpha = 0.6f)
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
                     citation,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        lineHeight = 20.sp
-                    ),
-                    color = ParchmentCream,
+                    style = MaterialTheme.typography.bodySmall.copy(lineHeight = 20.sp),
+                    color = SurfaceWhite,
                     maxLines = 8,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -180,12 +164,12 @@ fun ShareCardContent(paper: SavedPaper, style: CitationStyle) {
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                modifier = Modifier.size(32.dp).clip(CircleShape).background(ForestGreen),
+                modifier = Modifier.size(32.dp).clip(CircleShape).background(BrandBlue),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     paper.authorInitials,
-                    color = ParchmentCream,
+                    color = SurfaceWhite,
                     fontWeight = FontWeight.Bold,
                     fontSize = 10.sp
                 )
@@ -195,17 +179,14 @@ fun ShareCardContent(paper: SavedPaper, style: CitationStyle) {
                 Text(
                     paper.authorName,
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                    color = CharcoalInk,
+                    color = TextPrimaryLight,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     paper.affiliation,
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 10.sp,
-                        letterSpacing = 1.sp
-                    ),
-                    color = CharcoalInk.copy(alpha = 0.55f),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    color = TextPrimaryLight.copy(alpha = 0.55f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -230,7 +211,7 @@ fun SharePreviewScreen(paperId: String, viewModel: HomeViewModel, navController:
     // A plain holder rather than a MutableState: the view is only ever read from a click
     // handler, and writing state from AndroidView's factory would schedule a recomposition.
     val cardHolder = remember { CardViewHolder() }
-    val backgroundArgb = ParchmentCream.toArgb()
+    val backgroundArgb = SurfaceWhite.toArgb()
 
     if (paper == null) {
         Box(
@@ -266,11 +247,8 @@ fun SharePreviewScreen(paperId: String, viewModel: HomeViewModel, navController:
                     )
                 }
                 Text(
-                    "SHARE",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 2.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
+                    "Share",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.primary
                 )
             }
@@ -282,14 +260,11 @@ fun SharePreviewScreen(paperId: String, viewModel: HomeViewModel, navController:
                     val selected = option == style
                     Text(
                         option.label,
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
-                        ),
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                         color = if (selected) MaterialTheme.colorScheme.onPrimary
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(2.dp))
+                            .clip(MaterialTheme.shapes.extraLarge)
                             .background(
                                 if (selected) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.surface
@@ -297,7 +272,7 @@ fun SharePreviewScreen(paperId: String, viewModel: HomeViewModel, navController:
                             .border(
                                 1.dp,
                                 MaterialTheme.colorScheme.onBackground.copy(alpha = 0.15f),
-                                RoundedCornerShape(2.dp)
+                                MaterialTheme.shapes.extraLarge
                             )
                             .clickable { style = option }
                             .padding(horizontal = 12.dp, vertical = 8.dp)
@@ -313,7 +288,7 @@ fun SharePreviewScreen(paperId: String, viewModel: HomeViewModel, navController:
                 factory = { ctx -> ComposeView(ctx).also { cardHolder.view = it } },
                 update = { view ->
                     view.setContent {
-                        InkAndFieldNotesTheme(darkTheme = false) {
+                        CiteCircleTheme(darkTheme = false) {
                             ShareCardContent(paper, style)
                         }
                     }
@@ -339,7 +314,7 @@ fun SharePreviewScreen(paperId: String, viewModel: HomeViewModel, navController:
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape = RoundedCornerShape(2.dp),
+                shape = MaterialTheme.shapes.extraLarge,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary
                 )
@@ -347,11 +322,8 @@ fun SharePreviewScreen(paperId: String, viewModel: HomeViewModel, navController:
                 Icon(Icons.Outlined.Image, contentDescription = null, Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "SHARE AS IMAGE",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 1.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    "Share as image",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
                 )
             }
 
@@ -360,7 +332,7 @@ fun SharePreviewScreen(paperId: String, viewModel: HomeViewModel, navController:
             OutlinedButton(
                 onClick = { ShareUtils.sharePostText(context, paper, style) },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape = RoundedCornerShape(2.dp),
+                shape = MaterialTheme.shapes.extraLarge,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface)
             ) {
                 Icon(
@@ -371,11 +343,8 @@ fun SharePreviewScreen(paperId: String, viewModel: HomeViewModel, navController:
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "SHARE AS TEXT",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 1.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
+                    "Share as text",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }

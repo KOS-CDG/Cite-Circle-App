@@ -23,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -118,7 +117,7 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp)
+            .padding(horizontal = 16.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -126,12 +125,9 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "NEW ENTRY",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    letterSpacing = 2.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                color = MaterialTheme.colorScheme.primary
+                "New entry",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onBackground
             )
             IconButton(onClick = { discard() }) {
                 Icon(
@@ -143,7 +139,7 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
         }
 
         Spacer(Modifier.height(8.dp))
-        SectionLabel("COMMENTARY")
+        SectionLabel("Commentary")
         EditorialTextField(
             value = commentary,
             onValueChange = { commentary = it },
@@ -152,7 +148,7 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
         )
 
         Spacer(Modifier.height(20.dp))
-        SectionLabel("ATTACHMENT")
+        SectionLabel("Attachment")
         if (imagePath.isBlank()) {
             OutlinedButton(
                 onClick = {
@@ -161,8 +157,8 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
                     )
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape = RoundedCornerShape(2.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f))
+                shape = MaterialTheme.shapes.extraLarge,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
                 Icon(
                     Icons.Outlined.AddPhotoAlternate,
@@ -172,11 +168,8 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "ADD A FIGURE",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 1.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
+                    "Add a figure",
+                    style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
@@ -189,11 +182,11 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 240.dp)
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(MaterialTheme.shapes.small)
                         .border(
                             1.dp,
-                            MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f),
-                            RoundedCornerShape(4.dp)
+                            MaterialTheme.colorScheme.outlineVariant,
+                            MaterialTheme.shapes.small
                         )
                 )
                 IconButton(
@@ -205,7 +198,7 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(8.dp)
-                        .clip(RoundedCornerShape(2.dp))
+                        .clip(MaterialTheme.shapes.extraLarge)
                         .background(MaterialTheme.colorScheme.surface)
                 ) {
                     Icon(
@@ -219,10 +212,10 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
         }
 
         Spacer(Modifier.height(28.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Spacer(Modifier.height(28.dp))
 
-        SectionLabel("PAPER METADATA")
+        SectionLabel("Paper details")
         EditorialTextField(
             value = title,
             onValueChange = { title = it },
@@ -286,10 +279,10 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
         )
 
         Spacer(Modifier.height(28.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Spacer(Modifier.height(28.dp))
 
-        SectionLabel("CITATION PREVIEW")
+        SectionLabel("Citation preview")
         CitationPreview(
             draft = draft,
             style = previewStyle,
@@ -313,18 +306,15 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
                 }
             },
             modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(2.dp),
+            shape = MaterialTheme.shapes.extraLarge,
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             )
         ) {
             Text(
-                "PUBLISH TO FEED",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    letterSpacing = 1.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                "Post",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
             )
         }
 
@@ -336,12 +326,9 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
 private fun SectionLabel(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.labelSmall.copy(
-            letterSpacing = 2.sp,
-            fontWeight = FontWeight.Bold
-        ),
-        color = MaterialTheme.colorScheme.secondary,
-        modifier = Modifier.padding(bottom = 12.dp)
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onBackground,
+        modifier = Modifier.padding(bottom = 10.dp)
     )
 }
 
@@ -390,10 +377,10 @@ private fun EditorialTextField(
         minLines = minLines,
         isError = isError,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        shape = RoundedCornerShape(4.dp),
+        shape = MaterialTheme.shapes.small,
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f),
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
             focusedContainerColor = MaterialTheme.colorScheme.surface,
             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
             errorContainerColor = MaterialTheme.colorScheme.surface
@@ -411,7 +398,7 @@ private fun CitationPreview(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(4.dp))
+            .clip(MaterialTheme.shapes.small)
             .background(MaterialTheme.colorScheme.primary)
             .padding(20.dp)
     ) {
@@ -422,37 +409,32 @@ private fun CitationPreview(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "PREVIEW",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 10.sp,
-                        letterSpacing = 2.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                    "Preview",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f)
                 )
-                Row {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     CitationStyle.entries.forEach { option ->
                         val selected = option == style
                         Text(
                             option.label,
                             style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = if (selected) FontWeight.SemiBold
+                                else FontWeight.Medium
                             ),
                             color = if (selected) MaterialTheme.colorScheme.tertiary
-                            else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f),
+                            else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f),
                             modifier = Modifier
-                                .clip(RoundedCornerShape(2.dp))
-                                .clickable { onStyleChange(option) }
-                                .border(
-                                    1.dp,
+                                .clip(RoundedCornerShape(percent = 50))
+                                .background(
                                     if (selected) {
-                                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
+                                        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.12f)
                                     } else {
                                         androidx.compose.ui.graphics.Color.Transparent
-                                    },
-                                    RoundedCornerShape(2.dp)
+                                    }
                                 )
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .clickable { onStyleChange(option) }
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
                         )
                     }
                 }
@@ -467,11 +449,8 @@ private fun CitationPreview(
             } else {
                 Text(
                     CitationFormatter.format(draft, style),
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        lineHeight = 20.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimary
                 )
             }
         }

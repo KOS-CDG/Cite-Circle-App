@@ -58,7 +58,7 @@ fun QuotePostScreen(paperId: String, viewModel: HomeViewModel, navController: Na
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp)
+            .padding(horizontal = 16.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -74,11 +74,8 @@ fun QuotePostScreen(paperId: String, viewModel: HomeViewModel, navController: Na
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "CITE THIS ENTRY",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 2.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
+                    "Cite this entry",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.primary
                 )
             }
@@ -106,10 +103,10 @@ fun QuotePostScreen(paperId: String, viewModel: HomeViewModel, navController: Na
             },
             textStyle = MaterialTheme.typography.bodyMedium,
             minLines = 4,
-            shape = RoundedCornerShape(4.dp),
+            shape = MaterialTheme.shapes.small,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f),
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface
             )
@@ -120,12 +117,12 @@ fun QuotePostScreen(paperId: String, viewModel: HomeViewModel, navController: Na
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(4.dp))
+                .clip(MaterialTheme.shapes.small)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .border(
                     1.dp,
-                    MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f),
-                    RoundedCornerShape(4.dp)
+                    MaterialTheme.colorScheme.outlineVariant,
+                    MaterialTheme.shapes.small
                 )
                 .padding(16.dp)
         ) {
@@ -182,18 +179,15 @@ fun QuotePostScreen(paperId: String, viewModel: HomeViewModel, navController: Na
             },
             enabled = commentary.isNotBlank(),
             modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(2.dp),
+            shape = MaterialTheme.shapes.extraLarge,
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             )
         ) {
             Text(
-                "PUBLISH CITATION",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    letterSpacing = 1.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                "Post",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
             )
         }
 

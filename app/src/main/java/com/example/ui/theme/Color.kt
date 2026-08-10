@@ -2,23 +2,44 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val ForestGreen = Color(0xFF1A3C34)
-val ForestGreenLight = Color(0xFF2D6A4F)
-val Terracotta = Color(0xFFA0522D)
-val TerracottaLight = Color(0xFFE2703A)
-val WarmOchre = Color(0xFFD9953F)
-val WarmOchreLight = Color(0xFFE6B88A)
+/**
+ * A bright, professional-network palette in the register of LinkedIn and Facebook: white
+ * content surfaces floating on a warm neutral page, one confident brand blue, and two
+ * sparingly-used semantic accents.
+ *
+ * Every colour here is a flat value. Gradients are deliberately absent — depth comes from
+ * surface elevation and spacing, never from a blend.
+ */
 
-val ParchmentCream = Color(0xFFF5E6CA)
-val CitationBackground = Color(0xFFF9F7F2)
-val CharcoalInk = Color(0xFF2D2D2D)
-val FadedInk = Color(0xFF525252)
+// --- brand ------------------------------------------------------------------
+val BrandBlue = Color(0xFF0A66C2)
+val BrandBluePressed = Color(0xFF09539E)
+/** Lifted for legibility on dark surfaces, where the 0xFF0A66C2 blue fails contrast. */
+val BrandBlueOnDark = Color(0xFF71B7FB)
 
-val DarkBackground = Color(0xFF121212)
-val DarkSurface = Color(0xFF1E1E1E)
-val LightTextDark = Color(0xFFFDFBF7)
-val FadedTextDark = Color(0xFFA0A0A0)
+// --- light surfaces ---------------------------------------------------------
+/** The page itself. Cards sit on top of this, which is what creates the feed's rhythm. */
+val PageNeutral = Color(0xFFF4F2EE)
+val SurfaceWhite = Color(0xFFFFFFFF)
+/** Inset blocks: quoted posts, skeleton bones, secondary panels. */
+val SurfaceInset = Color(0xFFEDEDED)
+val TextPrimaryLight = Color(0xFF191919)
+val TextSecondaryLight = Color(0xFF5E5E5E)
+val DividerLight = Color(0xFFE0DFDC)
 
-val SuccessGreen = Color(0xFF2E7D32)
-val WarningYellow = Color(0xFFF57F17)
+// --- dark surfaces ----------------------------------------------------------
+val PageDark = Color(0xFF1B1F23)
+val SurfaceDark = Color(0xFF25292E)
+val SurfaceInsetDark = Color(0xFF32373C)
+val TextPrimaryDark = Color(0xFFF5F5F5)
+val TextSecondaryDark = Color(0xFFA8B0B8)
+val DividerDark = Color(0xFF383D43)
+
+// --- semantic accents -------------------------------------------------------
+/** Endorsements and anything verified. Used sparingly, never as a surface. */
+val AccentGreen = Color(0xFF057642)
+val AccentGreenOnDark = Color(0xFF6FCF97)
+/** Highlights that must read against the blue citation panel. */
+val AccentAmber = Color(0xFFE7A33E)
 val ErrorRed = Color(0xFFB3261E)
+val ErrorRedOnDark = Color(0xFFF2B8B5)

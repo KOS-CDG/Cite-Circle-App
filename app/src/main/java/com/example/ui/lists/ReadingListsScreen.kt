@@ -1,25 +1,20 @@
 package com.example.ui.lists
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.outlined.LibraryBooks
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.HomeViewModel
@@ -27,6 +22,9 @@ import com.example.data.CitationFormatter
 import com.example.data.CitationStyle
 import com.example.data.SavedPaper
 import com.example.data.formatTimeAgo
+import com.example.ui.components.EmptyState
+import com.example.ui.components.ListRowSkeleton
+import com.example.ui.components.RefreshableBox
 
 /**
  * Everything bookmarked from the feed.
@@ -36,45 +34,55 @@ import com.example.data.formatTimeAgo
  */
 @Composable
 fun ReadingListsScreen(viewModel: HomeViewModel, navController: NavController) {
-    val saved by viewModel.bookmarkedPapers.collectAsStateWithLifecycle()
+    val saved by viewModel.bookmarks.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(24.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "READING LIST",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    letterSpacing = 2.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                "${saved.size} SAVED",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = 1.sp
-                ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        if (saved.isEmpty()) {
-            EmptyReadingList()
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+    RefreshableBox(isRefreshing = isRefreshing, onRefresh = viewModel::refresh) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                items(saved, key = { it.id }) { paper ->
-                    SavedEntryCard(
-                        paper = paper,
-                        onOpen = { navController.navigate("post/${paper.id}") },
-                        onRemove = { viewModel.toggleBookmark(paper.id, paper.isBookmarked) }
+                Text(
+                    "Saved",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                if (!saved.isLoading) {
+                    Text(
+                        "${saved.items.size} ${if (saved.items.size == 1) "entry" else "entries"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+
+            when {
+                saved.isLoading -> Column(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    repeat(3) { ListRowSkeleton() }
+                }
+
+                saved.isEmpty -> EmptyState(
+                    title = "Nothing saved yet",
+                    message = "Bookmark an entry in your feed and it will appear here.",
+                    icon = Icons.Outlined.BookmarkBorder
+                )
+
+                else -> LazyColumn(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(saved.items, key = { it.id }) { paper ->
+                        SavedEntryCard(
+                            paper = paper,
+                            onOpen = { navController.navigate("post/${paper.id}") },
+                            onRemove = { viewModel.toggleBookmark(paper.id, paper.isBookmarked) }
+                        )
+                    }
                 }
             }
         }
@@ -86,10 +94,10 @@ private fun SavedEntryCard(paper: SavedPaper, onOpen: () -> Unit, onRemove: () -
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(4.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f))
+        shape = MaterialTheme.shapes.medium,
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -98,73 +106,43 @@ private fun SavedEntryCard(paper: SavedPaper, onOpen: () -> Unit, onRemove: () -
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         paper.title.ifBlank { paper.content },
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "${paper.authorName} • ${formatTimeAgo(paper.publishedAt)}",
-                        style = MaterialTheme.typography.labelSmall,
+                        "${paper.authorName} · ${formatTimeAgo(paper.publishedAt)}",
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 IconButton(onClick = onRemove) {
                     Icon(
                         Icons.Filled.Bookmark,
-                        contentDescription = "Remove from reading list",
-                        modifier = Modifier.size(18.dp),
+                        contentDescription = "Remove from saved",
+                        modifier = Modifier.size(20.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
             }
 
             if (CitationFormatter.isStyleable(paper) || paper.citationOverride.isNotBlank()) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
                 Text(
                     CitationFormatter.format(paper, CitationStyle.DEFAULT),
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        lineHeight = 18.sp
-                    ),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(MaterialTheme.shapes.small)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(10.dp)
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun EmptyReadingList() {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            Icons.Outlined.LibraryBooks,
-            contentDescription = null,
-            modifier = Modifier.size(48.dp),
-            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
-        )
-        Spacer(Modifier.height(24.dp))
-        Text(
-            "Nothing Saved Yet",
-            style = MaterialTheme.typography.titleLarge.copy(
-                fontStyle = FontStyle.Italic,
-                fontWeight = FontWeight.Normal
-            ),
-            color = MaterialTheme.colorScheme.primary
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Bookmark an entry in the registry and it will appear here.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
     }
 }
