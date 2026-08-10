@@ -14,6 +14,6 @@ class MyApplication : Application() {
         database = Room.databaseBuilder(this, AppDatabase::class.java, "folio_db")
             .addMigrations(AppDatabase.migration1To2(System.currentTimeMillis()))
             .build()
-        repository = PaperRepository(database.savedPaperDao())
+        repository = PaperRepository(database)
     }
 }

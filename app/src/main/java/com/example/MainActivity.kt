@@ -37,16 +37,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
-import com.example.data.CitationFormatter
-import com.example.data.CitationStyle
-import com.example.data.ExportFormat
-import com.example.data.SavedPaper
-import com.example.data.formatTimeAgo
 import com.example.ui.compose.ComposePostScreen
+import com.example.ui.post.PostCard
+import com.example.ui.post.PostDetailScreen
+import com.example.ui.post.QuotePostScreen
 import com.example.ui.share.SharePreviewScreen
-import com.example.ui.share.ShareUtils
 import com.example.ui.theme.InkAndFieldNotesTheme
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,7 +52,7 @@ class MainActivity : ComponentActivity() {
       val context = androidx.compose.ui.platform.LocalContext.current
       val application = context.applicationContext as MyApplication
       val viewModel: HomeViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-          factory = HomeViewModelFactory(application.repository)
+          factory = HomeViewModelFactory(application.repository, application)
       )
       val isDarkMode by viewModel.isDarkMode.collectAsStateWithLifecycle()
 
@@ -125,7 +121,9 @@ fun FolioApp(viewModel: HomeViewModel) {
   // Screens that supply their own header and should not sit inside the app chrome.
   val chromeless = currentRoute == "auth" ||
     currentRoute == "compose" ||
-    currentRoute.startsWith("share/")
+    currentRoute.startsWith("share/") ||
+    currentRoute.startsWith("post/") ||
+    currentRoute.startsWith("quote/")
 
   Scaffold(
     modifier = Modifier.fillMaxSize(),
@@ -265,7 +263,7 @@ fun FolioApp(viewModel: HomeViewModel) {
       }
       composable("feed") { HomeScreen(viewModel, navController) }
       composable("fields") { FieldsScreen() }
-      composable("lists") { com.example.ui.lists.ReadingListsScreen() }
+      composable("lists") { com.example.ui.lists.ReadingListsScreen(viewModel, navController) }
       composable("opps") { com.example.ui.opportunities.OpportunitiesScreen() }
       composable("profile") { ProfileScreen(viewModel, navController) }
       composable("chat") { com.example.ui.chat.ChatScreen() }
@@ -279,6 +277,26 @@ fun FolioApp(viewModel: HomeViewModel) {
         arguments = listOf(navArgument("paperId") { type = NavType.StringType })
       ) { entry ->
         SharePreviewScreen(
+          paperId = entry.arguments?.getString("paperId").orEmpty(),
+          viewModel = viewModel,
+          navController = navController
+        )
+      }
+      composable(
+        route = "post/{paperId}",
+        arguments = listOf(navArgument("paperId") { type = NavType.StringType })
+      ) { entry ->
+        PostDetailScreen(
+          paperId = entry.arguments?.getString("paperId").orEmpty(),
+          viewModel = viewModel,
+          navController = navController
+        )
+      }
+      composable(
+        route = "quote/{paperId}",
+        arguments = listOf(navArgument("paperId") { type = NavType.StringType })
+      ) { entry ->
+        QuotePostScreen(
           paperId = entry.arguments?.getString("paperId").orEmpty(),
           viewModel = viewModel,
           navController = navController
@@ -318,163 +336,6 @@ fun HomeScreen(viewModel: HomeViewModel, navController: androidx.navigation.NavC
   ) {
     items(papers.size) { index ->
       PostCard(papers[index], viewModel, navController)
-    }
-  }
-}
-
-@Composable
-fun PostCard(
-  paper: SavedPaper,
-  viewModel: HomeViewModel,
-  navController: androidx.navigation.NavController
-) {
-  Card(
-    modifier = Modifier
-      .fillMaxWidth()
-      .shadow(elevation = 2.dp, shape = RoundedCornerShape(4.dp), spotColor = Color(0x0D1A1A1A)),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    shape = RoundedCornerShape(4.dp),
-    border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f))
-  ) {
-    Column(modifier = Modifier.padding(24.dp)) {
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-          modifier = Modifier
-            .size(32.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primary),
-          contentAlignment = Alignment.Center
-        ) {
-          Text(paper.authorInitials, color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 10.sp)
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column {
-          Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(paper.authorName, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("• ${formatTimeAgo(paper.publishedAt)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-          }
-          Text(paper.affiliation, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 1.sp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-      }
-      
-      Spacer(modifier = Modifier.height(16.dp))
-      HorizontalDivider(color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.05f), thickness = 1.dp)
-      Spacer(modifier = Modifier.height(16.dp))
-      
-      Text(
-        paper.content,
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurface,
-        lineHeight = 24.sp
-      )
-      Spacer(modifier = Modifier.height(20.dp))
-      CitationBlock(paper)
-      Spacer(modifier = Modifier.height(20.dp))
-      
-      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedButton(
-          onClick = { viewModel.toggleEndorsement(paper.id, paper.isEndorsed) },
-          modifier = Modifier.weight(1f).height(48.dp),
-          shape = RoundedCornerShape(2.dp),
-          border = BorderStroke(1.dp, if (paper.isEndorsed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface),
-          colors = ButtonDefaults.outlinedButtonColors(containerColor = if (paper.isEndorsed) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent)
-        ) {
-          Icon(
-              if (paper.isEndorsed) Icons.Filled.Verified else Icons.Outlined.Verified,
-              contentDescription = "Endorse",
-              tint = if (paper.isEndorsed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-              modifier = Modifier.size(16.dp)
-          )
-          Spacer(modifier = Modifier.width(8.dp))
-          Text(if (paper.isEndorsed) "VERIFIED" else "ENDORSE", style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp, fontWeight = FontWeight.Bold), color = if (paper.isEndorsed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-        }
-        Button(
-          onClick = { navController.navigate("share/${paper.id}") },
-          modifier = Modifier.weight(1f).height(48.dp),
-          shape = RoundedCornerShape(2.dp),
-          colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary, contentColor = MaterialTheme.colorScheme.primary)
-        ) {
-          Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-          Spacer(modifier = Modifier.width(8.dp))
-          Text("SHARE", style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp, fontWeight = FontWeight.Bold))
-        }
-      }
-    }
-  }
-}
-
-@Composable
-fun CitationBlock(paper: SavedPaper) {
-  var style by remember { mutableStateOf(CitationStyle.DEFAULT) }
-  val styleable = CitationFormatter.isStyleable(paper)
-
-  Box(
-    modifier = Modifier
-      .fillMaxWidth()
-      .clip(RoundedCornerShape(4.dp))
-      .background(MaterialTheme.colorScheme.primary)
-      .padding(20.dp)
-  ) {
-    Column {
-      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text("CITATION", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 2.sp), color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f))
-        
-        if (styleable) {
-          Row {
-            CitationStyle.entries.forEach { option ->
-                val selected = option == style
-                Text(
-                    option.label,
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
-                    color = if (selected) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f),
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(2.dp))
-                        .clickable { style = option }
-                        .border(1.dp, if (selected) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f) else Color.Transparent, RoundedCornerShape(2.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-            }
-          }
-        } else {
-          // Legacy rows carry a verbatim citation string that cannot honestly be restyled,
-          // so no style toggle is offered rather than one that silently does nothing.
-          Text(
-            "VERBATIM",
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 1.sp, fontFamily = FontFamily.Monospace),
-            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f)
-          )
-        }
-      }
-      Spacer(modifier = Modifier.height(12.dp))
-
-      Text(
-        CitationFormatter.format(paper, style),
-        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, lineHeight = 20.sp),
-        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
-      )
-
-      Spacer(modifier = Modifier.height(16.dp))
-      HorizontalDivider(color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f))
-      Spacer(modifier = Modifier.height(16.dp))
-
-      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        val context = androidx.compose.ui.platform.LocalContext.current
-        val scope = rememberCoroutineScope()
-        ExportFormat.entries.forEach { format ->
-          OutlinedButton(
-            onClick = { scope.launch { ShareUtils.shareExport(context, paper, format) } },
-            modifier = Modifier.weight(1f).height(40.dp),
-            shape = RoundedCornerShape(2.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.3f)),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary)
-          ) {
-            Icon(Icons.Outlined.Download, contentDescription = "Export ${format.label}", modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(format.label, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
-          }
-        }
-      }
     }
   }
 }

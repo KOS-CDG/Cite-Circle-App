@@ -1,5 +1,9 @@
 package com.example.ui.compose
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,23 +14,30 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.AddPhotoAlternate
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.HomeViewModel
 import com.example.data.AuthorIdentity
 import com.example.data.CitationFormatter
 import com.example.data.CitationStyle
+import com.example.data.ImageStore
 import com.example.data.SavedPaper
+import kotlinx.coroutines.launch
+import java.io.File
 import java.util.UUID
 
 /**
@@ -40,8 +51,11 @@ import java.util.UUID
 @Composable
 fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
     val identity = remember { AuthorIdentity.current() }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     var commentary by rememberSaveable { mutableStateOf("") }
+    var imagePath by rememberSaveable { mutableStateOf("") }
     var title by rememberSaveable { mutableStateOf("") }
     var authors by rememberSaveable { mutableStateOf("") }
     var year by rememberSaveable { mutableStateOf("") }
@@ -69,8 +83,35 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
         year = year.trim(),
         venue = venue.trim(),
         doi = doi.trim(),
-        url = url.trim()
+        url = url.trim(),
+        imageUri = imagePath
     )
+
+    // The picker's URI grant is transient, so ImageStore copies the bytes into app storage
+    // immediately and the post stores that path instead.
+    val imagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val previous = imagePath
+                val stored = ImageStore.persist(context, uri)
+                if (stored != null) {
+                    imagePath = stored
+                    // Replacing an attachment should not orphan the one it replaced.
+                    if (previous.isNotBlank()) ImageStore.delete(context, previous)
+                }
+            }
+        }
+    }
+
+    /** Discarding the draft must not leave its copied image behind. */
+    fun discard() {
+        val pending = imagePath
+        imagePath = ""
+        if (pending.isNotBlank()) scope.launch { ImageStore.delete(context, pending) }
+        onDone()
+    }
 
     Column(
         modifier = Modifier
@@ -92,7 +133,7 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
                 ),
                 color = MaterialTheme.colorScheme.primary
             )
-            IconButton(onClick = onDone) {
+            IconButton(onClick = { discard() }) {
                 Icon(
                     Icons.Filled.Close,
                     contentDescription = "Discard draft",
@@ -109,6 +150,73 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
             placeholder = "What should your circle know about this paper?",
             minLines = 4
         )
+
+        Spacer(Modifier.height(20.dp))
+        SectionLabel("ATTACHMENT")
+        if (imagePath.isBlank()) {
+            OutlinedButton(
+                onClick = {
+                    imagePicker.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(2.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f))
+            ) {
+                Icon(
+                    Icons.Outlined.AddPhotoAlternate,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "ADD A FIGURE",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        letterSpacing = 1.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        } else {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                AsyncImage(
+                    model = File(imagePath),
+                    contentDescription = "Attached figure",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 240.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f),
+                            RoundedCornerShape(4.dp)
+                        )
+                )
+                IconButton(
+                    onClick = {
+                        val pending = imagePath
+                        imagePath = ""
+                        scope.launch { ImageStore.delete(context, pending) }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                ) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = "Remove figure",
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
 
         Spacer(Modifier.height(28.dp))
         HorizontalDivider(color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f))

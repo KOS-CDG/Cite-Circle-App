@@ -35,9 +35,21 @@ data class AuthorIdentity(
             FALLBACK
         }
 
-        /** "Jane Doe" -> "JD"; a single name yields its first two letters. */
+        /**
+         * Honorifics and post-nominals, which are not part of a name. Without this an
+         * academic display name like "Dr. Jane Doe" would initialise to "DD".
+         */
+        private val NON_NAME_PARTS = setOf(
+            "dr", "prof", "professor", "mr", "mrs", "ms", "mx", "sir", "dame", "rev",
+            "phd", "md", "dphil", "jr", "sr", "ii", "iii", "iv"
+        )
+
+        /** "Dr. Jane Doe" -> "JD"; a single name yields its first two letters. */
         fun initialsOf(name: String): String {
-            val words = name.trim().split(' ', '.').filter { it.isNotBlank() }
+            val words = name.trim()
+                .split(' ', '.', ',')
+                .filter { it.isNotBlank() }
+                .filterNot { it.lowercase() in NON_NAME_PARTS }
             return when {
                 words.isEmpty() -> "??"
                 words.size == 1 -> words[0].take(2).uppercase()
