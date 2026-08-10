@@ -34,6 +34,7 @@ import org.robolectric.annotation.Config
  * These use [runBlocking] rather than `runTest` deliberately: Room delivers Flow invalidations on
  * its own executor, and virtual time would let assertions run before that real work lands.
  */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class HomeViewModelTest {
@@ -192,7 +193,8 @@ class HomeViewModelTest {
 
   @Test
   fun `factory builds a HomeViewModel`() {
-    val created = HomeViewModelFactory(repository, cloudSync).create(HomeViewModel::class.java)
+    // Declared as ViewModel so the type check below is a real assertion, not a tautology.
+    val created: ViewModel = HomeViewModelFactory(repository, cloudSync).create(HomeViewModel::class.java)
 
     assertTrue(created is HomeViewModel)
   }

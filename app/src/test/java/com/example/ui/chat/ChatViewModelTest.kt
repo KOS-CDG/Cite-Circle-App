@@ -23,6 +23,7 @@ import org.junit.Test
  * Covers [ChatViewModel]'s message-list bookkeeping and request construction against a recording
  * fake service. Nothing here touches the network or [com.example.BuildConfig].
  */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class ChatViewModelTest {
 
   /** Captures each request and replies with whatever the test queued. */

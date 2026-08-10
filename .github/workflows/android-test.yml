@@ -13,11 +13,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      # JDK 21, not 17: Robolectric 4.16.1 requires Java 21 to run against SDK 36 (SDK 34/35 only
+      # need 17). On JDK 17 every Robolectric test aborts with UnsupportedOperationException from
+      # DefaultSdkProvider.verifySupportedSdk.
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
