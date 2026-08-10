@@ -5,6 +5,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -53,6 +58,14 @@ import com.example.ui.theme.CiteCircleTheme
 
 /** Horizontal page gutter. Narrower than the old 24dp so cards read wider, as in a feed. */
 private val Gutter = 16.dp
+
+/** Destinations reached by going deeper, as opposed to the five peer tabs. */
+private fun isPushedRoute(route: String?): Boolean {
+  val r = route.orEmpty()
+  return r == "compose" || r == "chat" || r == "notifications" ||
+    r.startsWith("post/") || r.startsWith("quote/") || r.startsWith("share/") ||
+    r.startsWith("edit/") || r.startsWith("image/") || r.startsWith("venue/")
+}
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -145,7 +158,26 @@ fun FolioApp(viewModel: HomeViewModel) {
     NavHost(
       navController = navController,
       startDestination = startDestination,
-      modifier = Modifier.padding(innerPadding)
+      modifier = Modifier.padding(innerPadding),
+      // Detail-style destinations slide in from the right, the way a pushed screen should.
+      // Switching bottom tabs only cross-fades — sliding sideways between peers reads as
+      // travelling somewhere you have not gone.
+      enterTransition = {
+        if (isPushedRoute(targetState.destination.route)) {
+          slideInHorizontally(animationSpec = tween(220)) { it / 5 } + fadeIn(tween(220))
+        } else {
+          fadeIn(tween(160))
+        }
+      },
+      exitTransition = { fadeOut(tween(160)) },
+      popEnterTransition = { fadeIn(tween(160)) },
+      popExitTransition = {
+        if (isPushedRoute(initialState.destination.route)) {
+          slideOutHorizontally(animationSpec = tween(200)) { it / 5 } + fadeOut(tween(200))
+        } else {
+          fadeOut(tween(160))
+        }
+      }
     ) {
       composable("auth") {
           com.example.ui.auth.AuthScreen(

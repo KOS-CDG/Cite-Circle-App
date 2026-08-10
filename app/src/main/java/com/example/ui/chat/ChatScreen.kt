@@ -27,6 +27,20 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.BuildConfig
+
+/**
+ * Model ids offered in debug builds.
+ *
+ * These are carried over unchanged from the generated scaffold and have never been verified
+ * against a live API — the naming pattern looks synthesized. Worth confirming before the
+ * chat screen is treated as working.
+ */
+private val ChatModels = listOf(
+    "gemini-3.5-flash" to "Fast",
+    "gemini-3.1-pro-preview" to "Pro",
+    "gemini-3.1-flash-lite-preview" to "Lite"
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,40 +56,34 @@ fun ChatScreen(viewModel: ChatViewModel = viewModel()) {
     )
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        // Toolbar for model selection
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            FilterChip(
-                selected = viewModel.currentModel == "gemini-3.5-flash",
-                onClick = { viewModel.currentModel = "gemini-3.5-flash" },
-                label = { Text("Fast (3.5-flash)") }
-            )
-            FilterChip(
-                selected = viewModel.currentModel == "gemini-3.1-pro-preview",
-                onClick = { viewModel.currentModel = "gemini-3.1-pro-preview" },
-                label = { Text("Pro (3.1-pro)") }
-            )
-            FilterChip(
-                selected = viewModel.currentModel == "gemini-3.1-flash-lite-preview",
-                onClick = { viewModel.currentModel = "gemini-3.1-flash-lite-preview" },
-                label = { Text("Low Latency (Lite)") }
-            )
+        // Model selection and search grounding are development affordances, not product
+        // surface: nobody using an academic assistant should have to pick a checkpoint. They
+        // stay available in debug builds and are hidden in release.
+        if (BuildConfig.DEBUG) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ChatModels.forEach { (id, label) ->
+                    FilterChip(
+                        selected = viewModel.currentModel == id,
+                        onClick = { viewModel.currentModel = id },
+                        label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = viewModel.useSearchGrounding,
+                    onCheckedChange = { viewModel.useSearchGrounding = it }
+                )
+                Text("Search grounding", style = MaterialTheme.typography.bodySmall)
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
-        
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Checkbox(
-                checked = viewModel.useSearchGrounding,
-                onCheckedChange = { viewModel.useSearchGrounding = it }
-            )
-            Text("Enable Search Grounding", style = MaterialTheme.typography.bodySmall)
-        }
-
-        HorizontalDivider()
 
         LazyColumn(
             modifier = Modifier.weight(1f).padding(8.dp),

@@ -102,7 +102,8 @@ dependencies {
   // Renders post images from app-internal files, with downsampling and caching handled for us.
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
-  implementation(libs.firebase.ai)
+  // firebase-ai is deliberately absent: nothing imports it. The chat screen talks to Gemini
+  // through the hand-rolled Retrofit client in network/GeminiApiService.kt.
   implementation(libs.firebase.firestore)
 
   // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google
