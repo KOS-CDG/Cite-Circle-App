@@ -34,8 +34,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavType
 import androidx.navigation.compose.*
+import androidx.navigation.navArgument
+import com.example.data.CitationFormatter
+import com.example.data.CitationStyle
+import com.example.data.ExportFormat
+import com.example.data.SavedPaper
+import com.example.data.formatTimeAgo
+import com.example.ui.compose.ComposePostScreen
+import com.example.ui.share.SharePreviewScreen
+import com.example.ui.share.ShareUtils
 import com.example.ui.theme.InkAndFieldNotesTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -104,17 +115,35 @@ fun FolioApp(viewModel: HomeViewModel) {
   val context = androidx.compose.ui.platform.LocalContext.current
   val navController = rememberNavController()
   val authManager = remember { com.example.ui.auth.FirebaseAuthManager(context) }
-  var currentRoute by remember { mutableStateOf(if (authManager.getCurrentUser() != null) "feed" else "auth") }
+  val startDestination = remember { if (authManager.getCurrentUser() != null) "feed" else "auth" }
 
-  navController.addOnDestinationChangedListener { _, destination, _ ->
-      currentRoute = destination.route ?: if (authManager.getCurrentUser() != null) "feed" else "auth"
-  }
+  // Derived from the back stack rather than an addOnDestinationChangedListener call in the
+  // composable body — that registered a fresh, never-removed listener on every recomposition.
+  val backStackEntry by navController.currentBackStackEntryAsState()
+  val currentRoute = backStackEntry?.destination?.route ?: startDestination
+
+  // Screens that supply their own header and should not sit inside the app chrome.
+  val chromeless = currentRoute == "auth" ||
+    currentRoute == "compose" ||
+    currentRoute.startsWith("share/")
 
   Scaffold(
     modifier = Modifier.fillMaxSize(),
     containerColor = MaterialTheme.colorScheme.background,
+    floatingActionButton = {
+      if (currentRoute == "feed") {
+        FloatingActionButton(
+          onClick = { navController.navigate("compose") },
+          containerColor = MaterialTheme.colorScheme.primary,
+          contentColor = MaterialTheme.colorScheme.onPrimary,
+          shape = RoundedCornerShape(4.dp)
+        ) {
+          Icon(Icons.Filled.Add, contentDescription = "New entry")
+        }
+      }
+    },
     topBar = {
-      if (currentRoute != "auth") {
+      if (!chromeless) {
           Column(
             modifier = Modifier
               .fillMaxWidth()
@@ -174,7 +203,7 @@ fun FolioApp(viewModel: HomeViewModel) {
       }
     },
     bottomBar = {
-      if (currentRoute != "onboarding" && currentRoute != "auth") {
+      if (!chromeless && currentRoute != "onboarding") {
         Column {
           HorizontalDivider(color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f), thickness = 1.dp)
           NavigationBar(
@@ -202,7 +231,6 @@ fun FolioApp(viewModel: HomeViewModel) {
                 label = { Text(route.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp, fontSize = 9.sp)) },
                 selected = currentRoute == route,
                 onClick = {
-                  currentRoute = route
                   navController.navigate(route) {
                     popUpTo("feed") { saveState = true }
                     launchSingleTop = true
@@ -225,7 +253,7 @@ fun FolioApp(viewModel: HomeViewModel) {
   ) { innerPadding ->
     NavHost(
       navController = navController,
-      startDestination = if (authManager.getCurrentUser() != null) "feed" else "auth",
+      startDestination = startDestination,
       modifier = Modifier.padding(innerPadding)
     ) {
       composable("auth") {
@@ -235,22 +263,51 @@ fun FolioApp(viewModel: HomeViewModel) {
               }
           )
       }
-      composable("feed") { HomeScreen(viewModel) }
+      composable("feed") { HomeScreen(viewModel, navController) }
       composable("fields") { FieldsScreen() }
       composable("lists") { com.example.ui.lists.ReadingListsScreen() }
       composable("opps") { com.example.ui.opportunities.OpportunitiesScreen() }
-      composable("profile") { ProfileScreen(viewModel) }
+      composable("profile") { ProfileScreen(viewModel, navController) }
       composable("chat") { com.example.ui.chat.ChatScreen() }
       composable("notifications") { NotificationsScreen(navController) }
       composable("notification_detail") { NotificationDetailScreen(navController) }
+      composable("compose") {
+        ComposePostScreen(viewModel = viewModel, onDone = { navController.popBackStack() })
+      }
+      composable(
+        route = "share/{paperId}",
+        arguments = listOf(navArgument("paperId") { type = NavType.StringType })
+      ) { entry ->
+        SharePreviewScreen(
+          paperId = entry.arguments?.getString("paperId").orEmpty(),
+          viewModel = viewModel,
+          navController = navController
+        )
+      }
     }
   }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(viewModel: HomeViewModel) {
+fun HomeScreen(viewModel: HomeViewModel, navController: androidx.navigation.NavController) {
   val papers by viewModel.savedPapers.collectAsStateWithLifecycle()
+
+  if (papers.isEmpty()) {
+    Column(
+      modifier = Modifier
+        .fillMaxSize()
+        .background(MaterialTheme.colorScheme.background),
+      verticalArrangement = Arrangement.Center
+    ) {
+      EmptyState(
+        "The Registry Is Empty",
+        "Publish your first entry to start building your circle.",
+        Icons.Outlined.BookmarkBorder
+      )
+    }
+    return
+  }
 
   LazyColumn(
     modifier = Modifier
@@ -260,13 +317,17 @@ fun HomeScreen(viewModel: HomeViewModel) {
     verticalArrangement = Arrangement.spacedBy(24.dp)
   ) {
     items(papers.size) { index ->
-      PostCard(papers[index], viewModel)
+      PostCard(papers[index], viewModel, navController)
     }
   }
 }
 
 @Composable
-fun PostCard(paper: com.example.data.SavedPaper, viewModel: HomeViewModel) {
+fun PostCard(
+  paper: SavedPaper,
+  viewModel: HomeViewModel,
+  navController: androidx.navigation.NavController
+) {
   Card(
     modifier = Modifier
       .fillMaxWidth()
@@ -291,7 +352,7 @@ fun PostCard(paper: com.example.data.SavedPaper, viewModel: HomeViewModel) {
           Row(verticalAlignment = Alignment.CenterVertically) {
             Text(paper.authorName, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("• ${paper.timeAgo}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("• ${formatTimeAgo(paper.publishedAt)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
           }
           Text(paper.affiliation, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 1.sp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -308,7 +369,7 @@ fun PostCard(paper: com.example.data.SavedPaper, viewModel: HomeViewModel) {
         lineHeight = 24.sp
       )
       Spacer(modifier = Modifier.height(20.dp))
-      CitationBlock(paper.citation)
+      CitationBlock(paper)
       Spacer(modifier = Modifier.height(20.dp))
       
       Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -329,12 +390,14 @@ fun PostCard(paper: com.example.data.SavedPaper, viewModel: HomeViewModel) {
           Text(if (paper.isEndorsed) "VERIFIED" else "ENDORSE", style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp, fontWeight = FontWeight.Bold), color = if (paper.isEndorsed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
         }
         Button(
-          onClick = { },
+          onClick = { navController.navigate("share/${paper.id}") },
           modifier = Modifier.weight(1f).height(48.dp),
           shape = RoundedCornerShape(2.dp),
           colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary, contentColor = MaterialTheme.colorScheme.primary)
         ) {
-          Text("VIEW CONTEXT", style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp, fontWeight = FontWeight.Bold))
+          Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+          Spacer(modifier = Modifier.width(8.dp))
+          Text("SHARE", style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp, fontWeight = FontWeight.Bold))
         }
       }
     }
@@ -342,9 +405,10 @@ fun PostCard(paper: com.example.data.SavedPaper, viewModel: HomeViewModel) {
 }
 
 @Composable
-fun CitationBlock(citation: String) {
-  var format by remember { mutableStateOf("APA") }
-  
+fun CitationBlock(paper: SavedPaper) {
+  var style by remember { mutableStateOf(CitationStyle.DEFAULT) }
+  val styleable = CitationFormatter.isStyleable(paper)
+
   Box(
     modifier = Modifier
       .fillMaxWidth()
@@ -356,57 +420,59 @@ fun CitationBlock(citation: String) {
       Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Text("CITATION", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 2.sp), color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f))
         
-        Row {
-            listOf("APA", "MLA", "CHICAGO").forEach { f ->
+        if (styleable) {
+          Row {
+            CitationStyle.entries.forEach { option ->
+                val selected = option == style
                 Text(
-                    f, 
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold), 
-                    color = if (format == f) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f), 
+                    option.label,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                    color = if (selected) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f),
                     modifier = Modifier
                         .clip(RoundedCornerShape(2.dp))
-                        .clickable { format = f }
-                        .border(1.dp, if (format == f) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f) else Color.Transparent, RoundedCornerShape(2.dp))
+                        .clickable { style = option }
+                        .border(1.dp, if (selected) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f) else Color.Transparent, RoundedCornerShape(2.dp))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
+          }
+        } else {
+          // Legacy rows carry a verbatim citation string that cannot honestly be restyled,
+          // so no style toggle is offered rather than one that silently does nothing.
+          Text(
+            "VERBATIM",
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 1.sp, fontFamily = FontFamily.Monospace),
+            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f)
+          )
         }
       }
       Spacer(modifier = Modifier.height(12.dp))
-      
-      val displayCitation = when (format) {
-          "MLA" -> citation.replace(" (2026). ", ". ") 
-          "CHICAGO" -> citation.replace(" (2026).", ", 2026.") 
-          else -> citation
-      }
-      Text(displayCitation, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, lineHeight = 20.sp), color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f))
-      
+
+      Text(
+        CitationFormatter.format(paper, style),
+        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, lineHeight = 20.sp),
+        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
+      )
+
       Spacer(modifier = Modifier.height(16.dp))
       HorizontalDivider(color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f))
       Spacer(modifier = Modifier.height(16.dp))
-      
+
       Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         val context = androidx.compose.ui.platform.LocalContext.current
-        OutlinedButton(
-          onClick = { android.widget.Toast.makeText(context, "Exported as BibTeX", android.widget.Toast.LENGTH_SHORT).show() },
-          modifier = Modifier.weight(1f).height(40.dp),
-          shape = RoundedCornerShape(2.dp),
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.3f)),
-          colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary)
-        ) {
-          Icon(Icons.Outlined.Download, contentDescription = "Export BibTeX", modifier = Modifier.size(16.dp))
-          Spacer(modifier = Modifier.width(8.dp))
-          Text("BibTeX", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
-        }
-        OutlinedButton(
-          onClick = { android.widget.Toast.makeText(context, "Exported as RIS", android.widget.Toast.LENGTH_SHORT).show() },
-          modifier = Modifier.weight(1f).height(40.dp),
-          shape = RoundedCornerShape(2.dp),
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.3f)),
-          colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary)
-        ) {
-          Icon(Icons.Outlined.Download, contentDescription = "Export RIS", modifier = Modifier.size(16.dp))
-          Spacer(modifier = Modifier.width(8.dp))
-          Text("RIS", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+        val scope = rememberCoroutineScope()
+        ExportFormat.entries.forEach { format ->
+          OutlinedButton(
+            onClick = { scope.launch { ShareUtils.shareExport(context, paper, format) } },
+            modifier = Modifier.weight(1f).height(40.dp),
+            shape = RoundedCornerShape(2.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.3f)),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary)
+          ) {
+            Icon(Icons.Outlined.Download, contentDescription = "Export ${format.label}", modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(format.label, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+          }
         }
       }
     }
@@ -588,7 +654,7 @@ fun FieldsScreen() {
 }
 
 @Composable
-fun ProfileScreen(viewModel: HomeViewModel) {
+fun ProfileScreen(viewModel: HomeViewModel, navController: androidx.navigation.NavController) {
   val papers by viewModel.savedPapers.collectAsStateWithLifecycle()
 
   LazyColumn(
@@ -630,7 +696,7 @@ fun ProfileScreen(viewModel: HomeViewModel) {
     }
     
     items(papers.size) { index ->
-      PostCard(papers[index], viewModel)
+      PostCard(papers[index], viewModel, navController)
       Spacer(modifier = Modifier.height(24.dp))
     }
   }

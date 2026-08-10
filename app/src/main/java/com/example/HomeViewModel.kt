@@ -39,10 +39,14 @@ class HomeViewModel(private val repository: PaperRepository) : ViewModel() {
                         id = "1",
                         authorInitials = "JD",
                         authorName = "Dr. Jane Doe",
-                        timeAgo = "2h ago",
                         affiliation = "AFFILIATION: OXFORD",
                         content = "I just published a new preprint analyzing the semantic structures of large language models. The findings suggest a stark shift in latent knowledge representations.",
-                        citation = "Doe, J. (2026). Semantic Structures in LLMs. Folio Preprints, CC-882-XJ. https://cite.circle/refs/882xj",
+                        title = "Semantic Structures in Large Language Models",
+                        authors = "Doe, Jane",
+                        year = "2026",
+                        venue = "Folio Preprints",
+                        url = "https://cite.circle/refs/882xj",
+                        publishedAt = System.currentTimeMillis(),
                         isEndorsed = false
                     )
                     repository.savePaper(defaultPaper)
@@ -56,9 +60,10 @@ class HomeViewModel(private val repository: PaperRepository) : ViewModel() {
     fun savePaper(paper: SavedPaper) {
         viewModelScope.launch {
             repository.savePaper(paper)
-            // Sync all papers to cloud (in a real app this might be more targeted)
+            // Read back after the write so the sync sees the canonical list. The previous
+            // version appended `paper` to that list as well, sending it to Firestore twice.
             repository.allPapers.take(1).collect { papers ->
-                firestoreRepo.syncPapersToCloud(papers + paper)
+                firestoreRepo.syncPapersToCloud(papers)
             }
         }
     }

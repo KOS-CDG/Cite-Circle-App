@@ -1,0 +1,371 @@
+package com.example.ui.compose
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.HomeViewModel
+import com.example.data.AuthorIdentity
+import com.example.data.CitationFormatter
+import com.example.data.CitationStyle
+import com.example.data.SavedPaper
+import java.util.UUID
+
+/**
+ * The post composer.
+ *
+ * Collects the commentary plus the structured paper metadata that [CitationFormatter]
+ * needs, and previews the rendered citation live so mistakes are visible before publishing.
+ * This is the screen that finally calls [HomeViewModel.savePaper], which existed unused
+ * until now.
+ */
+@Composable
+fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
+    val identity = remember { AuthorIdentity.current() }
+
+    var commentary by rememberSaveable { mutableStateOf("") }
+    var title by rememberSaveable { mutableStateOf("") }
+    var authors by rememberSaveable { mutableStateOf("") }
+    var year by rememberSaveable { mutableStateOf("") }
+    var venue by rememberSaveable { mutableStateOf("") }
+    var doi by rememberSaveable { mutableStateOf("") }
+    var url by rememberSaveable { mutableStateOf("") }
+    var affiliation by rememberSaveable { mutableStateOf(identity.affiliation) }
+    var previewStyle by rememberSaveable { mutableStateOf(CitationStyle.DEFAULT) }
+    var showErrors by rememberSaveable { mutableStateOf(false) }
+
+    val titleError = title.isBlank()
+    // A four-digit year is the only thing worth rejecting outright; everything else is
+    // legitimately optional on a preprint.
+    val yearError = year.isNotBlank() && !Regex("^\\d{4}$").matches(year.trim())
+    val canPublish = !titleError && !yearError
+
+    val draft = SavedPaper(
+        id = "",
+        authorInitials = identity.initials,
+        authorName = identity.name,
+        affiliation = affiliation.trim(),
+        content = commentary.trim(),
+        title = title.trim(),
+        authors = authors.trim(),
+        year = year.trim(),
+        venue = venue.trim(),
+        doi = doi.trim(),
+        url = url.trim()
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "NEW ENTRY",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    letterSpacing = 2.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                color = MaterialTheme.colorScheme.primary
+            )
+            IconButton(onClick = onDone) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = "Discard draft",
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+        SectionLabel("COMMENTARY")
+        EditorialTextField(
+            value = commentary,
+            onValueChange = { commentary = it },
+            placeholder = "What should your circle know about this paper?",
+            minLines = 4
+        )
+
+        Spacer(Modifier.height(28.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f))
+        Spacer(Modifier.height(28.dp))
+
+        SectionLabel("PAPER METADATA")
+        EditorialTextField(
+            value = title,
+            onValueChange = { title = it },
+            placeholder = "Title (required)",
+            isError = showErrors && titleError
+        )
+        if (showErrors && titleError) {
+            FieldError("A title is required — citations cannot be generated without one.")
+        }
+
+        Spacer(Modifier.height(12.dp))
+        EditorialTextField(
+            value = authors,
+            onValueChange = { authors = it },
+            placeholder = "Doe, Jane; Smith, John"
+        )
+        FieldHint("Separate authors with a semicolon, each written “Family, Given”.")
+
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(modifier = Modifier.weight(1f)) {
+                EditorialTextField(
+                    value = year,
+                    onValueChange = { year = it },
+                    placeholder = "Year",
+                    keyboardType = KeyboardType.Number,
+                    isError = showErrors && yearError
+                )
+            }
+            Column(modifier = Modifier.weight(2f)) {
+                EditorialTextField(
+                    value = venue,
+                    onValueChange = { venue = it },
+                    placeholder = "Journal or venue"
+                )
+            }
+        }
+        if (showErrors && yearError) FieldError("Enter a four-digit year, or leave it blank.")
+
+        Spacer(Modifier.height(12.dp))
+        EditorialTextField(
+            value = doi,
+            onValueChange = { doi = it },
+            placeholder = "DOI (10.1000/example)",
+            keyboardType = KeyboardType.Uri
+        )
+
+        Spacer(Modifier.height(12.dp))
+        EditorialTextField(
+            value = url,
+            onValueChange = { url = it },
+            placeholder = "URL",
+            keyboardType = KeyboardType.Uri
+        )
+
+        Spacer(Modifier.height(12.dp))
+        EditorialTextField(
+            value = affiliation,
+            onValueChange = { affiliation = it },
+            placeholder = "Affiliation"
+        )
+
+        Spacer(Modifier.height(28.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f))
+        Spacer(Modifier.height(28.dp))
+
+        SectionLabel("CITATION PREVIEW")
+        CitationPreview(
+            draft = draft,
+            style = previewStyle,
+            onStyleChange = { previewStyle = it }
+        )
+
+        Spacer(Modifier.height(28.dp))
+
+        Button(
+            onClick = {
+                if (!canPublish) {
+                    showErrors = true
+                } else {
+                    viewModel.savePaper(
+                        draft.copy(
+                            id = UUID.randomUUID().toString(),
+                            publishedAt = System.currentTimeMillis()
+                        )
+                    )
+                    onDone()
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            shape = RoundedCornerShape(2.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
+        ) {
+            Text(
+                "PUBLISH TO FEED",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    letterSpacing = 1.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            )
+        }
+
+        Spacer(Modifier.height(32.dp))
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall.copy(
+            letterSpacing = 2.sp,
+            fontWeight = FontWeight.Bold
+        ),
+        color = MaterialTheme.colorScheme.secondary,
+        modifier = Modifier.padding(bottom = 12.dp)
+    )
+}
+
+@Composable
+private fun FieldHint(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        modifier = Modifier.padding(top = 6.dp)
+    )
+}
+
+@Composable
+private fun FieldError(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
+        modifier = Modifier.padding(top = 6.dp)
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditorialTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    minLines: Int = 1,
+    isError: Boolean = false,
+    keyboardType: KeyboardType = KeyboardType.Text
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth(),
+        placeholder = {
+            Text(
+                placeholder,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+        },
+        textStyle = MaterialTheme.typography.bodyMedium,
+        minLines = minLines,
+        isError = isError,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        shape = RoundedCornerShape(4.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f),
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            errorContainerColor = MaterialTheme.colorScheme.surface
+        )
+    )
+}
+
+/** The dark citation slab, rendering the draft live as the form is filled in. */
+@Composable
+private fun CitationPreview(
+    draft: SavedPaper,
+    style: CitationStyle,
+    onStyleChange: (CitationStyle) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(4.dp))
+            .background(MaterialTheme.colorScheme.primary)
+            .padding(20.dp)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "PREVIEW",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 10.sp,
+                        letterSpacing = 2.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                )
+                Row {
+                    CitationStyle.entries.forEach { option ->
+                        val selected = option == style
+                        Text(
+                            option.label,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = if (selected) MaterialTheme.colorScheme.tertiary
+                            else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(2.dp))
+                                .clickable { onStyleChange(option) }
+                                .border(
+                                    1.dp,
+                                    if (selected) {
+                                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
+                                    } else {
+                                        androidx.compose.ui.graphics.Color.Transparent
+                                    },
+                                    RoundedCornerShape(2.dp)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            if (draft.title.isBlank()) {
+                Text(
+                    "Add a title to see the citation build itself.",
+                    style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
+                )
+            } else {
+                Text(
+                    CitationFormatter.format(draft, style),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        lineHeight = 20.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
+                )
+            }
+        }
+    }
+}

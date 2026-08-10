@@ -11,7 +11,9 @@ class MyApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        database = Room.databaseBuilder(this, AppDatabase::class.java, "folio_db").build()
+        database = Room.databaseBuilder(this, AppDatabase::class.java, "folio_db")
+            .addMigrations(AppDatabase.migration1To2(System.currentTimeMillis()))
+            .build()
         repository = PaperRepository(database.savedPaperDao())
     }
 }

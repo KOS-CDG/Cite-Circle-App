@@ -17,6 +17,7 @@ class ExampleInstrumentedTest {
   fun useAppContext() {
     // Context of the app under test.
     val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-    assertEquals("com.example", appContext.packageName)
+    // The applicationId, which differs from the `com.example` namespace.
+    assertEquals("com.aistudio.folio.wzpx", appContext.packageName)
   }
 }

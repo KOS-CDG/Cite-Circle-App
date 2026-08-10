@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The only directory FileProvider will hand out URIs for. ShareUtils writes every
+  outgoing citation card, .bib, and .ris file into cacheDir/shared, so nothing else
+  in the app's storage is reachable by a receiving app.
+-->
+<paths>
+    <cache-path name="shared" path="shared/" />
+</paths>
