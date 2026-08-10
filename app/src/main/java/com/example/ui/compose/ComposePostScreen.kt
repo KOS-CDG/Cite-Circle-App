@@ -48,22 +48,33 @@ import java.util.UUID
  * until now.
  */
 @Composable
-fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
+fun ComposePostScreen(
+    viewModel: HomeViewModel,
+    onDone: () -> Unit,
+    existing: SavedPaper? = null
+) {
     val identity = remember { AuthorIdentity.current() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val isEdit = existing != null
 
-    var commentary by rememberSaveable { mutableStateOf("") }
-    var imagePath by rememberSaveable { mutableStateOf("") }
-    var title by rememberSaveable { mutableStateOf("") }
-    var authors by rememberSaveable { mutableStateOf("") }
-    var year by rememberSaveable { mutableStateOf("") }
-    var venue by rememberSaveable { mutableStateOf("") }
-    var doi by rememberSaveable { mutableStateOf("") }
-    var url by rememberSaveable { mutableStateOf("") }
-    var affiliation by rememberSaveable { mutableStateOf(identity.affiliation) }
+    var commentary by rememberSaveable { mutableStateOf(existing?.content.orEmpty()) }
+    var imagePath by rememberSaveable { mutableStateOf(existing?.imageUri.orEmpty()) }
+    var title by rememberSaveable { mutableStateOf(existing?.title.orEmpty()) }
+    var authors by rememberSaveable { mutableStateOf(existing?.authors.orEmpty()) }
+    var year by rememberSaveable { mutableStateOf(existing?.year.orEmpty()) }
+    var venue by rememberSaveable { mutableStateOf(existing?.venue.orEmpty()) }
+    var doi by rememberSaveable { mutableStateOf(existing?.doi.orEmpty()) }
+    var url by rememberSaveable { mutableStateOf(existing?.url.orEmpty()) }
+    var affiliation by rememberSaveable {
+        mutableStateOf(existing?.affiliation ?: identity.affiliation)
+    }
     var previewStyle by rememberSaveable { mutableStateOf(CitationStyle.DEFAULT) }
     var showErrors by rememberSaveable { mutableStateOf(false) }
+
+    // The image the post already had. Only a *newly* picked file should be cleaned up on
+    // discard — deleting this one would strip the figure off the saved post.
+    val originalImage = remember { existing?.imageUri.orEmpty() }
 
     val titleError = title.isBlank()
     // A four-digit year is the only thing worth rejecting outright; everything else is
@@ -72,9 +83,9 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
     val canPublish = !titleError && !yearError
 
     val draft = SavedPaper(
-        id = "",
-        authorInitials = identity.initials,
-        authorName = identity.name,
+        id = existing?.id.orEmpty(),
+        authorInitials = existing?.authorInitials ?: identity.initials,
+        authorName = existing?.authorName ?: identity.name,
         affiliation = affiliation.trim(),
         content = commentary.trim(),
         title = title.trim(),
@@ -95,20 +106,28 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
             scope.launch {
                 val previous = imagePath
                 val stored = ImageStore.persist(context, uri)
-                if (stored != null) {
+                if (stored == null) {
+                    // Used to fail silently, leaving the button looking simply unresponsive.
+                    viewModel.report("That image could not be read.")
+                } else {
                     imagePath = stored
-                    // Replacing an attachment should not orphan the one it replaced.
-                    if (previous.isNotBlank()) ImageStore.delete(context, previous)
+                    // Replacing an attachment should not orphan the one it replaced, but the
+                    // post's existing figure stays until the edit is actually saved.
+                    if (previous.isNotBlank() && previous != originalImage) {
+                        ImageStore.delete(context, previous)
+                    }
                 }
             }
         }
     }
 
-    /** Discarding the draft must not leave its copied image behind. */
+    /** Discarding must not leave a newly copied image behind, nor delete the saved one. */
     fun discard() {
         val pending = imagePath
         imagePath = ""
-        if (pending.isNotBlank()) scope.launch { ImageStore.delete(context, pending) }
+        if (pending.isNotBlank() && pending != originalImage) {
+            scope.launch { ImageStore.delete(context, pending) }
+        }
         onDone()
     }
 
@@ -125,7 +144,7 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "New entry",
+                if (isEdit) "Edit entry" else "New entry",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onBackground
             )
@@ -296,12 +315,36 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
                 if (!canPublish) {
                     showErrors = true
                 } else {
+                    // Editing keeps the original id and publish time, so the entry updates in
+                    // place rather than appearing twice at the top of the feed.
                     viewModel.savePaper(
-                        draft.copy(
-                            id = UUID.randomUUID().toString(),
-                            publishedAt = System.currentTimeMillis()
-                        )
+                        if (existing != null) {
+                            draft.copy(
+                                id = existing.id,
+                                publishedAt = existing.publishedAt,
+                                isEndorsed = existing.isEndorsed,
+                                endorsementCount = existing.endorsementCount,
+                                commentCount = existing.commentCount,
+                                repostCount = existing.repostCount,
+                                isBookmarked = existing.isBookmarked,
+                                quotedId = existing.quotedId,
+                                quotedAuthorName = existing.quotedAuthorName,
+                                quotedTitle = existing.quotedTitle,
+                                quotedContent = existing.quotedContent
+                            )
+                        } else {
+                            draft.copy(
+                                id = UUID.randomUUID().toString(),
+                                publishedAt = System.currentTimeMillis()
+                            )
+                        }
                     )
+                    // A replaced figure is only safe to delete once the change is committed.
+                    if (existing != null && originalImage.isNotBlank() &&
+                        originalImage != imagePath
+                    ) {
+                        viewModel.forgetPaper(originalImage)
+                    }
                     onDone()
                 }
             },
@@ -313,8 +356,8 @@ fun ComposePostScreen(viewModel: HomeViewModel, onDone: () -> Unit) {
             )
         ) {
             Text(
-                "Post",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                if (isEdit) "Save changes" else "Post",
+                style = MaterialTheme.typography.labelLarge
             )
         }
 

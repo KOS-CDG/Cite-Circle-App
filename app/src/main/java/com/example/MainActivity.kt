@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -43,6 +44,7 @@ import com.example.ui.components.ListRowSkeleton
 import com.example.ui.components.PostCardSkeleton
 import com.example.ui.components.RefreshableBox
 import com.example.ui.compose.ComposePostScreen
+import com.example.ui.post.ImageViewerScreen
 import com.example.ui.post.PostCard
 import com.example.ui.post.PostDetailScreen
 import com.example.ui.post.QuotePostScreen
@@ -60,7 +62,7 @@ class MainActivity : ComponentActivity() {
       val context = androidx.compose.ui.platform.LocalContext.current
       val application = context.applicationContext as MyApplication
       val viewModel: HomeViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-          factory = HomeViewModelFactory(application.repository, application)
+          factory = HomeViewModelFactory(application.repository, application.settings, application)
       )
       val isDarkMode by viewModel.isDarkMode.collectAsStateWithLifecycle()
 
@@ -104,11 +106,28 @@ fun FolioApp(viewModel: HomeViewModel) {
     currentRoute.startsWith("share/") ||
     currentRoute.startsWith("post/") ||
     currentRoute.startsWith("quote/") ||
-    currentRoute.startsWith("venue/")
+    currentRoute.startsWith("venue/") ||
+    currentRoute.startsWith("image/")
+
+  // One snackbar for the whole app. Failures used to be silent everywhere except the share
+  // screen, which had its own local host.
+  val snackbarHostState = remember { SnackbarHostState() }
+  LaunchedEffect(Unit) {
+    viewModel.messages.collect { message ->
+      val result = snackbarHostState.showSnackbar(
+        message = message.text,
+        actionLabel = if (message.undo != null) "Undo" else null,
+        withDismissAction = message.undo == null,
+        duration = SnackbarDuration.Short
+      )
+      if (result == SnackbarResult.ActionPerformed) message.undo?.invoke()
+    }
+  }
 
   Scaffold(
     modifier = Modifier.fillMaxSize(),
     containerColor = MaterialTheme.colorScheme.background,
+    snackbarHost = { SnackbarHost(snackbarHostState) },
     floatingActionButton = {
       if (currentRoute == "feed") {
         FloatingActionButton(
@@ -120,8 +139,8 @@ fun FolioApp(viewModel: HomeViewModel) {
         }
       }
     },
-    topBar = { if (!chromeless) AppTopBar(navController) },
-    bottomBar = { if (!chromeless) AppBottomBar(navController, currentRoute) }
+    topBar = { if (!chromeless) AppTopBar(navController, viewModel) },
+    bottomBar = { if (!chromeless) AppBottomBar(navController, currentRoute, viewModel) }
   ) { innerPadding ->
     NavHost(
       navController = navController,
@@ -156,6 +175,23 @@ fun FolioApp(viewModel: HomeViewModel) {
         ComposePostScreen(viewModel = viewModel, onDone = { navController.popBackStack() })
       }
       composable(
+        route = "edit/{paperId}",
+        arguments = listOf(navArgument("paperId") { type = NavType.StringType })
+      ) { entry ->
+        val id = entry.arguments?.getString("paperId").orEmpty()
+        val papers by viewModel.savedPapers.collectAsStateWithLifecycle()
+        val existing = papers.firstOrNull { it.id == id }
+        // Wait for the library to load rather than rendering a blank "new entry" form that
+        // would silently create a duplicate on save.
+        if (existing != null) {
+          ComposePostScreen(
+            viewModel = viewModel,
+            onDone = { navController.popBackStack() },
+            existing = existing
+          )
+        }
+      }
+      composable(
         route = "share/{paperId}",
         arguments = listOf(navArgument("paperId") { type = NavType.StringType })
       ) { entry ->
@@ -185,6 +221,15 @@ fun FolioApp(viewModel: HomeViewModel) {
           navController = navController
         )
       }
+      composable(
+        route = "image/{path}",
+        arguments = listOf(navArgument("path") { type = NavType.StringType })
+      ) { entry ->
+        ImageViewerScreen(
+          path = entry.arguments?.getString("path").orEmpty(),
+          navController = navController
+        )
+      }
     }
   }
 }
@@ -196,7 +241,8 @@ fun FolioApp(viewModel: HomeViewModel) {
  * magazine cover rather than an app.
  */
 @Composable
-private fun AppTopBar(navController: NavController) {
+private fun AppTopBar(navController: NavController, viewModel: HomeViewModel) {
+  val unread by viewModel.unreadActivityCount.collectAsStateWithLifecycle()
   Surface(color = MaterialTheme.colorScheme.surface) {
     Column(modifier = Modifier.statusBarsPadding()) {
       Row(
@@ -214,11 +260,24 @@ private fun AppTopBar(navController: NavController) {
         )
         Row {
           IconButton(onClick = { navController.navigate("notifications") }) {
-            Icon(
-              Icons.Outlined.Notifications,
-              contentDescription = "Notifications",
-              tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            BadgedBox(
+              badge = {
+                if (unread > 0) {
+                  Badge(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
+                  ) {
+                    Text(if (unread > 99) "99+" else unread.toString())
+                  }
+                }
+              }
+            ) {
+              Icon(
+                Icons.Outlined.Notifications,
+                contentDescription = if (unread > 0) "Activity, $unread new" else "Activity",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+              )
+            }
           }
           @Suppress("DEPRECATION")
           IconButton(onClick = { navController.navigate("chat") }) {
@@ -236,7 +295,11 @@ private fun AppTopBar(navController: NavController) {
 }
 
 @Composable
-private fun AppBottomBar(navController: NavController, currentRoute: String) {
+private fun AppBottomBar(
+  navController: NavController,
+  currentRoute: String,
+  viewModel: HomeViewModel
+) {
   Column {
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     NavigationBar(
@@ -259,10 +322,16 @@ private fun AppBottomBar(navController: NavController, currentRoute: String) {
           label = { Text(item.label, style = MaterialTheme.typography.labelSmall) },
           selected = selected,
           onClick = {
-            navController.navigate(item.route) {
-              popUpTo("feed") { saveState = true }
-              launchSingleTop = true
-              restoreState = true
+            // Re-tapping the tab you are already on scrolls that screen back to the top,
+            // as it does in both reference apps, rather than re-navigating to itself.
+            if (selected) {
+              viewModel.requestScrollToTop(item.route)
+            } else {
+              navController.navigate(item.route) {
+                popUpTo("feed") { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+              }
             }
           },
           colors = NavigationBarItemDefaults.colors(
@@ -282,6 +351,13 @@ private fun AppBottomBar(navController: NavController, currentRoute: String) {
 fun HomeScreen(viewModel: HomeViewModel, navController: NavController) {
   val feed by viewModel.feed.collectAsStateWithLifecycle()
   val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+  val listState = rememberLazyListState()
+
+  LaunchedEffect(Unit) {
+    viewModel.scrollToTop.collect { route ->
+      if (route == "feed") listState.animateScrollToItem(0)
+    }
+  }
 
   RefreshableBox(isRefreshing = isRefreshing, onRefresh = viewModel::refresh) {
     when {
@@ -297,6 +373,7 @@ fun HomeScreen(viewModel: HomeViewModel, navController: NavController) {
       )
 
       else -> LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = Gutter, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -401,6 +478,11 @@ fun CitationChart(papers: List<SavedPaper>) {
 @Composable
 fun NotificationsScreen(viewModel: HomeViewModel, navController: NavController) {
   val activity by viewModel.activity.collectAsStateWithLifecycle()
+
+  // Opening the screen is what clears the badge, keyed on the newest entry so arriving
+  // activity while the screen is open is also marked read.
+  val newest = activity.items.firstOrNull()?.timestamp ?: 0L
+  LaunchedEffect(newest) { viewModel.markActivitySeen(newest) }
 
   Column(modifier = Modifier.fillMaxSize()) {
     Text(

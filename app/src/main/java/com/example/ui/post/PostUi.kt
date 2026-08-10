@@ -1,5 +1,6 @@
 package com.example.ui.post
 
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -97,7 +98,9 @@ fun PostCard(
 
             if (paper.imageUri.isNotBlank()) {
                 Spacer(Modifier.height(12.dp))
-                PostImage(paper.imageUri)
+                PostImage(paper.imageUri) {
+                    navController.navigate("image/" + Uri.encode(paper.imageUri))
+                }
             }
 
             if (paper.isQuote) {
@@ -106,7 +109,7 @@ fun PostCard(
             }
 
             Spacer(Modifier.height(12.dp))
-            CitationBlock(paper)
+            CitationBlock(paper, viewModel)
 
             Spacer(Modifier.height(4.dp))
             // On the detail screen the thread is already below, so the comment count is
@@ -145,15 +148,16 @@ fun PostHeader(paper: SavedPaper) {
 
 /** An image attached to a post, loaded from the copy ImageStore made in app storage. */
 @Composable
-fun PostImage(path: String) {
+fun PostImage(path: String, onClick: (() -> Unit)? = null) {
     AsyncImage(
         model = File(path),
-        contentDescription = "Attached image",
+        contentDescription = "Attached figure, tap to enlarge",
         contentScale = ContentScale.Crop,
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = 320.dp)
             .clip(MaterialTheme.shapes.small)
+            .then(onClick?.let { action -> Modifier.clickable { action() } } ?: Modifier)
     )
 }
 
@@ -288,7 +292,7 @@ private fun PostAction(
  * makes a post recognisable as coming from Cite Circle when it is screenshotted.
  */
 @Composable
-fun CitationBlock(paper: SavedPaper) {
+fun CitationBlock(paper: SavedPaper, viewModel: HomeViewModel) {
     var style by remember { mutableStateOf(CitationStyle.DEFAULT) }
     val styleable = CitationFormatter.isStyleable(paper)
 
@@ -359,7 +363,17 @@ fun CitationBlock(paper: SavedPaper) {
             val scope = rememberCoroutineScope()
             ExportFormat.entries.forEach { format ->
                 OutlinedButton(
-                    onClick = { scope.launch { ShareUtils.shareExport(context, paper, format) } },
+                    onClick = {
+                        scope.launch {
+                            try {
+                                ShareUtils.shareExport(context, paper, format)
+                            } catch (e: Exception) {
+                                // Writing to cache or resolving a chooser can both fail; the
+                                // button used to just do nothing visible.
+                                viewModel.report("Could not export as ${format.label}.")
+                            }
+                        }
+                    },
                     modifier = Modifier.weight(1f).height(38.dp),
                     shape = MaterialTheme.shapes.extraLarge,
                     border = androidx.compose.foundation.BorderStroke(

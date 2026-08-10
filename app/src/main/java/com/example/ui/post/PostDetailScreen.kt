@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -126,12 +127,21 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
                     color = MaterialTheme.colorScheme.onBackground
                 )
             }
-            IconButton(onClick = { confirmDelete = true }) {
-                Icon(
-                    Icons.Outlined.Delete,
-                    contentDescription = "Withdraw entry",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Row {
+                IconButton(onClick = { navController.navigate("edit/${paper.id}") }) {
+                    Icon(
+                        Icons.Outlined.Edit,
+                        contentDescription = "Edit entry",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(onClick = { confirmDelete = true }) {
+                    Icon(
+                        Icons.Outlined.Delete,
+                        contentDescription = "Withdraw entry",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
 

@@ -140,6 +140,9 @@ interface CommentDao {
     @Query("SELECT * FROM comments WHERE paperId = :paperId ORDER BY createdAt ASC")
     fun commentsFor(paperId: String): Flow<List<Comment>>
 
+    @Query("SELECT * FROM comments WHERE paperId = :paperId ORDER BY createdAt ASC")
+    suspend fun commentsForOnce(paperId: String): List<Comment>
+
     /** Replies across every post, newest first — the other half of the activity feed. */
     @Query("SELECT * FROM comments ORDER BY createdAt DESC LIMIT 50")
     fun recentComments(): Flow<List<Comment>>
@@ -280,6 +283,17 @@ class PaperRepository(private val database: AppDatabase) {
         database.withTransaction {
             commentDao.deleteForPaper(id)
             dao.deletePaper(id)
+        }
+    }
+
+    /** A one-shot read of a post's comments, for capturing them before a delete cascades. */
+    suspend fun commentsOnce(paperId: String): List<Comment> = commentDao.commentsForOnce(paperId)
+
+    /** Puts a withdrawn post and its thread back exactly as they were. */
+    suspend fun restorePaper(paper: SavedPaper, comments: List<Comment>) {
+        database.withTransaction {
+            dao.insertPaper(paper)
+            comments.forEach { commentDao.insert(it) }
         }
     }
 

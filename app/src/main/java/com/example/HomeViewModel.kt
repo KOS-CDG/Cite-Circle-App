@@ -9,17 +9,20 @@ import com.example.data.Comment
 import com.example.data.ImageStore
 import com.example.data.PaperRepository
 import com.example.data.SavedPaper
+import com.example.data.SettingsRepository
 import com.example.data.VenueCount
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -37,6 +40,14 @@ data class ListState<T>(
     /** True only once loading has finished and there is still nothing to show. */
     val isEmpty: Boolean get() = !isLoading && items.isEmpty()
 }
+
+/**
+ * Something worth telling the user about, optionally with a way to take it back.
+ *
+ * Until now failures were silent: a photo that could not be decoded, an export that threw,
+ * a sync that did not happen. The UI had loading and empty states but no error state at all.
+ */
+data class UserMessage(val text: String, val undo: (() -> Unit)? = null)
 
 /**
  * One entry in the activity feed.
@@ -69,14 +80,39 @@ sealed interface ActivityItem {
  */
 class HomeViewModel(
     private val repository: PaperRepository,
+    private val settings: SettingsRepository,
     private val appContext: Context
 ) : ViewModel() {
 
-    private val _isDarkMode = MutableStateFlow(false)
-    val isDarkMode: StateFlow<Boolean> = _isDarkMode.asStateFlow()
+    val isDarkMode: StateFlow<Boolean> = settings.isDarkMode.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = false
+    )
 
     fun toggleTheme() {
-        _isDarkMode.update { !it }
+        viewModelScope.launch { settings.setDarkMode(!isDarkMode.value) }
+    }
+
+    /**
+     * One-shot messages for the app-level snackbar.
+     *
+     * extraBufferCapacity keeps emit() non-suspending, so failures can be reported from
+     * anywhere without a caller having to care whether anything is listening.
+     */
+    private val _messages = MutableSharedFlow<UserMessage>(extraBufferCapacity = 8)
+    val messages: SharedFlow<UserMessage> = _messages.asSharedFlow()
+
+    fun report(text: String, undo: (() -> Unit)? = null) {
+        _messages.tryEmit(UserMessage(text, undo))
+    }
+
+    /** Emits the route whose active tab was re-tapped, so that screen can jump to the top. */
+    private val _scrollToTop = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val scrollToTop: SharedFlow<String> = _scrollToTop.asSharedFlow()
+
+    fun requestScrollToTop(route: String) {
+        _scrollToTop.tryEmit(route)
     }
 
     val feed: StateFlow<ListState<SavedPaper>> = repository.allPapers
@@ -156,11 +192,31 @@ class HomeViewModel(
             _isRefreshing.value = true
             try {
                 syncToCloud()
+            } catch (e: Exception) {
+                // Previously swallowed by a bare try/finally, so a failed sync looked
+                // identical to a successful one.
+                report("Could not sync. Your entries are safe on this device.")
             } finally {
                 _isRefreshing.value = false
             }
         }
     }
+
+    /** Marks every activity entry up to [timestamp] as seen, clearing the unread badge. */
+    fun markActivitySeen(timestamp: Long) {
+        if (timestamp <= 0L) return
+        viewModelScope.launch { settings.markActivitySeen(timestamp) }
+    }
+
+    /** Count of activity entries newer than the last one the user looked at. */
+    val unreadActivityCount: StateFlow<Int> =
+        combine(activity, settings.lastSeenActivityAt) { state, lastSeen ->
+            state.items.count { it.timestamp > lastSeen }
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0
+        )
 
     init {
         viewModelScope.launch {
@@ -225,13 +281,36 @@ class HomeViewModel(
         }
     }
 
+    /**
+     * Withdraws a post, offering it back.
+     *
+     * The comments are read before the delete cascades them away, and the image file is
+     * deliberately *not* removed here — deleting it immediately would make undo restore a
+     * post whose figure had already been destroyed. Cleanup happens in [forgetPaper] once
+     * the undo window has closed.
+     */
     fun removePaper(paper: SavedPaper) {
         viewModelScope.launch {
+            val orphanedComments = repository.commentsOnce(paper.id)
             repository.deletePaper(paper.id)
-            // The row is gone; drop its image so deleted posts do not leak storage.
-            ImageStore.delete(appContext, paper.imageUri)
+            syncToCloud()
+            report("Entry withdrawn") {
+                restorePaper(paper, orphanedComments)
+            }
+        }
+    }
+
+    private fun restorePaper(paper: SavedPaper, comments: List<Comment>) {
+        viewModelScope.launch {
+            repository.restorePaper(paper, comments)
             syncToCloud()
         }
+    }
+
+    /** Called once an undo can no longer happen, to reclaim the image the post held. */
+    fun forgetPaper(imageUri: String) {
+        if (imageUri.isBlank()) return
+        viewModelScope.launch { ImageStore.delete(appContext, imageUri) }
     }
 
     fun toggleEndorsement(id: String, currentStatus: Boolean) {
@@ -275,12 +354,13 @@ class HomeViewModel(
 
 class HomeViewModelFactory(
     private val repository: PaperRepository,
+    private val settings: SettingsRepository,
     private val appContext: Context
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(HomeViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return HomeViewModel(repository, appContext) as T
+            return HomeViewModel(repository, settings, appContext) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
