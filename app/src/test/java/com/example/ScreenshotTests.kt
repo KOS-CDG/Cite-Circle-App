@@ -9,19 +9,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
-import androidx.room.Room
-import androidx.test.core.app.ApplicationProvider
-import com.example.data.AppDatabase
-import com.example.data.PaperCloudSync
-import com.example.data.PaperRepository
 import com.example.data.SavedPaper
 import com.example.ui.opportunities.Opportunity
 import com.example.ui.opportunities.OpportunityCard
 import com.example.ui.theme.InkAndFieldNotesTheme
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.github.takahirom.roborazzi.captureRoboImage
-import org.junit.After
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,6 +26,9 @@ import org.robolectric.annotation.GraphicsMode
  * Screenshot coverage for the presentation-heavy composables, where assertion-based tests would
  * mostly restate the layout code. Baselines are written by `:app:recordRoborazziDebug` and checked
  * by `:app:verifyRoborazziDebug`.
+ *
+ * Deliberately free of coroutines and Room: every composable here takes plain data and callbacks,
+ * so there is no background work that could outlive a test and leak into the next one.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -40,35 +36,6 @@ import org.robolectric.annotation.GraphicsMode
 class ScreenshotTests {
 
   @get:Rule val composeTestRule = createComposeRule()
-
-  private lateinit var database: AppDatabase
-  private lateinit var viewModel: HomeViewModel
-
-  @Before
-  fun setUp() {
-    // PostCard takes a HomeViewModel only to route button taps, which screenshots never trigger.
-    // A real view model over an in-memory database is cheaper than making the whole dependency
-    // chain substitutable just for rendering.
-    database =
-      Room.inMemoryDatabaseBuilder(
-          ApplicationProvider.getApplicationContext(),
-          AppDatabase::class.java,
-        )
-        .allowMainThreadQueries()
-        .build()
-    viewModel =
-      HomeViewModel(
-        PaperRepository(database.savedPaperDao()),
-        object : PaperCloudSync {
-          override suspend fun syncPapersToCloud(papers: List<SavedPaper>) = Unit
-        },
-      )
-  }
-
-  @After
-  fun tearDown() {
-    database.close()
-  }
 
   private val paper =
     SavedPaper(
@@ -110,15 +77,17 @@ class ScreenshotTests {
   }
 
   @Test
-  fun postCard_light() = capture("post_card_light", darkTheme = false) { PostCard(paper, viewModel) }
+  fun postCard_light() =
+    capture("post_card_light", darkTheme = false) { PostCard(paper, onEndorse = {}) }
 
   @Test
-  fun postCard_dark() = capture("post_card_dark", darkTheme = true) { PostCard(paper, viewModel) }
+  fun postCard_dark() =
+    capture("post_card_dark", darkTheme = true) { PostCard(paper, onEndorse = {}) }
 
   @Test
   fun postCard_endorsed() =
     capture("post_card_endorsed", darkTheme = false) {
-      PostCard(paper.copy(isEndorsed = true), viewModel)
+      PostCard(paper.copy(isEndorsed = true), onEndorse = {})
     }
 
   @Test

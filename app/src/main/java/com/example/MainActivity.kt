@@ -260,13 +260,16 @@ fun HomeScreen(viewModel: HomeViewModel) {
     verticalArrangement = Arrangement.spacedBy(24.dp)
   ) {
     items(papers.size) { index ->
-      PostCard(papers[index], viewModel)
+      PostCard(
+        papers[index],
+        onEndorse = { viewModel.toggleEndorsement(papers[index].id, papers[index].isEndorsed) },
+      )
     }
   }
 }
 
 @Composable
-fun PostCard(paper: com.example.data.SavedPaper, viewModel: HomeViewModel) {
+fun PostCard(paper: com.example.data.SavedPaper, onEndorse: () -> Unit) {
   Card(
     modifier = Modifier
       .fillMaxWidth()
@@ -313,7 +316,7 @@ fun PostCard(paper: com.example.data.SavedPaper, viewModel: HomeViewModel) {
       
       Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedButton(
-          onClick = { viewModel.toggleEndorsement(paper.id, paper.isEndorsed) },
+          onClick = onEndorse,
           modifier = Modifier.weight(1f).height(48.dp),
           shape = RoundedCornerShape(2.dp),
           border = BorderStroke(1.dp, if (paper.isEndorsed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface),
@@ -639,7 +642,10 @@ fun ProfileScreen(viewModel: HomeViewModel) {
     }
     
     items(papers.size) { index ->
-      PostCard(papers[index], viewModel)
+      PostCard(
+        papers[index],
+        onEndorse = { viewModel.toggleEndorsement(papers[index].id, papers[index].isEndorsed) },
+      )
       Spacer(modifier = Modifier.height(24.dp))
     }
   }
