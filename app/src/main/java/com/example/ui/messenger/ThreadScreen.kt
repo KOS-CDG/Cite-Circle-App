@@ -248,6 +248,10 @@ private fun MessageRow(
     onReact: (String) -> Unit,
 ) {
     var showReactions by remember { mutableStateOf(false) }
+    // Tapping a bubble reveals its exact time -- the standard messenger affordance, and what the
+    // bubble's onClick was missing. It showed a ripple and did nothing, so every bubble looked
+    // tappable and none was.
+    var timeRevealed by remember { mutableStateOf(false) }
     val isMine = item.isMine
 
     Column(
@@ -295,7 +299,7 @@ private fun MessageRow(
                             },
                         )
                         .combinedClickable(
-                            onClick = { },
+                            onClick = { timeRevealed = !timeRevealed },
                             onLongClick = { showReactions = true },
                             onDoubleClick = { onReact("❤️") },
                         )
@@ -324,7 +328,7 @@ private fun MessageRow(
                     )
                 }
 
-                if (item.showTimestamp) {
+                if (item.showTimestamp || timeRevealed) {
                     Text(
                         buildString {
                             append(TimeFormat.clockTime(item.message.sentAt))

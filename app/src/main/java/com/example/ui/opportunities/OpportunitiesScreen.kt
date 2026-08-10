@@ -21,6 +21,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -127,9 +130,14 @@ private fun typeColors(type: String): Pair<Color, Color> = when (type) {
 @Composable
 fun OpportunityCard(opportunity: Opportunity) {
     val (chipBg, chipFg) = typeColors(opportunity.type)
+    var expanded by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        // animateContentSize so expanding pushes the rest of the list down smoothly instead of
+        // snapping. There is no opportunity-detail screen, so the detail opens in place.
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         ),
@@ -175,17 +183,50 @@ fun OpportunityCard(opportunity: Opportunity) {
                 opportunity.description,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = if (expanded) Int.MAX_VALUE else 3,
+                overflow = TextOverflow.Ellipsis,
             )
+
+            if (expanded) {
+                Spacer(modifier = Modifier.height(Spacing.base))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(modifier = Modifier.height(Spacing.base))
+                DetailRow("Type", opportunity.type)
+                DetailRow("Institution", opportunity.institution)
+                DetailRow("Deadline", opportunity.deadline)
+            }
+
             Spacer(modifier = Modifier.height(Spacing.base))
             OutlinedButton(
-                onClick = { },
+                // Was a dead button labelled "View details".
+                onClick = { expanded = !expanded },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(Spacing.touchTarget),
                 shape = MaterialTheme.shapes.small,
             ) {
-                Text("View details", style = MaterialTheme.typography.labelLarge)
+                Text(
+                    if (expanded) "Hide details" else "View details",
+                    style = MaterialTheme.typography.labelLarge,
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.xs)) {
+        Text(
+            label.uppercase(),
+            style = MaterialTheme.typography.eyebrowTight,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(96.dp),
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }

@@ -55,6 +55,8 @@ fun NotificationDetailScreen(
     notificationId: String,
     onBack: () -> Unit,
     onMessage: (userId: String) -> Unit,
+    onConnect: (userId: String) -> Unit,
+    onOpenProfile: (userId: String) -> Unit,
 ) {
     val notification = viewModel.byId(notificationId)
 
@@ -180,7 +182,11 @@ fun NotificationDetailScreen(
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Button(
-                                onClick = { },
+                                // Was a no-op: the screen offered Accept and did nothing with it.
+                                onClick = {
+                                    onConnect(notification.actorId)
+                                    onBack()
+                                },
                                 modifier = Modifier.weight(1f),
                                 shape = MaterialTheme.shapes.small,
                             ) {
@@ -204,12 +210,15 @@ fun NotificationDetailScreen(
                             Text("Open conversation")
                         }
 
+                        // Was "View full paper" wired to nothing. There is no paper-detail
+                        // screen in this app, so the button now goes somewhere that exists
+                        // rather than naming a destination that does not.
                         else -> Button(
-                            onClick = { },
+                            onClick = { onOpenProfile(notification.actorId) },
                             modifier = Modifier.fillMaxWidth(),
                             shape = MaterialTheme.shapes.small,
                         ) {
-                            Text("View full paper")
+                            Text("View ${notification.actorName}'s profile")
                         }
                     }
                 }

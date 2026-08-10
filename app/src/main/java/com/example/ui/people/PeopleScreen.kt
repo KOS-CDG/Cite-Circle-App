@@ -14,14 +14,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.PersonSearch
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -35,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -42,7 +47,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.people.ConnectionState
 import com.example.data.people.Person
 import com.example.ui.components.Avatar
+import com.example.ui.components.EmptyState
 import com.example.ui.navigation.avatarSharedKey
+import com.example.ui.theme.AcademicField
 import com.example.ui.theme.Gradients
 import com.example.ui.theme.Spacing
 import com.example.ui.theme.accent
@@ -56,9 +63,15 @@ fun PeopleScreen(
     onMessage: (userId: String) -> Unit,
     onOpenProfile: (userId: String) -> Unit,
     modifier: Modifier = Modifier,
+    fieldFilter: AcademicField? = null,
+    onClearFieldFilter: () -> Unit = {},
 ) {
-    val people by viewModel.people.collectAsStateWithLifecycle()
+    val allPeople by viewModel.people.collectAsStateWithLifecycle()
     val suggested by viewModel.suggested.collectAsStateWithLifecycle()
+
+    val people = fieldFilter?.let { field ->
+        allPeople.filter { it.user.field == field }
+    } ?: allPeople
 
     LazyColumn(
         modifier = modifier
@@ -67,7 +80,15 @@ fun PeopleScreen(
         contentPadding = PaddingValues(bottom = Spacing.xxl),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        if (suggested.isNotEmpty()) {
+        if (fieldFilter != null) {
+            item(key = "field-filter") {
+                FieldFilterBar(field = fieldFilter, onClear = onClearFieldFilter)
+            }
+        }
+
+        // The suggestion carousel is about breadth, so it is hidden while the list is narrowed
+        // to one discipline -- otherwise it contradicts the filter sitting directly above it.
+        if (fieldFilter == null && suggested.isNotEmpty()) {
             item(key = "suggested-header") {
                 Text(
                     "RESEARCHERS YOU MAY KNOW",
@@ -97,7 +118,7 @@ fun PeopleScreen(
 
         item(key = "all-header") {
             Text(
-                "ALL RESEARCHERS",
+                if (fieldFilter != null) fieldFilter.label.uppercase() else "ALL RESEARCHERS",
                 style = MaterialTheme.typography.eyebrow,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(
@@ -105,6 +126,17 @@ fun PeopleScreen(
                     vertical = Spacing.sm,
                 ),
             )
+        }
+
+        if (people.isEmpty()) {
+            item(key = "no-people") {
+                EmptyState(
+                    title = "No researchers here yet",
+                    message = fieldFilter?.let { "Nobody in ${it.label} is on Cite Circle yet." }
+                        ?: "Researcher suggestions will appear here.",
+                    icon = Icons.Outlined.PersonSearch,
+                )
+            }
         }
 
         items(people, key = { it.user.id }) { person ->
@@ -116,6 +148,41 @@ fun PeopleScreen(
                 onClick = { onOpenProfile(person.user.id) },
             )
         }
+    }
+}
+
+/**
+ * Shows which discipline the list is narrowed to, in that discipline's own accent, with a way
+ * back out. A filter the user cannot see or clear is the usual way this pattern traps people.
+ */
+@Composable
+private fun FieldFilterBar(field: AcademicField, onClear: () -> Unit) {
+    val accent = field.accent()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.sm)
+            .clip(MaterialTheme.shapes.extraLarge)
+            .background(accent.container)
+            .padding(start = Spacing.base, end = Spacing.sm, top = Spacing.sm, bottom = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            "Showing ${field.label}",
+            style = MaterialTheme.typography.labelLarge,
+            color = accent.onContainer,
+        )
+        Icon(
+            Icons.Filled.Close,
+            contentDescription = "Clear field filter",
+            tint = accent.onContainer,
+            modifier = Modifier
+                .clip(CircleShape)
+                .clickable(onClick = onClear)
+                .padding(Spacing.xs)
+                .size(18.dp),
+        )
     }
 }
 

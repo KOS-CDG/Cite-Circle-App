@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.example.data.lists.ReadingListRepository
 import com.example.ui.lists.ReadingListsScreen
 import com.example.ui.opportunities.OpportunitiesScreen
 
@@ -23,7 +24,7 @@ private val tabs = listOf("Reading Lists", "Opportunities")
  * neither is a daily-use destination, so pairing them costs nothing and buys a nav slot.
  */
 @Composable
-fun LibraryScreen() {
+fun LibraryScreen(readingListRepository: ReadingListRepository) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
     Column(
@@ -46,7 +47,10 @@ fun LibraryScreen() {
         }
 
         when (selectedTab) {
-            0 -> ReadingListsScreen(modifier = Modifier.weight(1f))
+            0 -> ReadingListsScreen(
+                repository = readingListRepository,
+                modifier = Modifier.weight(1f),
+            )
             else -> OpportunitiesScreen(modifier = Modifier.weight(1f))
         }
     }

@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.room.Room
 import com.example.data.AppDatabase
 import com.example.data.PaperRepository
+import com.example.data.lists.InMemoryReadingListRepository
+import com.example.data.lists.ReadingListRepository
 import com.example.data.messenger.InMemoryMessengerRepository
 import com.example.data.messenger.MessengerRepository
 import com.example.data.notifications.InMemoryNotificationRepository
@@ -28,6 +30,10 @@ class MyApplication : Application() {
     }
 
     /** Reads its user records from the messenger, so the two can never disagree about a person. */
+    val readingListRepository: ReadingListRepository by lazy {
+        InMemoryReadingListRepository()
+    }
+
     val peopleRepository: PeopleRepository by lazy {
         InMemoryPeopleRepository(messengerRepository)
     }

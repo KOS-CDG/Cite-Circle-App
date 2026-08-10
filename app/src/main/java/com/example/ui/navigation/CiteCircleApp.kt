@@ -145,7 +145,9 @@ fun CiteCircleApp(viewModel: HomeViewModel) {
                     )
                 }
             }
-            composable(Routes.LIBRARY) { LibraryScreen() }
+            composable(Routes.LIBRARY) {
+                LibraryScreen(readingListRepository = application.readingListRepository)
+            }
             composable(Routes.PROFILE) {
                 ProfileScreen(
                     viewModel = viewModel,
@@ -241,6 +243,8 @@ fun CiteCircleApp(viewModel: HomeViewModel) {
                             navController.navigate(Routes.thread(id))
                         }
                     },
+                    onConnect = { userId -> peopleViewModel.connect(userId) },
+                    onOpenProfile = { userId -> navController.navigate(Routes.person(userId)) },
                 )
             }
         }

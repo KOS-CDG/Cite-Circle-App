@@ -1,6 +1,7 @@
 package com.example.ui.fields
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,7 +48,10 @@ import com.example.ui.theme.numeric
  * and push itself past the tab row.
  */
 @Composable
-fun FieldsScreen(modifier: Modifier = Modifier) {
+fun FieldsScreen(
+    onOpenField: (AcademicField) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     var searchQuery by remember { mutableStateOf("") }
     val fields = AcademicField.entries.filter {
         it.label.contains(searchQuery, ignoreCase = true)
@@ -93,7 +97,7 @@ fun FieldsScreen(modifier: Modifier = Modifier) {
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
             ) {
                 items(fields, key = { it.key }) { field ->
-                    FieldRow(field)
+                    FieldRow(field, onClick = { onOpenField(field) })
                 }
             }
         }
@@ -101,10 +105,14 @@ fun FieldsScreen(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun FieldRow(field: AcademicField) {
+private fun FieldRow(field: AcademicField, onClick: () -> Unit) {
     val accent = field.accent()
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        // The row carries a right-chevron, which promises navigation. Until now tapping it did
+        // nothing; it opens the People tab filtered to this discipline.
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         ),
