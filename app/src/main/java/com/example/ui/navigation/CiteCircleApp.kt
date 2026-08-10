@@ -40,6 +40,7 @@ import com.example.ui.notifications.NotificationsViewModelFactory
 import com.example.ui.people.PeopleViewModel
 import com.example.ui.people.PeopleViewModelFactory
 import com.example.ui.profile.ProfileScreen
+import com.example.ui.settings.SettingsScreen
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -153,6 +154,13 @@ fun CiteCircleApp(viewModel: HomeViewModel) {
                     viewModel = viewModel,
                     peopleViewModel = peopleViewModel,
                     onMessage = { id -> navController.navigate(Routes.thread(id)) },
+                    onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                )
+            }
+            composable(Routes.SETTINGS) {
+                SettingsScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(

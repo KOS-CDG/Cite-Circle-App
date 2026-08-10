@@ -24,6 +24,9 @@ import androidx.compose.material3.Text
 import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.WorkOff
+import com.example.ui.components.EmptyState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -109,8 +112,20 @@ fun OpportunitiesScreen(modifier: Modifier = Modifier) {
             ),
             verticalArrangement = Arrangement.spacedBy(Spacing.feedGutter),
         ) {
-            items(filtered, key = { it.id }) { opp ->
-                OpportunityCard(opp)
+            if (filtered.isEmpty()) {
+                // Every other list in the app has an empty state; filtering to a type with no
+                // matches here used to render a blank column.
+                item(key = "empty") {
+                    EmptyState(
+                        title = "Nothing in $selectedFilter",
+                        message = "No open opportunities of this type right now.",
+                        icon = Icons.Outlined.WorkOff,
+                    )
+                }
+            } else {
+                items(filtered, key = { it.id }) { opp ->
+                    OpportunityCard(opp)
+                }
             }
         }
     }

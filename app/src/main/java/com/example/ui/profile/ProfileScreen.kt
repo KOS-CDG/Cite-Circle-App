@@ -2,7 +2,6 @@ package com.example.ui.profile
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,8 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
-import androidx.compose.material.icons.outlined.DarkMode
-import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -44,7 +42,6 @@ import com.example.HomeViewModel
 import com.example.data.messenger.CURRENT_USER_ID
 import com.example.data.people.ConnectionState
 import com.example.data.people.Person
-import com.example.data.prefs.ThemeMode
 import com.example.ui.components.Avatar
 import com.example.ui.components.CitationChart
 import com.example.ui.components.PostCard
@@ -69,18 +66,13 @@ fun ProfileScreen(
     peopleViewModel: PeopleViewModel,
     userId: String = CURRENT_USER_ID,
     onMessage: (String) -> Unit = {},
+    onOpenSettings: () -> Unit = {},
 ) {
     val person by peopleViewModel.observePerson(userId)
         .collectAsStateWithLifecycle(initialValue = null)
     val papers by viewModel.savedPapers.collectAsStateWithLifecycle()
-    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
 
     val isSelf = userId == CURRENT_USER_ID
-    val isDarkMode = when (themeMode) {
-        ThemeMode.SYSTEM -> isSystemInDarkTheme()
-        ThemeMode.LIGHT -> false
-        ThemeMode.DARK -> true
-    }
 
     val current = person ?: return
 
@@ -104,12 +96,7 @@ fun ProfileScreen(
             ProfileHeader(
                 person = current,
                 isSelf = isSelf,
-                isDarkMode = isDarkMode,
-                onToggleTheme = {
-                    viewModel.setThemeMode(
-                        if (isDarkMode) ThemeMode.LIGHT else ThemeMode.DARK,
-                    )
-                },
+                onOpenSettings = onOpenSettings,
                 onConnect = { peopleViewModel.connect(current.user.id) },
                 onDisconnect = { peopleViewModel.disconnect(current.user.id) },
                 onMessage = {
@@ -167,8 +154,7 @@ fun ProfileScreen(
 private fun ProfileHeader(
     person: Person,
     isSelf: Boolean,
-    isDarkMode: Boolean,
-    onToggleTheme: () -> Unit,
+    onOpenSettings: () -> Unit,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
     onMessage: () -> Unit,
@@ -185,17 +171,15 @@ private fun ProfileHeader(
                     .background(Gradients.fieldBanner(person.user.field)),
             )
             if (isSelf) {
+                // Was a two-state light/dark toggle sitting on the cover art, which made
+                // ThemeMode.SYSTEM unreachable once tapped. Settings owns appearance now.
                 IconButton(
-                    onClick = onToggleTheme,
+                    onClick = onOpenSettings,
                     modifier = Modifier.align(Alignment.TopEnd),
                 ) {
                     Icon(
-                        if (isDarkMode) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
-                        contentDescription = if (isDarkMode) {
-                            "Switch to light theme"
-                        } else {
-                            "Switch to dark theme"
-                        },
+                        Icons.Outlined.Settings,
+                        contentDescription = "Settings",
                         tint = MaterialTheme.colorScheme.surface,
                     )
                 }

@@ -33,10 +33,17 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -75,6 +82,17 @@ fun ThreadScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
+    // Attachments and the camera need a media picker and a message type that carries an image,
+    // neither of which this mockup has. Saying so is the honest option: a button that silently
+    // does nothing is the exact thing the rest of this pass removed.
+    val onUnavailable: (String) -> Unit = { what ->
+        scope.launch {
+            snackbarHostState.showSnackbar("$what is not available in this demo build.")
+        }
+    }
 
     // reverseLayout keeps new messages pinned to the bottom and makes the IME behave, so the
     // newest item is index 0 -- scroll there when anything arrives.
@@ -84,6 +102,7 @@ fun ThreadScreen(
 
     Scaffold(
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -181,6 +200,28 @@ fun ThreadScreen(
                     ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // Attachment and camera collapse away once there is text to send, which is what
+                // Messenger does: the actions you want before typing are not the ones you want
+                // mid-message, and three trailing controls crowd the field on a narrow screen.
+                AnimatedVisibility(visible = input.isBlank()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { onUnavailable("Attachments") }) {
+                            Icon(
+                                Icons.Outlined.AttachFile,
+                                contentDescription = "Attach a file",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        IconButton(onClick = { onUnavailable("The camera") }) {
+                            Icon(
+                                Icons.Outlined.PhotoCamera,
+                                contentDescription = "Take a photo",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                }
+
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it },
@@ -196,23 +237,27 @@ fun ThreadScreen(
                     ),
                 )
                 Spacer(modifier = Modifier.width(Spacing.sm))
+                // Morphs between send and a like, so the button is never a dead grey target on an
+                // empty field. The like sends a heart as its own message, which is what makes the
+                // empty state worth having a button at all.
                 IconButton(
                     onClick = {
                         if (input.isNotBlank()) {
                             viewModel.send(input)
                             input = ""
+                        } else {
+                            viewModel.send("\u2764\ufe0f")
                         }
                     },
-                    enabled = input.isNotBlank(),
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "Send",
-                        tint = if (input.isNotBlank()) {
-                            MaterialTheme.colorScheme.primary
+                        if (input.isNotBlank()) {
+                            Icons.AutoMirrored.Filled.Send
                         } else {
-                            MaterialTheme.colorScheme.outline
+                            Icons.Filled.Favorite
                         },
+                        contentDescription = if (input.isNotBlank()) "Send" else "Send a like",
+                        tint = MaterialTheme.colorScheme.primary,
                     )
                 }
             }
