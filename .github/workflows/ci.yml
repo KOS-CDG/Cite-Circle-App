@@ -46,19 +46,44 @@ jobs:
             -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=Android Debug,O=Android,C=US"
 
+      # Deliberately no --stacktrace: a Gradle stack trace is hundreds of lines of
+      # framework internals that push the actual compiler diagnostics out of reach
+      # of anything that reads the tail of the log. The full output is teed to a file
+      # and summarised by the steps below instead.
       - name: Assemble debug
-        run: gradle :app:assembleDebug --console=plain --stacktrace
+        run: |
+          set -o pipefail
+          gradle :app:assembleDebug --console=plain 2>&1 | tee -a build.log
 
-      # Records Roborazzi screenshots so they upload as artifacts and can be
-      # eyeballed on the PR; reference images are not committed.
       - name: Unit tests
-        run: gradle :app:testDebugUnitTest -Proborazzi.test.record=true --console=plain --stacktrace
+        run: |
+          set -o pipefail
+          gradle :app:testDebugUnitTest -Proborazzi.test.record=true --console=plain 2>&1 | tee -a build.log
 
-      # Informational: lint currently reports pre-existing issues, so it should not
-      # gate the build until that backlog is dealt with.
       - name: Lint
         continue-on-error: true
-        run: gradle :app:lint --console=plain
+        run: |
+          set -o pipefail
+          gradle :app:lint --console=plain 2>&1 | tee -a build.log
+
+      # Runs only on failure, so its output is the last thing in the log — the part
+      # that survives truncation when the log is read back through an API.
+      - name: Compiler diagnostics
+        if: failure()
+        run: |
+          {
+            echo "### Kotlin compiler diagnostics"
+            echo '```'
+            grep -E '^(e|w): ' build.log \
+              | sed 's|file://${{ github.workspace }}/||' \
+              | head -120 \
+              || echo "(no e:/w: lines found — see the failing test report or the build.log artifact)"
+            echo '```'
+            echo "### Failed tests"
+            echo '```'
+            grep -E '^.*> .* FAILED$|^\s+[A-Za-z].*FAILED' build.log | head -40 || echo "(none)"
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload reports
         if: always()
@@ -66,6 +91,7 @@ jobs:
         with:
           name: build-reports
           path: |
+            build.log
             app/build/reports/
             app/src/test/screenshots/
           if-no-files-found: ignore
