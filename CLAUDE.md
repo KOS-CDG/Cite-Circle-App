@@ -10,9 +10,10 @@ opportunities, a Gemini-backed chat assistant).
 
 It was scaffolded by **Google AI Studio** (see `README.md`, `metadata.json`), which
 explains several artifacts you'll notice: the `com.example` namespace, the
-`.env`/secrets-plugin convention borrowed from web projects, placeholder Firebase
-config, and leftover template tests. Most screens are UI-complete but backed by
-hardcoded sample data — only the feed/profile paper list is persisted.
+`.env`/secrets-plugin convention borrowed from web projects, and placeholder Firebase
+config. The front-end is now feature-complete — every screen exists and every control
+navigates somewhere — but most content below the paper feed is still **sample data**
+rather than a real backend.
 
 Single Gradle module: `:app`. Kotlin + Jetpack Compose (Material 3), no other modules.
 
@@ -24,7 +25,7 @@ and let it generate a wrapper.
 
 ```bash
 gradle :app:assembleDebug            # build debug APK
-gradle :app:testDebugUnitTest        # JVM + Robolectric tests (see caveat below)
+gradle :app:testDebugUnitTest        # JVM + Robolectric + Roborazzi tests
 gradle :app:connectedDebugAndroidTest # instrumented tests (needs a device/emulator)
 gradle :app:lint
 ```
@@ -34,6 +35,15 @@ Roborazzi screenshot tests record with:
 ```bash
 gradle :app:testDebugUnitTest -Proborazzi.test.record=true
 ```
+
+> **Dependency resolution requires `dl.google.com`.** AGP, AndroidX, Compose and
+> Firebase all resolve from Google's Maven repo, which Gradle's `google()` shorthand
+> points at `https://dl.google.com/dl/android/maven2/`. In sandboxes that block that
+> host the build fails at configuration time with
+> `Plugin [id: 'com.android.application', version: '9.1.1'] was not found`.
+> That is a network policy problem, not a project misconfiguration —
+> `maven.google.com` only redirects to the same blocked host, so there is no
+> in-repo workaround. Build where Google Maven is reachable.
 
 Notes:
 - `gradle.properties` enables the configuration cache, parallel execution, and
@@ -69,36 +79,33 @@ keep the build green without real config. Consequences to keep in mind:
 - `AuthScreen` calls `onAuthSuccess()` even when sign-in fails — a deliberate demo
   bypass so the app is usable without Firebase. Preserve or remove it consciously;
   don't "fix" it by accident.
-- `ProfileViewModel.signInWithGoogle` uses a hardcoded
-  `"dummy-client-id.apps.googleusercontent.com"`.
+- Because of that bypass, `rememberResearcherIdentity()` treats "no Firebase user" as
+  the normal path and falls back to a demo identity rather than an error.
 
 ## Layout
 
 ```
 app/src/main/java/com/example/
-  MainActivity.kt            Activity + NavHost + several screens & shared composables
+  MainActivity.kt            Activity, Scaffold, registry header, bottom bar
   MyApplication.kt           Application; builds Room DB and PaperRepository
-  HomeViewModel.kt           Feed/profile state, theme toggle, + ViewModelFactory
+  HomeViewModel.kt           Paper state, loading flag, theme toggle, + ViewModelFactory
   data/
     AppDatabase.kt           SavedPaper entity, DAO, RoomDatabase, PaperRepository
     FirestoreRepository.kt   Batched upload of papers to Firestore
+    SampleData.kt            All mock fixtures + id lookups
   network/
     GeminiApiService.kt      Retrofit interface, request/response models, RetrofitClient
   ui/
-    auth/AuthScreen.kt, FirebaseAuthManager.kt
-    chat/ChatScreen.kt, ChatViewModel.kt
-    lists/ReadingListsScreen.kt
-    opportunities/OpportunitiesScreen.kt
-    profile/ProfileAuthScreen.kt, ProfileViewModel.kt
-    theme/Color.kt, Theme.kt, Typography.kt
+    navigation/              Routes (typed constants + builders), CiteCircleNavHost
+    components/              Shared composables: PaperCard, CitationBlock, CitationChart,
+                             EmptyState/ErrorState/LoadingList, ScreenHeader, SectionLabel,
+                             QuoteBlock, InitialsAvatar, CiteCircleDefaults
+    auth/ chat/ compose/ feed/ fields/ lists/ notifications/ onboarding/
+    opportunities/ paper/ profile/ search/ settings/ theme/
 ```
 
-`MainActivity.kt` is the largest file (~730 lines) and is not just the Activity — it
-also holds `FolioApp` (Scaffold + nav graph), `HomeScreen`, `ProfileScreen`,
-`FieldsScreen`, `NotificationsScreen`, `NotificationDetailScreen`, plus the reusable
-`PostCard`, `CitationBlock`, `CitationChart`, and `EmptyState` composables. New
-feature screens should go in their own `ui/<feature>/` package instead of growing this
-file further.
+One screen per file, one package per feature. `MainActivity.kt` holds only the Activity
+and the app chrome — new screens go in `ui/<feature>/`, never back into `MainActivity`.
 
 ## Architecture
 
@@ -109,40 +116,53 @@ as `lateinit` properties. `MainActivity` casts `LocalContext.applicationContext`
 plain `viewModel()`. If you add a view model needing dependencies, follow the
 `HomeViewModelFactory` pattern.
 
-**State** is `StateFlow` exposed from view models, collected in Compose with
-`collectAsStateWithLifecycle()` (preferred) or `collectAsState()` (used in the chat and
-profile screens). Room DAO returns `Flow<List<SavedPaper>>`, lifted with
-`stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())`.
+**A single `HomeViewModel` instance is hoisted** in `MainActivity` and passed down
+through `CiteCircleNavHost` to every screen that needs papers. Detail screens do not
+get their own view model — `PaperDetailScreen` and `UserProfileScreen` resolve their
+navigation argument against `HomeViewModel.savedPapers`.
 
-**Navigation** is a single `NavHost` in `FolioApp` with string routes:
-`auth`, `feed`, `fields`, `lists`, `opps`, `profile`, `chat`, `notifications`,
-`notification_detail`. Start destination depends on `authManager.getCurrentUser()`.
-Note the quirk: `currentRoute` is a `mutableStateOf` mirror kept in sync by an
-`addOnDestinationChangedListener` registered during composition, and it drives whether
-the top bar and bottom bar render. Adding a route means also deciding whether it
-belongs in the `items` list of the bottom `NavigationBar`.
+**State** is `StateFlow` exposed from view models, collected in Compose with
+`collectAsStateWithLifecycle()`. Room DAO returns `Flow<List<SavedPaper>>`, lifted with
+`stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())`. Because
+that seeds with `emptyList()`, `HomeViewModel.isLoading` exists to distinguish "still
+loading" from "genuinely empty" — use it before showing an empty state.
+
+**Navigation.** All routes live in `ui/navigation/Routes.kt` as constants, with builder
+functions for parameterised ones (`Routes.paperDetail(id)`). The graph is in
+`CiteCircleNavHost.kt`. Two rules matter:
+
+- Compare against the **pattern** (`Routes.PAPER_DETAIL` == `"paper_detail/{paperId}"`),
+  never a resolved path — `NavDestination.route` reports the pattern.
+- `isTopLevelRoute(route)` decides whether the registry header and bottom bar render.
+  Top-level routes are the five in `topLevelDestinations`; everything else is
+  full-screen and supplies its own `ScreenHeader` with a back affordance.
+
+The current route comes from `navController.currentBackStackEntryAsState()`. Do not
+reintroduce a manually mirrored `currentRoute` — the previous
+`addOnDestinationChangedListener` version broke as soon as routes took arguments.
 
 **Persistence.** Room database `folio_db`, one entity `SavedPaper`, `version = 1`,
 `exportSchema = false`. There are no migrations — changing the entity requires bumping
 `version` and adding a migration (or `fallbackToDestructiveMigration()`), otherwise the
-app crashes at startup for existing installs. `HomeViewModel.init` seeds one hardcoded
-demo paper when the table is empty.
+app crashes at startup for existing installs. `HomeViewModel.init` seeds one demo paper
+when the table is empty.
 
 **Cloud sync** is one-directional and partial: `FirestoreRepository.syncPapersToCloud`
-batch-writes to `users/{uid}/saved_papers/{paperId}` and no-ops when signed out. It is
-only invoked from `HomeViewModel.savePaper`, which nothing currently calls.
+batch-writes to `users/{uid}/saved_papers/{paperId}` and no-ops when signed out. It runs
+from `HomeViewModel.savePaper`, which reads the table back with `allPapers.first()`
+*after* the write so the upload matches what was stored.
 
 **Gemini.** Two mechanisms coexist:
 - The live path is hand-rolled Retrofit against
   `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`,
   with the key passed as a `key` query param from `BuildConfig.GEMINI_API_KEY`.
-  `ChatViewModel` keeps its own `conversationHistory` list of `Content` and supports an
-  optional `googleSearch` grounding tool and inline base64 JPEG images.
+  `ChatViewModel` keeps its own `conversationHistory` and supports an optional
+  `googleSearch` grounding tool and inline base64 JPEG images.
 - `firebase-ai` is declared as a dependency but **not used anywhere**. Don't assume it
   is wired up.
 
-Model IDs are string literals in `ChatViewModel` and the `FilterChip`s of `ChatScreen`;
-they must be kept in sync if changed.
+Model IDs are string literals in `ChatViewModel` and in `chatModels` in `ChatScreen.kt`;
+keep them in sync.
 
 ## Theming
 
@@ -152,14 +172,16 @@ Colors come from the named constants in `Color.kt` (ForestGreen, Terracotta,
 WarmOchre, ParchmentCream, CharcoalInk, …) — use those, not raw `Color(0x…)` literals.
 
 Dark mode is **app state, not system state**: `HomeViewModel.isDarkMode` (a
-`MutableStateFlow<Boolean>` defaulting to `false`, toggled from the profile screen) is
-passed to the theme. It is not persisted across launches.
+`MutableStateFlow<Boolean>` defaulting to `false`, toggled from Settings) is passed to
+the theme. It is not persisted across launches.
 
 Typography uses downloadable Google Fonts: **EB Garamond** for display/headline/title,
-**Inter** for body/label; monospace is used ad hoc for citations and IDs. Screens lean
-on a consistent visual vocabulary — 4.dp corner radii, 1.dp hairline borders at
-`onBackground.copy(alpha = 0.1f)`, 24.dp content padding, and all-caps labels with
-wide `letterSpacing` — match it when adding UI.
+**Inter** for body/label; monospace is used ad hoc for citations and IDs.
+
+**Reuse `CiteCircleDefaults`** (`ui/components/Common.kt`) rather than re-deriving the
+design tokens: `CardShape` (4.dp), `ButtonShape` (2.dp), `ScreenPadding` (24.dp),
+`hairlineColor()` / `cardBorder()` (1.dp at 10% `onBackground`). All-caps labels with
+wide `letterSpacing` go through `SectionLabel`.
 
 ## Testing
 
@@ -168,16 +190,10 @@ wide `letterSpacing` — match it when adding UI.
 - `app/src/androidTest/` — Espresso/Compose instrumented tests.
 - Reference screenshots live in `app/src/test/screenshots/`.
 
-⚠️ **The template tests are stale and the unit-test source set does not compile as-is:**
-
-- `GreetingScreenshotTest` references `MyApplicationTheme` and `Greeting`, neither of
-  which exists (the theme is `InkAndFieldNotesTheme`; there is no `Greeting`
-  composable).
-- `ExampleRobolectricTest` asserts `app_name == "My Application"`, but `strings.xml`
-  says `"Cite Circle"`.
-
-Fix or delete these before relying on `testDebugUnitTest`, and don't report a green
-test run you haven't actually seen pass.
+`ComponentScreenshotTest` captures the shared components in **both themes** — the
+palette is hand-rolled and dynamic color is off, so dark mode will not fix itself.
+Screens are not screenshotted directly because they need a Room-backed `HomeViewModel`;
+component coverage is the practical substitute.
 
 ## Conventions
 
@@ -187,19 +203,16 @@ test run you haven't actually seen pass.
   datastore, location, accompanist); there's an explicit comment saying this is
   intentional. Follow it.
 - **KSP** (not kapt) for annotation processing: Room compiler and Moshi codegen.
-- **Indentation is inconsistent by file** — 2 spaces in the Gradle files,
-  `MainActivity.kt`, and `ui/theme/`; 4 spaces in `data/`, `network/`, and the `ui/`
-  feature packages. Match the file you're editing rather than reformatting it.
-- `MainActivity.kt` frequently uses **fully-qualified inline references**
-  (`com.example.ui.lists.ReadingListsScreen()`,
-  `androidx.compose.ui.platform.LocalContext.current`) instead of imports. Harmless;
-  don't churn the file to normalize it unless that's the task.
-- Sample/mock data is declared as top-level `val`s next to the screen that renders it
-  (`sampleLists` in `ReadingListsScreen.kt`, `sampleOpportunities` in
-  `OpportunitiesScreen.kt`). Keep new mock data local to its screen until it earns a
-  repository.
+- **Mock data lives in `data/SampleData.kt`**, not next to the screen that renders it.
+  Detail screens resolve a navigation argument through `SampleData.fieldById(…)` and
+  friends, which per-screen top-level vals could not support. Add new fixtures there.
+- **Composables take callbacks, not view models**, wherever they can — `PaperCard` takes
+  `onEndorse`/`onViewContext` so it is reusable and previewable. Screens wire the
+  callbacks to navigation in `CiteCircleNavHost`.
+- **4-space indentation** in all of `ui/` and `data/`; the Gradle files and
+  `ui/theme/` remain at 2 spaces. Match the file you're editing.
 - Deprecated Material icon usages are annotated with `@Suppress("DEPRECATION")` rather
-  than migrated (e.g. `Icons.Filled.ArrowBack`).
+  than migrated (e.g. `Icons.Filled.ArrowBack`, `Icons.Outlined.Chat`).
 - App id is `com.aistudio.folio.wzpx` while the code namespace is `com.example` — this
   mismatch is intentional AI Studio scaffolding. Renaming the package is a large,
   cross-cutting change (manifest, `google-services.json`, Firebase console); don't do it
@@ -209,21 +222,20 @@ test run you haven't actually seen pass.
 
 Useful context so these aren't mistaken for bugs you introduced:
 
-- `HomeViewModel.savePaper` and `removePaper` are unreferenced; the UI has no
-  create/delete path yet.
-- `savePaper` collects `repository.allPapers.take(1)` then syncs `papers + paper`,
-  duplicating the just-saved paper in the Firestore write.
+- **UI strings are hardcoded inline**, not in `strings.xml`, and there are no `@Preview`
+  composables. Both are known gaps.
 - Citation "format" switching in `CitationBlock` is string surgery on a hardcoded
   `" (2026). "` substring, not real APA/MLA/Chicago formatting. BibTeX/RIS export
   buttons only show a Toast.
-- `CitationChart`'s data points, the h-index, `FieldsScreen`'s field list and researcher
-  counts, and the profile identity ("Dr. Jane Doe") are all hardcoded.
-- `ProfileAuthScreen` / `ProfileViewModel` are a self-contained Firebase demo not
-  reachable from the nav graph — the `profile` route renders `ProfileScreen` in
-  `MainActivity.kt` instead.
-- `ProfileViewModel.signInWithGoogle` checks `credential is GoogleIdTokenCredential`,
-  whereas `FirebaseAuthManager` correctly checks for `CustomCredential` with the Google
-  ID token type. The latter is the working implementation.
+- `CitationChart`'s data points and h-index are hardcoded sample values, shown on both
+  your own profile and other researchers'.
+- Reading lists, opportunities, fields and notifications are **read-only sample data**.
+  The list editor's save path shows a confirmation and pops back without persisting;
+  follow/save toggles are local `remember` state.
+- `UserProfileScreen` takes a **paper id**, not a user id — papers are the only real
+  records, so the author is derived from the paper. There is no researcher directory.
+- Notification "VIEW FULL PAPER" lands on the feed: notifications reference papers that
+  do not exist in the local Room table.
 - Only `INTERNET` is declared in the manifest; there are no other permissions.
 
 ## Git

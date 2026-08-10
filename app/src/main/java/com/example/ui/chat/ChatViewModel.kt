@@ -2,6 +2,9 @@ package com.example.ui.chat
 
 import android.graphics.Bitmap
 import android.util.Base64
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.BuildConfig
@@ -33,8 +36,10 @@ class ChatViewModel : ViewModel() {
 
     private val conversationHistory = mutableListOf<Content>()
 
-    var currentModel = "gemini-3.5-flash"
-    var useSearchGrounding = false
+    // Backed by snapshot state so the model selector and grounding toggle actually
+    // recompose when tapped — as plain `var`s Compose never observed the change.
+    var currentModel by mutableStateOf("gemini-3.5-flash")
+    var useSearchGrounding by mutableStateOf(false)
 
     fun sendMessage(text: String, image: Bitmap? = null) {
         val userMessage = ChatMessage(text = text, isUser = true, imageUrl = image)
