@@ -17,12 +17,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.Avatar
 import com.example.HomeViewModel
 import com.example.ListState
+import com.example.R
 import com.example.data.Comment
 import com.example.data.formatTimeAgo
 import com.example.ui.components.CommentSkeleton
@@ -58,16 +61,18 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
             onDismissRequest = { confirmDelete = false },
             title = {
                 Text(
-                    "Withdraw entry?",
+                    stringResource(R.string.withdraw_dialog_title),
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             },
             text = {
                 Text(
-                    "This removes the post, its ${comments.size} comment" +
-                        (if (comments.size == 1) "" else "s") +
-                        " and any attached image from this device.",
+                    pluralStringResource(
+                        R.plurals.withdraw_dialog_message,
+                        comments.size,
+                        comments.size
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -79,7 +84,7 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
                     navController.popBackStack()
                 }) {
                     Text(
-                        "Withdraw",
+                        stringResource(R.string.action_withdraw),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -88,7 +93,7 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
             dismissButton = {
                 TextButton(onClick = { confirmDelete = false }) {
                     Text(
-                        "Cancel",
+                        stringResource(R.string.action_cancel),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -117,12 +122,12 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
                 IconButton(onClick = { navController.popBackStack() }) {
                     Icon(
                         Icons.Filled.ArrowBack,
-                        contentDescription = "Back",
+                        contentDescription = stringResource(R.string.cd_back),
                         tint = MaterialTheme.colorScheme.onBackground
                     )
                 }
                 Text(
-                    "Entry",
+                    stringResource(R.string.post_detail_title),
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onBackground
                 )
@@ -131,14 +136,14 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
                 IconButton(onClick = { navController.navigate("edit/${paper.id}") }) {
                     Icon(
                         Icons.Outlined.Edit,
-                        contentDescription = "Edit entry",
+                        contentDescription = stringResource(R.string.cd_edit_entry),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 IconButton(onClick = { confirmDelete = true }) {
                     Icon(
                         Icons.Outlined.Delete,
-                        contentDescription = "Withdraw entry",
+                        contentDescription = stringResource(R.string.cd_withdraw_entry),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -165,7 +170,11 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        if (comments.isEmpty()) "Discussion" else "Discussion · ${comments.size}",
+                        if (comments.isEmpty()) {
+                            stringResource(R.string.discussion)
+                        } else {
+                            stringResource(R.string.discussion_with_count, comments.size)
+                        },
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -177,7 +186,7 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
 
                 comments.isEmpty() -> item {
                     Text(
-                        "No responses yet. Start the discussion.",
+                        stringResource(R.string.discussion_empty),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -238,7 +247,7 @@ private fun CommentRow(comment: Comment, onDelete: () -> Unit) {
         IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
             Icon(
                 Icons.Filled.Close,
-                contentDescription = "Delete comment",
+                contentDescription = stringResource(R.string.cd_delete_comment),
                 modifier = Modifier.size(14.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -265,7 +274,7 @@ private fun CommentComposer(value: String, onValueChange: (String) -> Unit, onSe
                 modifier = Modifier.weight(1f),
                 placeholder = {
                     Text(
-                        "Add to the discussion…",
+                        stringResource(R.string.comment_placeholder),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
@@ -285,7 +294,7 @@ private fun CommentComposer(value: String, onValueChange: (String) -> Unit, onSe
             IconButton(onClick = onSend, enabled = enabled) {
                 Icon(
                     Icons.Filled.Send,
-                    contentDescription = "Post comment",
+                    contentDescription = stringResource(R.string.cd_post_comment),
                     tint = if (enabled) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
                 )
@@ -304,14 +313,14 @@ private fun MissingPost(navController: NavController) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            "This entry is no longer available.",
+            stringResource(R.string.entry_missing),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(16.dp))
         TextButton(onClick = { navController.popBackStack() }) {
             Text(
-                "Back to feed",
+                stringResource(R.string.action_back_to_feed),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary
             )

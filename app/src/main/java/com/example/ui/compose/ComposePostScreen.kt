@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.HomeViewModel
+import com.example.R
 import com.example.data.AuthorIdentity
 import com.example.data.CitationFormatter
 import com.example.data.CitationStyle
@@ -53,8 +55,8 @@ fun ComposePostScreen(
     onDone: () -> Unit,
     existing: SavedPaper? = null
 ) {
-    val identity = remember { AuthorIdentity.current() }
     val context = LocalContext.current
+    val identity = remember(context) { AuthorIdentity.current(context) }
     val scope = rememberCoroutineScope()
     val isEdit = existing != null
 
@@ -75,6 +77,9 @@ fun ComposePostScreen(
     // The image the post already had. Only a *newly* picked file should be cleaned up on
     // discard — deleting this one would strip the figure off the saved post.
     val originalImage = remember { existing?.imageUri.orEmpty() }
+
+    // Read here because the picker callback below is a plain lambda, not a composable.
+    val imageUnreadable = stringResource(R.string.image_unreadable)
 
     val titleError = title.isBlank()
     // A four-digit year is the only thing worth rejecting outright; everything else is
@@ -108,7 +113,7 @@ fun ComposePostScreen(
                 val stored = ImageStore.persist(context, uri)
                 if (stored == null) {
                     // Used to fail silently, leaving the button looking simply unresponsive.
-                    viewModel.report("That image could not be read.")
+                    viewModel.report(imageUnreadable)
                 } else {
                     imagePath = stored
                     // Replacing an attachment should not orphan the one it replaced, but the
@@ -144,30 +149,32 @@ fun ComposePostScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                if (isEdit) "Edit entry" else "New entry",
+                stringResource(
+                    if (isEdit) R.string.compose_title_edit else R.string.compose_title_new
+                ),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onBackground
             )
             IconButton(onClick = { discard() }) {
                 Icon(
                     Icons.Filled.Close,
-                    contentDescription = "Discard draft",
+                    contentDescription = stringResource(R.string.cd_discard_draft),
                     tint = MaterialTheme.colorScheme.onBackground
                 )
             }
         }
 
         Spacer(Modifier.height(8.dp))
-        SectionLabel("Commentary")
+        SectionLabel(stringResource(R.string.section_commentary))
         EditorialTextField(
             value = commentary,
             onValueChange = { commentary = it },
-            placeholder = "What should your circle know about this paper?",
+            placeholder = stringResource(R.string.compose_commentary_placeholder),
             minLines = 4
         )
 
         Spacer(Modifier.height(20.dp))
-        SectionLabel("Attachment")
+        SectionLabel(stringResource(R.string.section_attachment))
         if (imagePath.isBlank()) {
             OutlinedButton(
                 onClick = {
@@ -187,7 +194,7 @@ fun ComposePostScreen(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "Add a figure",
+                    stringResource(R.string.action_add_figure),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -196,7 +203,7 @@ fun ComposePostScreen(
             Box(modifier = Modifier.fillMaxWidth()) {
                 AsyncImage(
                     model = File(imagePath),
-                    contentDescription = "Attached figure",
+                    contentDescription = stringResource(R.string.cd_attached_figure),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -222,7 +229,7 @@ fun ComposePostScreen(
                 ) {
                     Icon(
                         Icons.Filled.Close,
-                        contentDescription = "Remove figure",
+                        contentDescription = stringResource(R.string.cd_remove_figure),
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onSurface
                     )
@@ -234,24 +241,24 @@ fun ComposePostScreen(
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Spacer(Modifier.height(28.dp))
 
-        SectionLabel("Paper details")
+        SectionLabel(stringResource(R.string.section_paper_details))
         EditorialTextField(
             value = title,
             onValueChange = { title = it },
-            placeholder = "Title (required)",
+            placeholder = stringResource(R.string.field_title),
             isError = showErrors && titleError
         )
         if (showErrors && titleError) {
-            FieldError("A title is required — citations cannot be generated without one.")
+            FieldError(stringResource(R.string.error_title_required))
         }
 
         Spacer(Modifier.height(12.dp))
         EditorialTextField(
             value = authors,
             onValueChange = { authors = it },
-            placeholder = "Doe, Jane; Smith, John"
+            placeholder = stringResource(R.string.field_authors)
         )
-        FieldHint("Separate authors with a semicolon, each written “Family, Given”.")
+        FieldHint(stringResource(R.string.hint_authors))
 
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -259,7 +266,7 @@ fun ComposePostScreen(
                 EditorialTextField(
                     value = year,
                     onValueChange = { year = it },
-                    placeholder = "Year",
+                    placeholder = stringResource(R.string.field_year),
                     keyboardType = KeyboardType.Number,
                     isError = showErrors && yearError
                 )
@@ -268,17 +275,17 @@ fun ComposePostScreen(
                 EditorialTextField(
                     value = venue,
                     onValueChange = { venue = it },
-                    placeholder = "Journal or venue"
+                    placeholder = stringResource(R.string.field_venue)
                 )
             }
         }
-        if (showErrors && yearError) FieldError("Enter a four-digit year, or leave it blank.")
+        if (showErrors && yearError) FieldError(stringResource(R.string.error_year))
 
         Spacer(Modifier.height(12.dp))
         EditorialTextField(
             value = doi,
             onValueChange = { doi = it },
-            placeholder = "DOI (10.1000/example)",
+            placeholder = stringResource(R.string.field_doi),
             keyboardType = KeyboardType.Uri
         )
 
@@ -286,7 +293,7 @@ fun ComposePostScreen(
         EditorialTextField(
             value = url,
             onValueChange = { url = it },
-            placeholder = "URL",
+            placeholder = stringResource(R.string.field_url),
             keyboardType = KeyboardType.Uri
         )
 
@@ -294,14 +301,14 @@ fun ComposePostScreen(
         EditorialTextField(
             value = affiliation,
             onValueChange = { affiliation = it },
-            placeholder = "Affiliation"
+            placeholder = stringResource(R.string.field_affiliation)
         )
 
         Spacer(Modifier.height(28.dp))
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Spacer(Modifier.height(28.dp))
 
-        SectionLabel("Citation preview")
+        SectionLabel(stringResource(R.string.section_citation_preview))
         CitationPreview(
             draft = draft,
             style = previewStyle,
@@ -356,7 +363,7 @@ fun ComposePostScreen(
             )
         ) {
             Text(
-                if (isEdit) "Save changes" else "Post",
+                stringResource(if (isEdit) R.string.action_save_changes else R.string.action_post),
                 style = MaterialTheme.typography.labelLarge
             )
         }
@@ -452,7 +459,7 @@ private fun CitationPreview(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "Preview",
+                    stringResource(R.string.preview_label),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f)
                 )
@@ -485,7 +492,7 @@ private fun CitationPreview(
             Spacer(Modifier.height(12.dp))
             if (draft.title.isBlank()) {
                 Text(
-                    "Add a title to see the citation build itself.",
+                    stringResource(R.string.preview_empty),
                     style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
                 )

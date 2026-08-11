@@ -15,6 +15,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -23,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.HomeViewModel
+import com.example.R
 import com.example.data.CitationFormatter
 import com.example.data.CitationStyle
 
@@ -45,7 +47,7 @@ fun QuotePostScreen(paperId: String, viewModel: HomeViewModel, navController: Na
             contentAlignment = Alignment.Center
         ) {
             Text(
-                "The entry being cited is no longer available.",
+                stringResource(R.string.quote_missing),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -74,7 +76,7 @@ fun QuotePostScreen(paperId: String, viewModel: HomeViewModel, navController: Na
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "Cite this entry",
+                    stringResource(R.string.quote_title),
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -82,7 +84,7 @@ fun QuotePostScreen(paperId: String, viewModel: HomeViewModel, navController: Na
             IconButton(onClick = { navController.popBackStack() }) {
                 Icon(
                     Icons.Filled.Close,
-                    contentDescription = "Discard",
+                    contentDescription = stringResource(R.string.cd_discard),
                     tint = MaterialTheme.colorScheme.onBackground
                 )
             }
@@ -96,7 +98,7 @@ fun QuotePostScreen(paperId: String, viewModel: HomeViewModel, navController: Na
             modifier = Modifier.fillMaxWidth(),
             placeholder = {
                 Text(
-                    "How does this bear on your own work?",
+                    stringResource(R.string.quote_placeholder),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
@@ -165,7 +167,7 @@ fun QuotePostScreen(paperId: String, viewModel: HomeViewModel, navController: Na
 
         Spacer(Modifier.height(12.dp))
         Text(
-            "The citation above travels with your entry, so your repost stays independently citable.",
+            stringResource(R.string.quote_footnote),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
         )
@@ -186,7 +188,7 @@ fun QuotePostScreen(paperId: String, viewModel: HomeViewModel, navController: Na
             )
         ) {
             Text(
-                "Post",
+                stringResource(R.string.action_post),
                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
             )
         }

@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -31,6 +32,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.Avatar
 import com.example.HomeViewModel
+import com.example.R
 import com.example.data.CitationFormatter
 import com.example.data.CitationStyle
 import com.example.data.ExportFormat
@@ -77,7 +79,7 @@ fun PostCard(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "Cited from ${paper.quotedAuthorName}",
+                        stringResource(R.string.post_cited_from, paper.quotedAuthorName),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -151,7 +153,7 @@ fun PostHeader(paper: SavedPaper) {
 fun PostImage(path: String, onClick: (() -> Unit)? = null) {
     AsyncImage(
         model = File(path),
-        contentDescription = "Attached figure, tap to enlarge",
+        contentDescription = stringResource(R.string.cd_attached_figure_expandable),
         contentScale = ContentScale.Crop,
         modifier = Modifier
             .fillMaxWidth()
@@ -221,7 +223,11 @@ fun PostActionBar(
         ) {
             PostAction(
                 icon = if (paper.isEndorsed) Icons.Filled.Verified else Icons.Outlined.Verified,
-                contentDescription = if (paper.isEndorsed) "Remove endorsement" else "Endorse",
+                contentDescription = if (paper.isEndorsed) {
+                    stringResource(R.string.cd_remove_endorsement)
+                } else {
+                    stringResource(R.string.cd_endorse)
+                },
                 count = paper.endorsementCount,
                 active = paper.isEndorsed,
                 activeColor = MaterialTheme.colorScheme.secondary,
@@ -229,26 +235,34 @@ fun PostActionBar(
             )
             PostAction(
                 icon = Icons.Outlined.ChatBubbleOutline,
-                contentDescription = if (commentOpensThread) "Open discussion" else "Comments",
+                contentDescription = if (commentOpensThread) {
+                    stringResource(R.string.cd_open_discussion)
+                } else {
+                    stringResource(R.string.cd_comments)
+                },
                 count = paper.commentCount,
                 enabled = commentOpensThread,
                 onClick = { navController.navigate("post/${paper.id}") }
             )
             PostAction(
                 icon = Icons.Outlined.Repeat,
-                contentDescription = "Cite this post",
+                contentDescription = stringResource(R.string.cd_cite_post),
                 count = paper.repostCount,
                 onClick = { navController.navigate("quote/${paper.id}") }
             )
             PostAction(
                 icon = if (paper.isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                contentDescription = if (paper.isBookmarked) "Remove bookmark" else "Save",
+                contentDescription = if (paper.isBookmarked) {
+                    stringResource(R.string.cd_remove_bookmark)
+                } else {
+                    stringResource(R.string.cd_save)
+                },
                 active = paper.isBookmarked,
                 onClick = { viewModel.toggleBookmark(paper.id, paper.isBookmarked) }
             )
             PostAction(
                 icon = Icons.Outlined.Share,
-                contentDescription = "Share",
+                contentDescription = stringResource(R.string.cd_share),
                 onClick = { navController.navigate("share/${paper.id}") }
             )
         }
@@ -309,7 +323,7 @@ fun CitationBlock(paper: SavedPaper, viewModel: HomeViewModel) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Citation",
+                stringResource(R.string.citation_label),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f)
             )
@@ -339,7 +353,7 @@ fun CitationBlock(paper: SavedPaper, viewModel: HomeViewModel) {
                 // Legacy rows carry a verbatim citation string that cannot honestly be
                 // restyled, so no toggle is offered rather than one that does nothing.
                 Text(
-                    "Verbatim",
+                    stringResource(R.string.citation_verbatim),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
                 )
@@ -362,6 +376,9 @@ fun CitationBlock(paper: SavedPaper, viewModel: HomeViewModel) {
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
             ExportFormat.entries.forEach { format ->
+                // Resolved here rather than in the click handler: that lambda is a coroutine
+                // body, not a composable, so it cannot read resources itself.
+                val exportFailed = stringResource(R.string.export_failed, format.label)
                 OutlinedButton(
                     onClick = {
                         scope.launch {
@@ -370,7 +387,7 @@ fun CitationBlock(paper: SavedPaper, viewModel: HomeViewModel) {
                             } catch (e: Exception) {
                                 // Writing to cache or resolving a chooser can both fail; the
                                 // button used to just do nothing visible.
-                                viewModel.report("Could not export as ${format.label}.")
+                                viewModel.report(exportFailed)
                             }
                         }
                     },

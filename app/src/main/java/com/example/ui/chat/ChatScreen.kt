@@ -25,9 +25,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.BuildConfig
+import com.example.R
 
 /**
  * Model ids offered in debug builds.
@@ -36,10 +38,10 @@ import com.example.BuildConfig
  * against a live API — the naming pattern looks synthesized. Worth confirming before the
  * chat screen is treated as working.
  */
-private val ChatModels = listOf(
-    "gemini-3.5-flash" to "Fast",
-    "gemini-3.1-pro-preview" to "Pro",
-    "gemini-3.1-flash-lite-preview" to "Lite"
+private val ChatModels: List<Pair<String, Int>> = listOf(
+    "gemini-3.5-flash" to R.string.chat_model_fast,
+    "gemini-3.1-pro-preview" to R.string.chat_model_pro,
+    "gemini-3.1-flash-lite-preview" to R.string.chat_model_lite
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,11 +66,16 @@ fun ChatScreen(viewModel: ChatViewModel = viewModel()) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                ChatModels.forEach { (id, label) ->
+                ChatModels.forEach { (id, labelRes) ->
                     FilterChip(
                         selected = viewModel.currentModel == id,
                         onClick = { viewModel.currentModel = id },
-                        label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                        label = {
+                            Text(
+                                stringResource(labelRes),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
                     )
                 }
             }
@@ -80,7 +87,10 @@ fun ChatScreen(viewModel: ChatViewModel = viewModel()) {
                     checked = viewModel.useSearchGrounding,
                     onCheckedChange = { viewModel.useSearchGrounding = it }
                 )
-                Text("Search grounding", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    stringResource(R.string.chat_search_grounding),
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
@@ -107,7 +117,7 @@ fun ChatScreen(viewModel: ChatViewModel = viewModel()) {
             Box(modifier = Modifier.padding(8.dp)) {
                 Image(
                     bitmap = bitmap.asImageBitmap(),
-                    contentDescription = "Selected image",
+                    contentDescription = stringResource(R.string.cd_selected_image),
                     modifier = Modifier.size(100.dp).clip(RoundedCornerShape(8.dp))
                 )
                 IconButton(
@@ -116,7 +126,7 @@ fun ChatScreen(viewModel: ChatViewModel = viewModel()) {
                 ) {
                     Icon(
                         Icons.Default.Close,
-                        contentDescription = "Remove image",
+                        contentDescription = stringResource(R.string.cd_remove_image),
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onSurface
                     )
@@ -132,13 +142,16 @@ fun ChatScreen(viewModel: ChatViewModel = viewModel()) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = { imagePicker.launch("image/*") }) {
-                Icon(Icons.Default.AddPhotoAlternate, contentDescription = "Add Photo")
+                Icon(
+                    Icons.Default.AddPhotoAlternate,
+                    contentDescription = stringResource(R.string.cd_add_photo)
+                )
             }
             OutlinedTextField(
                 value = inputText,
                 onValueChange = { inputText = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Type a message...") },
+                placeholder = { Text(stringResource(R.string.chat_input_placeholder)) },
                 maxLines = 3
             )
             @Suppress("DEPRECATION")
@@ -160,7 +173,7 @@ fun ChatScreen(viewModel: ChatViewModel = viewModel()) {
                     }
                 }
             ) {
-                Icon(Icons.Default.Send, contentDescription = "Send")
+                Icon(Icons.Default.Send, contentDescription = stringResource(R.string.cd_send))
             }
         }
     }
@@ -189,7 +202,7 @@ fun MessageBubble(message: ChatMessage) {
                 message.imageUrl?.let {
                     Image(
                         bitmap = it.asImageBitmap(),
-                        contentDescription = "Uploaded image",
+                        contentDescription = stringResource(R.string.cd_uploaded_image),
                         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).padding(bottom = 4.dp)
                     )
                 }

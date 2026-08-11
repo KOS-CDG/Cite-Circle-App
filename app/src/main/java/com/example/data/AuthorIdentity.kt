@@ -1,5 +1,7 @@
 package com.example.data
 
+import android.content.Context
+import com.example.R
 import com.google.firebase.auth.FirebaseAuth
 
 /** Who a new post is attributed to. */
@@ -9,11 +11,14 @@ data class AuthorIdentity(
     val affiliation: String
 ) {
     companion object {
-        private val FALLBACK = AuthorIdentity(
-            name = "Unattributed Researcher",
-            initials = "??",
-            affiliation = "AFFILIATION: UNSPECIFIED"
+        /** Placeholder for a signed-out user. Takes a Context so the copy can be translated. */
+        private fun fallback(context: Context) = AuthorIdentity(
+            name = context.getString(R.string.identity_unattributed),
+            initials = UNKNOWN_INITIALS,
+            affiliation = context.getString(R.string.identity_affiliation_unspecified)
         )
+
+        private const val UNKNOWN_INITIALS = "??"
 
         /**
          * Reads the signed-in user, falling back to a placeholder.
@@ -22,17 +27,17 @@ data class AuthorIdentity(
          * repository: with no real Firebase project, touching FirebaseAuth can throw, and a
          * missing display name must not stop someone from drafting a post.
          */
-        fun current(): AuthorIdentity = try {
+        fun current(context: Context): AuthorIdentity = try {
             val user = FirebaseAuth.getInstance().currentUser
             val name = user?.displayName?.takeIf { it.isNotBlank() }
                 ?: user?.email?.substringBefore('@')?.takeIf { it.isNotBlank() }
-            if (name == null) FALLBACK else AuthorIdentity(
+            if (name == null) fallback(context) else AuthorIdentity(
                 name = name,
                 initials = initialsOf(name),
-                affiliation = FALLBACK.affiliation
+                affiliation = fallback(context).affiliation
             )
         } catch (e: Exception) {
-            FALLBACK
+            fallback(context)
         }
 
         /**
@@ -51,7 +56,7 @@ data class AuthorIdentity(
                 .filter { it.isNotBlank() }
                 .filterNot { it.lowercase() in NON_NAME_PARTS }
             return when {
-                words.isEmpty() -> "??"
+                words.isEmpty() -> UNKNOWN_INITIALS
                 words.size == 1 -> words[0].take(2).uppercase()
                 else -> "${words.first().first()}${words.last().first()}".uppercase()
             }

@@ -16,9 +16,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.example.R
 
 /**
  * A single skeleton bone.
@@ -54,13 +56,15 @@ fun SkeletonBone(
  */
 @Composable
 fun PostCardSkeleton(modifier: Modifier = Modifier) {
+    // Read outside the semantics lambda: stringResource is @Composable, that lambda is not.
+    val label = stringResource(R.string.cd_loading_post)
     Column(
         modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)
             .background(MaterialTheme.colorScheme.surface)
             .padding(16.dp)
-            .semantics { contentDescription = "Loading post" }
+            .semantics { contentDescription = label }
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             SkeletonBone(Modifier.size(40.dp), CircleShape)
@@ -92,13 +96,14 @@ fun PostCardSkeleton(modifier: Modifier = Modifier) {
 /** Placeholder for a saved-entry row in the reading list. */
 @Composable
 fun ListRowSkeleton(modifier: Modifier = Modifier) {
+    val label = stringResource(R.string.cd_loading_entry)
     Column(
         modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)
             .background(MaterialTheme.colorScheme.surface)
             .padding(16.dp)
-            .semantics { contentDescription = "Loading entry" }
+            .semantics { contentDescription = label }
     ) {
         SkeletonBone(Modifier.fillMaxWidth(0.8f).height(15.dp))
         Spacer(Modifier.height(8.dp))
@@ -113,7 +118,8 @@ fun ListRowSkeleton(modifier: Modifier = Modifier) {
 /** Placeholder for a comment in a discussion thread. */
 @Composable
 fun CommentSkeleton(modifier: Modifier = Modifier) {
-    Row(modifier.fillMaxWidth().semantics { contentDescription = "Loading comment" }) {
+    val label = stringResource(R.string.cd_loading_comment)
+    Row(modifier.fillMaxWidth().semantics { contentDescription = label }) {
         SkeletonBone(Modifier.size(32.dp), CircleShape)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {

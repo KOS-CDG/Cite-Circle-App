@@ -13,11 +13,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.HomeViewModel
+import com.example.R
 import com.example.data.CitationFormatter
 import com.example.data.CitationStyle
 import com.example.data.SavedPaper
@@ -45,13 +48,17 @@ fun ReadingListsScreen(viewModel: HomeViewModel, navController: NavController) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "Saved",
+                    stringResource(R.string.saved_title),
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 if (!saved.isLoading) {
                     Text(
-                        "${saved.items.size} ${if (saved.items.size == 1) "entry" else "entries"}",
+                        pluralStringResource(
+                            R.plurals.entry_count,
+                            saved.items.size,
+                            saved.items.size
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -67,8 +74,8 @@ fun ReadingListsScreen(viewModel: HomeViewModel, navController: NavController) {
                 }
 
                 saved.isEmpty -> EmptyState(
-                    title = "Nothing saved yet",
-                    message = "Bookmark an entry in your feed and it will appear here.",
+                    title = stringResource(R.string.saved_empty_title),
+                    message = stringResource(R.string.saved_empty_message),
                     icon = Icons.Outlined.BookmarkBorder
                 )
 
@@ -113,7 +120,11 @@ private fun SavedEntryCard(paper: SavedPaper, onOpen: () -> Unit, onRemove: () -
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "${paper.authorName} · ${formatTimeAgo(paper.publishedAt)}",
+                        stringResource(
+                            R.string.saved_byline,
+                            paper.authorName,
+                            formatTimeAgo(paper.publishedAt)
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -121,7 +132,7 @@ private fun SavedEntryCard(paper: SavedPaper, onOpen: () -> Unit, onRemove: () -
                 IconButton(onClick = onRemove) {
                     Icon(
                         Icons.Filled.Bookmark,
-                        contentDescription = "Remove from saved",
+                        contentDescription = stringResource(R.string.cd_remove_from_saved),
                         modifier = Modifier.size(20.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )

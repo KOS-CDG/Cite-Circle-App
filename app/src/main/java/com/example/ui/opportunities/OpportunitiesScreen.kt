@@ -8,6 +8,8 @@ import androidx.compose.material.icons.outlined.WorkOutline
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import com.example.ui.components.EmptyState
 
 /**
@@ -29,9 +31,8 @@ fun OpportunitiesScreen() {
         verticalArrangement = Arrangement.Center
     ) {
         EmptyState(
-            title = "No opportunities yet",
-            message = "Grants, positions and calls for papers will appear here once a " +
-                "listings source is connected.",
+            title = stringResource(R.string.opportunities_empty_title),
+            message = stringResource(R.string.opportunities_empty_message),
             icon = Icons.Outlined.WorkOutline
         )
     }

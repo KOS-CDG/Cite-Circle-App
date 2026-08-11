@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -33,6 +34,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.HomeViewModel
+import com.example.R
 import com.example.data.CitationFormatter
 import com.example.data.CitationStyle
 import com.example.data.SavedPaper
@@ -86,7 +88,7 @@ fun ShareCardContent(paper: SavedPaper, style: CitationStyle) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Cite Circle",
+                stringResource(R.string.app_name),
                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                 color = BrandBlue
             )
@@ -145,7 +147,7 @@ fun ShareCardContent(paper: SavedPaper, style: CitationStyle) {
         ) {
             Column {
                 Text(
-                    "Citation",
+                    stringResource(R.string.citation_label),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                     color = SurfaceWhite.copy(alpha = 0.6f)
                 )
@@ -208,6 +210,8 @@ fun SharePreviewScreen(paperId: String, viewModel: HomeViewModel, navController:
     val snackbarHostState = remember { SnackbarHostState() }
 
     var style by rememberSaveable { mutableStateOf(CitationStyle.DEFAULT) }
+    // Read here because the share click handler is a coroutine body, not a composable.
+    val cardNotReady = stringResource(R.string.share_card_not_ready)
     // A plain holder rather than a MutableState: the view is only ever read from a click
     // handler, and writing state from AndroidView's factory would schedule a recomposition.
     val cardHolder = remember { CardViewHolder() }
@@ -219,7 +223,7 @@ fun SharePreviewScreen(paperId: String, viewModel: HomeViewModel, navController:
             contentAlignment = Alignment.Center
         ) {
             Text(
-                "This post is no longer available.",
+                stringResource(R.string.post_missing),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -242,12 +246,12 @@ fun SharePreviewScreen(paperId: String, viewModel: HomeViewModel, navController:
                 IconButton(onClick = { navController.popBackStack() }) {
                     Icon(
                         Icons.Filled.ArrowBack,
-                        contentDescription = "Back",
+                        contentDescription = stringResource(R.string.cd_back),
                         tint = MaterialTheme.colorScheme.onBackground
                     )
                 }
                 Text(
-                    "Share",
+                    stringResource(R.string.share_title),
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -302,7 +306,7 @@ fun SharePreviewScreen(paperId: String, viewModel: HomeViewModel, navController:
                     scope.launch {
                         val bitmap = cardHolder.view?.let { captureView(it, backgroundArgb) }
                         if (bitmap == null) {
-                            snackbarHostState.showSnackbar("Card is not ready yet.")
+                            snackbarHostState.showSnackbar(cardNotReady)
                         } else {
                             ShareUtils.shareCardImage(
                                 context = context,
@@ -322,7 +326,7 @@ fun SharePreviewScreen(paperId: String, viewModel: HomeViewModel, navController:
                 Icon(Icons.Outlined.Image, contentDescription = null, Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "Share as image",
+                    stringResource(R.string.action_share_image),
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
                 )
             }
@@ -343,7 +347,7 @@ fun SharePreviewScreen(paperId: String, viewModel: HomeViewModel, navController:
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "Share as text",
+                    stringResource(R.string.action_share_text),
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface
                 )

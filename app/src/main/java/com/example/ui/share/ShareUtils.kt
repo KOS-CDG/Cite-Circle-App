@@ -5,6 +5,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.core.content.FileProvider
+import com.example.R
 import com.example.data.CitationFormatter
 import com.example.data.CitationStyle
 import com.example.data.ExportFormat
@@ -60,24 +61,31 @@ object ShareUtils {
                 append("\n\n")
             }
             append(citation)
-            append("\n\nvia Cite Circle")
+            append("\n\n")
+            append(context.getString(R.string.share_signature))
         }
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, paper.title.ifBlank { "A citation from Cite Circle" })
+            putExtra(
+                Intent.EXTRA_SUBJECT,
+                paper.title.ifBlank { context.getString(R.string.share_subject_post) }
+            )
             putExtra(Intent.EXTRA_TEXT, body)
         }
-        launchChooser(context, intent, "Share post")
+        launchChooser(context, intent, context.getString(R.string.share_chooser_post))
     }
 
     /** Shares just the formatted citation, with no surrounding commentary. */
     fun shareCitationText(context: Context, paper: SavedPaper, style: CitationStyle) {
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, paper.title.ifBlank { "Citation" })
+            putExtra(
+                Intent.EXTRA_SUBJECT,
+                paper.title.ifBlank { context.getString(R.string.share_subject_citation) }
+            )
             putExtra(Intent.EXTRA_TEXT, CitationFormatter.format(paper, style))
         }
-        launchChooser(context, intent, "Share citation")
+        launchChooser(context, intent, context.getString(R.string.share_chooser_citation))
     }
 
     /**
@@ -104,7 +112,7 @@ object ShareUtils {
             putExtra(Intent.EXTRA_TEXT, caption)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        launchChooser(context, intent, "Share citation card")
+        launchChooser(context, intent, context.getString(R.string.share_chooser_card))
     }
 
     /**
@@ -121,10 +129,17 @@ object ShareUtils {
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = format.mimeType
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, paper.title.ifBlank { "Citation export" })
+            putExtra(
+                Intent.EXTRA_SUBJECT,
+                paper.title.ifBlank { context.getString(R.string.share_subject_export) }
+            )
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        launchChooser(context, intent, "Export as ${format.label}")
+        launchChooser(
+            context,
+            intent,
+            context.getString(R.string.share_chooser_export, format.label)
+        )
     }
 
     private fun fileUri(context: Context, file: File): Uri =

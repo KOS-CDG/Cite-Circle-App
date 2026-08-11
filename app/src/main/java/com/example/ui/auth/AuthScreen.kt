@@ -8,9 +8,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import kotlinx.coroutines.launch
 
 @Composable
@@ -19,6 +21,8 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
     val authManager = remember { FirebaseAuthManager(context) }
     val scope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(false) }
+    // Read here because the sign-in click handler is a coroutine body, not a composable.
+    val signInFailed = stringResource(R.string.auth_sign_in_failed)
 
     Column(
         modifier = Modifier
@@ -28,9 +32,9 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Cite Circle", style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.primary)
+        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.primary)
         Spacer(modifier = Modifier.height(16.dp))
-        Text("Sign in to access your archival library", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.auth_subtitle), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         
         Spacer(modifier = Modifier.height(48.dp))
         
@@ -46,7 +50,7 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                         if (success) {
                             onAuthSuccess()
                         } else {
-                            android.widget.Toast.makeText(context, "Sign in failed or not configured.", android.widget.Toast.LENGTH_LONG).show()
+                            android.widget.Toast.makeText(context, signInFailed, android.widget.Toast.LENGTH_LONG).show()
                             // Bypass for demo if Firebase isn't configured
                             onAuthSuccess()
                         }
@@ -56,7 +60,7 @@ fun AuthScreen(onAuthSuccess: () -> Unit) {
                 shape = MaterialTheme.shapes.small,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Text("Continue with Google", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold))
+                Text(stringResource(R.string.action_continue_with_google), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold))
             }
         }
     }

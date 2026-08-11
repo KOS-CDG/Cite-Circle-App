@@ -24,9 +24,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.example.R
 import java.io.File
 
 /**
@@ -67,7 +69,7 @@ fun ImageViewerScreen(path: String, navController: NavController) {
     ) {
         AsyncImage(
             model = File(path),
-            contentDescription = "Attached figure",
+            contentDescription = stringResource(R.string.cd_attached_figure),
             contentScale = ContentScale.Fit,
             modifier = Modifier
                 .fillMaxSize()
@@ -83,7 +85,11 @@ fun ImageViewerScreen(path: String, navController: NavController) {
             onClick = { navController.popBackStack() },
             modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(8.dp)
         ) {
-            Icon(Icons.Filled.Close, contentDescription = "Close", tint = Color.White)
+            Icon(
+                Icons.Filled.Close,
+                contentDescription = stringResource(R.string.cd_close),
+                tint = Color.White
+            )
         }
     }
 }

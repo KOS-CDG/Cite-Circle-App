@@ -195,7 +195,7 @@ class HomeViewModel(
             } catch (e: Exception) {
                 // Previously swallowed by a bare try/finally, so a failed sync looked
                 // identical to a successful one.
-                report("Could not sync. Your entries are safe on this device.")
+                report(appContext.getString(R.string.sync_failed))
             } finally {
                 _isRefreshing.value = false
             }
@@ -227,7 +227,7 @@ class HomeViewModel(
                             id = "1",
                             authorInitials = "JD",
                             authorName = "Dr. Jane Doe",
-                            affiliation = "AFFILIATION: OXFORD",
+                            affiliation = "Oxford",
                             content = "I just published a new preprint analyzing the semantic structures of large language models. The findings suggest a stark shift in latent knowledge representations.",
                             title = "Semantic Structures in Large Language Models",
                             authors = "Doe, Jane",
@@ -254,7 +254,7 @@ class HomeViewModel(
     /** Publishes a post that quotes [original], crediting the original with the repost. */
     fun publishQuote(original: SavedPaper, commentary: String) {
         viewModelScope.launch {
-            val identity = AuthorIdentity.current()
+            val identity = AuthorIdentity.current(appContext)
             repository.publishQuote(
                 SavedPaper(
                     id = UUID.randomUUID().toString(),
@@ -294,7 +294,7 @@ class HomeViewModel(
             val orphanedComments = repository.commentsOnce(paper.id)
             repository.deletePaper(paper.id)
             syncToCloud()
-            report("Entry withdrawn") {
+            report(appContext.getString(R.string.entry_withdrawn)) {
                 restorePaper(paper, orphanedComments)
             }
         }
@@ -325,7 +325,7 @@ class HomeViewModel(
         val trimmed = body.trim()
         if (trimmed.isEmpty()) return
         viewModelScope.launch {
-            val identity = AuthorIdentity.current()
+            val identity = AuthorIdentity.current(appContext)
             repository.addComment(
                 Comment(
                     id = UUID.randomUUID().toString(),

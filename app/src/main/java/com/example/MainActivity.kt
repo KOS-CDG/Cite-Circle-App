@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.StringRes
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -31,6 +32,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -88,17 +91,17 @@ class MainActivity : ComponentActivity() {
 
 private data class NavItem(
   val route: String,
-  val label: String,
+  @StringRes val label: Int,
   val selectedIcon: ImageVector,
   val unselectedIcon: ImageVector
 )
 
 private val NavItems = listOf(
-  NavItem("feed", "Home", Icons.Filled.Home, Icons.Outlined.Home),
-  NavItem("fields", "Discover", Icons.Filled.Explore, Icons.Outlined.Explore),
-  NavItem("lists", "Saved", Icons.Filled.Bookmark, Icons.Outlined.BookmarkBorder),
-  NavItem("opps", "Jobs", Icons.Filled.Work, Icons.Outlined.WorkOutline),
-  NavItem("profile", "Me", Icons.Filled.Person, Icons.Outlined.Person)
+  NavItem("feed", R.string.nav_home, Icons.Filled.Home, Icons.Outlined.Home),
+  NavItem("fields", R.string.nav_discover, Icons.Filled.Explore, Icons.Outlined.Explore),
+  NavItem("lists", R.string.nav_saved, Icons.Filled.Bookmark, Icons.Outlined.BookmarkBorder),
+  NavItem("opps", R.string.nav_jobs, Icons.Filled.Work, Icons.Outlined.WorkOutline),
+  NavItem("profile", R.string.nav_profile, Icons.Filled.Person, Icons.Outlined.Person)
 )
 
 @Composable
@@ -125,11 +128,12 @@ fun FolioApp(viewModel: HomeViewModel) {
   // One snackbar for the whole app. Failures used to be silent everywhere except the share
   // screen, which had its own local host.
   val snackbarHostState = remember { SnackbarHostState() }
+  val undoLabel = stringResource(R.string.action_undo)
   LaunchedEffect(Unit) {
     viewModel.messages.collect { message ->
       val result = snackbarHostState.showSnackbar(
         message = message.text,
-        actionLabel = if (message.undo != null) "Undo" else null,
+        actionLabel = if (message.undo != null) undoLabel else null,
         withDismissAction = message.undo == null,
         duration = SnackbarDuration.Short
       )
@@ -148,7 +152,7 @@ fun FolioApp(viewModel: HomeViewModel) {
           containerColor = MaterialTheme.colorScheme.primary,
           contentColor = MaterialTheme.colorScheme.onPrimary
         ) {
-          Icon(Icons.Filled.Add, contentDescription = "New entry")
+          Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.cd_new_entry))
         }
       }
     },
@@ -286,7 +290,7 @@ private fun AppTopBar(navController: NavController, viewModel: HomeViewModel) {
         verticalAlignment = Alignment.CenterVertically
       ) {
         Text(
-          "Cite Circle",
+          stringResource(R.string.app_name),
           style = MaterialTheme.typography.headlineSmall,
           color = MaterialTheme.colorScheme.primary
         )
@@ -299,14 +303,21 @@ private fun AppTopBar(navController: NavController, viewModel: HomeViewModel) {
                     containerColor = MaterialTheme.colorScheme.error,
                     contentColor = MaterialTheme.colorScheme.onError
                   ) {
-                    Text(if (unread > 99) "99+" else unread.toString())
+                    Text(
+                      if (unread > 99) stringResource(R.string.badge_overflow)
+                      else unread.toString()
+                    )
                   }
                 }
               }
             ) {
               Icon(
                 Icons.Outlined.Notifications,
-                contentDescription = if (unread > 0) "Activity, $unread new" else "Activity",
+                contentDescription = if (unread > 0) {
+                  stringResource(R.string.cd_activity_unread, unread)
+                } else {
+                  stringResource(R.string.cd_activity)
+                },
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
               )
             }
@@ -315,7 +326,7 @@ private fun AppTopBar(navController: NavController, viewModel: HomeViewModel) {
           IconButton(onClick = { navController.navigate("chat") }) {
             Icon(
               Icons.Outlined.Chat,
-              contentDescription = "Assistant",
+              contentDescription = stringResource(R.string.cd_assistant),
               tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
           }
@@ -342,16 +353,17 @@ private fun AppBottomBar(
     ) {
       NavItems.forEach { item ->
         val selected = currentRoute == item.route
+        val label = stringResource(item.label)
         NavigationBarItem(
           icon = {
             Icon(
               if (selected) item.selectedIcon else item.unselectedIcon,
-              contentDescription = item.label
+              contentDescription = label
             )
           },
           // 12sp, up from a 9sp label with negative tracking that fell below the
           // minimum legible size.
-          label = { Text(item.label, style = MaterialTheme.typography.labelSmall) },
+          label = { Text(label, style = MaterialTheme.typography.labelSmall) },
           selected = selected,
           onClick = {
             // Re-tapping the tab you are already on scrolls that screen back to the top,
@@ -396,11 +408,11 @@ fun HomeScreen(viewModel: HomeViewModel, navController: NavController) {
       feed.isLoading -> FeedSkeleton()
 
       feed.isEmpty -> EmptyState(
-        title = "Your feed is empty",
-        message = "Publish your first entry to start building your circle.",
+        title = stringResource(R.string.feed_empty_title),
+        message = stringResource(R.string.feed_empty_message),
         icon = Icons.Outlined.Article,
         modifier = Modifier.fillMaxSize().wrapContentHeight(),
-        actionLabel = "Write an entry",
+        actionLabel = stringResource(R.string.action_write_entry),
         onAction = { navController.navigate("compose") }
       )
 
@@ -473,13 +485,13 @@ fun CitationChart(papers: List<SavedPaper>) {
   ) {
     Column(modifier = Modifier.padding(16.dp)) {
       Text(
-        "Entries over time",
+        stringResource(R.string.chart_title),
         style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onSurface
       )
       Spacer(modifier = Modifier.height(4.dp))
       Text(
-        "Last ${series.size} months",
+        pluralStringResource(R.plurals.chart_subtitle, series.size, series.size),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
       )
@@ -518,7 +530,7 @@ fun NotificationsScreen(viewModel: HomeViewModel, navController: NavController) 
 
   Column(modifier = Modifier.fillMaxSize()) {
     Text(
-      "Activity",
+      stringResource(R.string.activity_title),
       style = MaterialTheme.typography.headlineSmall,
       color = MaterialTheme.colorScheme.onBackground,
       modifier = Modifier.padding(horizontal = Gutter, vertical = 12.dp)
@@ -531,8 +543,8 @@ fun NotificationsScreen(viewModel: HomeViewModel, navController: NavController) 
       ) { repeat(3) { ListRowSkeleton() } }
 
       activity.isEmpty -> EmptyState(
-        title = "Nothing has happened yet",
-        message = "Replies and citations on entries in your circle will show up here.",
+        title = stringResource(R.string.activity_empty_title),
+        message = stringResource(R.string.activity_empty_message),
         icon = Icons.Outlined.Notifications
       )
 
@@ -558,13 +570,17 @@ private fun ActivityRow(item: ActivityItem, onClick: () -> Unit) {
   when (item) {
     is ActivityItem.Replied -> {
       initials = item.comment.authorInitials
-      headline = "${item.comment.authorName} replied"
+      headline = stringResource(R.string.activity_replied, item.comment.authorName)
       body = item.comment.body
       icon = Icons.Outlined.ChatBubbleOutline
     }
     is ActivityItem.Cited -> {
       initials = item.quote.authorInitials
-      headline = "${item.quote.authorName} cited ${item.quote.quotedAuthorName}"
+      headline = stringResource(
+        R.string.activity_cited,
+        item.quote.authorName,
+        item.quote.quotedAuthorName
+      )
       body = item.quote.content.ifBlank { item.quote.quotedTitle }
       icon = Icons.Outlined.Repeat
     }
@@ -599,7 +615,7 @@ private fun ActivityRow(item: ActivityItem, onClick: () -> Unit) {
         if (item is ActivityItem.Replied && item.paperTitle.isNotBlank()) {
           Spacer(Modifier.height(2.dp))
           Text(
-            "on ${item.paperTitle}",
+            stringResource(R.string.activity_on_entry, item.paperTitle),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -655,7 +671,7 @@ fun FieldsScreen(viewModel: HomeViewModel, navController: NavController) {
       modifier = Modifier.fillMaxWidth().padding(Gutter),
       placeholder = {
         Text(
-          "Search venues and entries",
+          stringResource(R.string.discover_search_placeholder),
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -684,11 +700,15 @@ fun FieldsScreen(viewModel: HomeViewModel, navController: NavController) {
       ) { repeat(3) { ListRowSkeleton() } }
 
       matchingVenues.isEmpty() && matchingPosts.isEmpty() -> EmptyState(
-        title = if (trimmed.isBlank()) "Nothing to discover yet" else "No matches",
-        message = if (trimmed.isBlank()) {
-          "Venues appear here once entries in your library name one."
+        title = if (trimmed.isBlank()) {
+          stringResource(R.string.discover_empty_title)
         } else {
-          "No venue or entry matches \"$trimmed\"."
+          stringResource(R.string.discover_no_matches_title)
+        },
+        message = if (trimmed.isBlank()) {
+          stringResource(R.string.discover_empty_message)
+        } else {
+          stringResource(R.string.discover_no_matches_message, trimmed)
         },
         icon = Icons.Outlined.Search
       )
@@ -698,7 +718,7 @@ fun FieldsScreen(viewModel: HomeViewModel, navController: NavController) {
         verticalArrangement = Arrangement.spacedBy(8.dp)
       ) {
         if (matchingVenues.isNotEmpty()) {
-          item { DiscoverHeading("Venues") }
+          item { DiscoverHeading(stringResource(R.string.discover_heading_venues)) }
           items(matchingVenues, key = { "venue-" + it.name }) { venue ->
             Row(
               modifier = Modifier
@@ -718,7 +738,7 @@ fun FieldsScreen(viewModel: HomeViewModel, navController: NavController) {
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                  "${venue.count} ${if (venue.count == 1) "entry" else "entries"}",
+                  pluralStringResource(R.plurals.entry_count, venue.count, venue.count),
                   style = MaterialTheme.typography.bodySmall,
                   color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -733,7 +753,7 @@ fun FieldsScreen(viewModel: HomeViewModel, navController: NavController) {
           }
         }
         if (matchingPosts.isNotEmpty()) {
-          item { DiscoverHeading("Entries") }
+          item { DiscoverHeading(stringResource(R.string.discover_heading_entries)) }
           items(matchingPosts, key = { "post-" + it.id }) { paper ->
             PostCard(paper, viewModel, navController)
           }
@@ -767,7 +787,7 @@ fun VenueScreen(venue: String, viewModel: HomeViewModel, navController: NavContr
       IconButton(onClick = { navController.popBackStack() }) {
         Icon(
           Icons.Filled.ArrowBack,
-          contentDescription = "Back",
+          contentDescription = stringResource(R.string.cd_back),
           tint = MaterialTheme.colorScheme.onBackground
         )
       }
@@ -787,8 +807,8 @@ fun VenueScreen(venue: String, viewModel: HomeViewModel, navController: NavContr
       ) { repeat(2) { PostCardSkeleton() } }
 
       papers.isEmpty -> EmptyState(
-        title = "No entries",
-        message = "Nothing in your library names this venue any more.",
+        title = stringResource(R.string.venue_empty_title),
+        message = stringResource(R.string.venue_empty_message),
         icon = Icons.Outlined.Search
       )
 
@@ -809,7 +829,8 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
   val feed by viewModel.feed.collectAsStateWithLifecycle()
   val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
   val isDarkMode by viewModel.isDarkMode.collectAsStateWithLifecycle()
-  val identity = remember { AuthorIdentity.current() }
+  val profileContext = androidx.compose.ui.platform.LocalContext.current
+  val identity = remember(profileContext) { AuthorIdentity.current(profileContext) }
   val stats = remember(feed.items) { ProfileStats.from(feed.items) }
 
   RefreshableBox(isRefreshing = isRefreshing, onRefresh = viewModel::refresh) {
@@ -851,8 +872,11 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
               IconButton(onClick = { viewModel.toggleTheme() }) {
                 Icon(
                   if (isDarkMode) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
-                  contentDescription = if (isDarkMode) "Switch to light theme"
-                  else "Switch to dark theme",
+                  contentDescription = if (isDarkMode) {
+                    stringResource(R.string.cd_switch_to_light_theme)
+                  } else {
+                    stringResource(R.string.cd_switch_to_dark_theme)
+                  },
                   tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
               }
@@ -866,9 +890,9 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
               modifier = Modifier.fillMaxWidth(),
               horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-              StatTile(stats.entries, "Entries")
-              StatTile(stats.endorsements, "Endorsements")
-              StatTile(stats.citations, "Citations")
+              StatTile(stats.entries, stringResource(R.string.stat_entries))
+              StatTile(stats.endorsements, stringResource(R.string.stat_endorsements))
+              StatTile(stats.citations, stringResource(R.string.stat_citations))
             }
           }
         }
@@ -878,7 +902,7 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
 
       item {
         Text(
-          "Your entries",
+          stringResource(R.string.profile_your_entries),
           style = MaterialTheme.typography.titleMedium,
           color = MaterialTheme.colorScheme.onBackground,
           modifier = Modifier.padding(top = 8.dp)
@@ -890,10 +914,10 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
 
         feed.isEmpty -> item {
           EmptyState(
-            title = "No entries yet",
-            message = "Anything you publish appears here.",
+            title = stringResource(R.string.profile_empty_title),
+            message = stringResource(R.string.profile_empty_message),
             icon = Icons.Outlined.Article,
-            actionLabel = "Write an entry",
+            actionLabel = stringResource(R.string.action_write_entry),
             onAction = { navController.navigate("compose") }
           )
         }

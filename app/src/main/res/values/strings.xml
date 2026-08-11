@@ -1,4 +1,198 @@
 <resources>
     <string name="app_name">Cite Circle</string>
     <string name="default_web_client_id">YOUR_WEB_CLIENT_ID</string>
+
+    <!-- Bottom navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_discover">Discover</string>
+    <string name="nav_saved">Saved</string>
+    <string name="nav_jobs">Jobs</string>
+    <string name="nav_profile">Me</string>
+
+    <!-- App bar -->
+    <string name="cd_activity">Activity</string>
+    <string name="cd_activity_unread">Activity, %1$d new</string>
+    <string name="cd_assistant">Assistant</string>
+    <string name="badge_overflow">99+</string>
+    <string name="cd_new_entry">New entry</string>
+
+    <!-- Shared actions -->
+    <string name="action_undo">Undo</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_post">Post</string>
+    <string name="action_write_entry">Write an entry</string>
+    <string name="cd_back">Back</string>
+    <string name="cd_close">Close</string>
+    <string name="cd_discard">Discard</string>
+
+    <!-- Feed -->
+    <string name="feed_empty_title">Your feed is empty</string>
+    <string name="feed_empty_message">Publish your first entry to start building your circle.</string>
+
+    <!-- Activity -->
+    <string name="activity_title">Activity</string>
+    <string name="activity_empty_title">Nothing has happened yet</string>
+    <string name="activity_empty_message">Replies and citations on entries in your circle will show up here.</string>
+    <string name="activity_replied">%1$s replied</string>
+    <string name="activity_cited">%1$s cited %2$s</string>
+    <string name="activity_on_entry">on %1$s</string>
+
+    <!-- Discover -->
+    <string name="discover_search_placeholder">Search venues and entries</string>
+    <string name="discover_empty_title">Nothing to discover yet</string>
+    <string name="discover_empty_message">Venues appear here once entries in your library name one.</string>
+    <string name="discover_no_matches_title">No matches</string>
+    <string name="discover_no_matches_message">No venue or entry matches \"%1$s\".</string>
+    <string name="discover_heading_venues">Venues</string>
+    <string name="discover_heading_entries">Entries</string>
+
+    <!-- Venue -->
+    <string name="venue_empty_title">No entries</string>
+    <string name="venue_empty_message">Nothing in your library names this venue any more.</string>
+
+    <!-- Profile -->
+    <string name="cd_switch_to_light_theme">Switch to light theme</string>
+    <string name="cd_switch_to_dark_theme">Switch to dark theme</string>
+    <string name="stat_entries">Entries</string>
+    <string name="stat_endorsements">Endorsements</string>
+    <string name="stat_citations">Citations</string>
+    <string name="chart_title">Entries over time</string>
+    <string name="profile_your_entries">Your entries</string>
+    <string name="profile_empty_title">No entries yet</string>
+    <string name="profile_empty_message">Anything you publish appears here.</string>
+
+    <!-- Saved -->
+    <string name="saved_title">Saved</string>
+    <!-- Author and age, joined. Separate resource so an RTL locale can reorder it. -->
+    <string name="saved_byline">%1$s · %2$s</string>
+    <string name="saved_empty_title">Nothing saved yet</string>
+    <string name="saved_empty_message">Bookmark an entry in your feed and it will appear here.</string>
+    <string name="cd_remove_from_saved">Remove from saved</string>
+
+    <!-- Opportunities -->
+    <string name="opportunities_empty_title">No opportunities yet</string>
+    <string name="opportunities_empty_message">Grants, positions and calls for papers will appear here once a listings source is connected.</string>
+
+    <!-- Post card -->
+    <string name="post_cited_from">Cited from %1$s</string>
+    <string name="cd_attached_figure">Attached figure</string>
+    <string name="cd_attached_figure_expandable">Attached figure, tap to enlarge</string>
+    <string name="cd_endorse">Endorse</string>
+    <string name="cd_remove_endorsement">Remove endorsement</string>
+    <string name="cd_open_discussion">Open discussion</string>
+    <string name="cd_comments">Comments</string>
+    <string name="cd_cite_post">Cite this post</string>
+    <string name="cd_save">Save</string>
+    <string name="cd_remove_bookmark">Remove bookmark</string>
+    <string name="cd_share">Share</string>
+    <string name="citation_label">Citation</string>
+    <string name="citation_verbatim">Verbatim</string>
+    <string name="export_failed">Could not export as %1$s.</string>
+
+    <!-- Post detail -->
+    <string name="post_detail_title">Entry</string>
+    <string name="cd_edit_entry">Edit entry</string>
+    <string name="cd_withdraw_entry">Withdraw entry</string>
+    <string name="withdraw_dialog_title">Withdraw entry?</string>
+    <string name="action_withdraw">Withdraw</string>
+    <string name="discussion">Discussion</string>
+    <string name="discussion_with_count">Discussion · %1$d</string>
+    <string name="discussion_empty">No responses yet. Start the discussion.</string>
+    <string name="cd_delete_comment">Delete comment</string>
+    <string name="comment_placeholder">Add to the discussion…</string>
+    <string name="cd_post_comment">Post comment</string>
+    <string name="entry_missing">This entry is no longer available.</string>
+    <string name="action_back_to_feed">Back to feed</string>
+
+    <!-- Quote -->
+    <string name="quote_missing">The entry being cited is no longer available.</string>
+    <string name="quote_title">Cite this entry</string>
+    <string name="quote_placeholder">How does this bear on your own work?</string>
+    <string name="quote_footnote">The citation above travels with your entry, so your repost stays independently citable.</string>
+
+    <!-- Composer -->
+    <string name="compose_title_new">New entry</string>
+    <string name="compose_title_edit">Edit entry</string>
+    <string name="cd_discard_draft">Discard draft</string>
+    <string name="section_commentary">Commentary</string>
+    <string name="compose_commentary_placeholder">What should your circle know about this paper?</string>
+    <string name="section_attachment">Attachment</string>
+    <string name="action_add_figure">Add a figure</string>
+    <string name="cd_remove_figure">Remove figure</string>
+    <string name="section_paper_details">Paper details</string>
+    <string name="field_title">Title (required)</string>
+    <string name="error_title_required">A title is required — citations cannot be generated without one.</string>
+    <string name="field_authors">Doe, Jane; Smith, John</string>
+    <string name="hint_authors">Separate authors with a semicolon, each written “Family, Given”.</string>
+    <string name="field_year">Year</string>
+    <string name="error_year">Enter a four-digit year, or leave it blank.</string>
+    <string name="field_venue">Journal or venue</string>
+    <string name="field_doi">DOI (10.1000/example)</string>
+    <string name="field_url">URL</string>
+    <string name="field_affiliation">Affiliation</string>
+    <string name="section_citation_preview">Citation preview</string>
+    <string name="preview_label">Preview</string>
+    <string name="preview_empty">Add a title to see the citation build itself.</string>
+    <string name="action_save_changes">Save changes</string>
+    <string name="image_unreadable">That image could not be read.</string>
+
+    <!-- Share -->
+    <string name="post_missing">This post is no longer available.</string>
+    <string name="share_title">Share</string>
+    <string name="action_share_image">Share as image</string>
+    <string name="action_share_text">Share as text</string>
+    <string name="share_card_not_ready">Card is not ready yet.</string>
+    <string name="share_chooser_post">Share post</string>
+    <string name="share_chooser_citation">Share citation</string>
+    <string name="share_chooser_card">Share citation card</string>
+    <string name="share_chooser_export">Export as %1$s</string>
+    <string name="share_signature">via Cite Circle</string>
+    <string name="share_subject_post">A citation from Cite Circle</string>
+    <string name="share_subject_citation">Citation</string>
+    <string name="share_subject_export">Citation export</string>
+
+    <!-- Loading placeholders -->
+    <string name="cd_loading_post">Loading post</string>
+    <string name="cd_loading_entry">Loading entry</string>
+    <string name="cd_loading_comment">Loading comment</string>
+
+    <!-- Snackbar -->
+    <string name="sync_failed">Could not sync. Your entries are safe on this device.</string>
+    <string name="entry_withdrawn">Entry withdrawn</string>
+
+    <!-- Identity fallback, used when no account is signed in -->
+    <string name="identity_unattributed">Unattributed researcher</string>
+    <string name="identity_affiliation_unspecified">Affiliation unspecified</string>
+
+    <!-- Sign-in -->
+    <string name="auth_subtitle">Sign in to access your archival library</string>
+    <string name="auth_sign_in_failed">Sign in failed or not configured.</string>
+    <string name="action_continue_with_google">Continue with Google</string>
+
+    <!-- Assistant -->
+    <string name="chat_model_fast">Fast</string>
+    <string name="chat_model_pro">Pro</string>
+    <string name="chat_model_lite">Lite</string>
+    <string name="chat_search_grounding">Search grounding</string>
+    <string name="chat_input_placeholder">Type a message…</string>
+    <string name="cd_add_photo">Add photo</string>
+    <string name="cd_send">Send</string>
+    <string name="cd_selected_image">Selected image</string>
+    <string name="cd_remove_image">Remove image</string>
+    <string name="cd_uploaded_image">Uploaded image</string>
+
+    <plurals name="entry_count">
+        <item quantity="one">%d entry</item>
+        <item quantity="other">%d entries</item>
+    </plurals>
+
+    <plurals name="chart_subtitle">
+        <item quantity="one">Last %d month</item>
+        <item quantity="other">Last %d months</item>
+    </plurals>
+
+    <plurals name="withdraw_dialog_message">
+        <item quantity="one">This removes the post, its %d comment and any attached image from this device.</item>
+        <item quantity="other">This removes the post, its %d comments and any attached image from this device.</item>
+    </plurals>
 </resources>
