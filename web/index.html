@@ -28,10 +28,13 @@
     <div class="header-actions">
       <div class="cloud-status-badge" id="cloudStatusBadge" title="Firebase Project: cite-circle-3857b">
         <div class="cloud-status-dot"></div>
-        <span id="cloudStatusText">Cloud Ready</span>
+        <span id="cloudStatusText">Firebase Synced</span>
       </div>
       <button class="btn-icon" id="themeToggleBtn" title="Toggle Theme">🌓</button>
-      <div class="author-avatar" id="userHeaderAvatar" style="width: 34px; height: 34px; font-size: 0.85rem; cursor: pointer;" title="Active Profile">AR</div>
+      <button class="btn-publish-action" id="openAuthModalBtn" style="display: none; margin-top: 0; padding: 0.4rem 0.85rem; font-size: 0.85rem;">
+        Sign In
+      </button>
+      <div class="author-avatar" id="userHeaderAvatar" style="width: 34px; height: 34px; font-size: 0.85rem; cursor: pointer;" title="Active Profile">MV</div>
     </div>
   </header>
 
@@ -144,28 +147,35 @@
       <!-- View: Profile & Privacy -->
       <section id="viewProfile" style="display: none;">
         <div class="section-header">
-          <h2 class="section-title">Researcher Profile & Governance</h2>
+          <h2 class="section-title">Researcher Profile & Cloud Identity</h2>
         </div>
         <div class="post-card">
-          <div style="display: flex; align-items: center; gap: 1.25rem;">
-            <div class="author-avatar" style="width: 64px; height: 64px; font-size: 1.5rem;">AR</div>
-            <div>
-              <h3 style="font-size: 1.25rem; font-weight: 700;">Dr. Alex Rivera</h3>
-              <p style="color: var(--text-secondary); font-size: 0.9rem;">Senior Researcher • Stanford Institute for AI</p>
-              <p style="color: var(--text-muted); font-size: 0.8rem; font-family: var(--font-mono);">alex.rivera@citecircle.edu</p>
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+            <div style="display: flex; align-items: center; gap: 1.25rem;">
+              <div class="author-avatar" id="profileAvatar" style="width: 64px; height: 64px; font-size: 1.5rem;">MV</div>
+              <div>
+                <h3 id="profileName" style="font-size: 1.25rem; font-weight: 700;">Dr. Morgan Vance</h3>
+                <p id="profileAffiliation" style="color: var(--text-secondary); font-size: 0.9rem;">Institute for Advanced Study • Computational Neuroscience & AI</p>
+                <p id="profileEmail" style="color: var(--text-muted); font-size: 0.8rem; font-family: var(--font-mono);">demo.researcher@cite.circle</p>
+                <p id="profileUid" style="color: var(--accent-emerald); font-size: 0.75rem; font-family: var(--font-mono); margin-top: 0.2rem;">Firebase UID: Synced</p>
+              </div>
             </div>
+            <button id="profileSignOutBtn" class="btn-icon" style="color: var(--accent-rose); font-weight: 600; padding: 0.5rem 1rem;">
+              Sign Out
+            </button>
           </div>
-          <div style="display: flex; gap: 2rem; margin-top: 0.5rem; border-top: 1px solid var(--border-subtle); padding-top: 1rem;">
+
+          <div style="display: flex; gap: 2rem; margin-top: 1rem; border-top: 1px solid var(--border-subtle); padding-top: 1rem;">
             <div>
-              <div style="font-size: 1.25rem; font-weight: 700; color: var(--accent-primary);">14</div>
+              <div style="font-size: 1.25rem; font-weight: 700; color: var(--accent-primary);">18</div>
               <div style="font-size: 0.75rem; color: var(--text-secondary);">Publications</div>
             </div>
             <div>
-              <div style="font-size: 1.25rem; font-weight: 700; color: var(--accent-emerald);">842</div>
+              <div style="font-size: 1.25rem; font-weight: 700; color: var(--accent-emerald);">1,420</div>
               <div style="font-size: 0.75rem; color: var(--text-secondary);">Citations</div>
             </div>
             <div>
-              <div style="font-size: 1.25rem; font-weight: 700; color: var(--accent-purple);">12</div>
+              <div style="font-size: 1.25rem; font-weight: 700; color: var(--accent-purple);">16</div>
               <div style="font-size: 0.75rem; color: var(--text-secondary);">h-index</div>
             </div>
           </div>
@@ -176,7 +186,7 @@
           <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 0.5rem;">Data Governance & Privacy Controls</h3>
           <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.6;">
             Cite Circle respects academic data sovereignty. All documents are stored in sandboxed local storage,
-            and network synchronization is secured through authenticated Firestore rules.
+            and network synchronization is secured through authenticated Firebase rules.
           </p>
           <div style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
             <button id="clearWebCacheBtn" class="btn-icon" style="padding: 0.6rem 1rem; font-weight: 600; color: var(--accent-amber);">
@@ -191,7 +201,7 @@
 
     </main>
 
-    <!-- Right Sidebar: Trends & Recommended Research -->
+    <!-- Right Sidebar: Trends & Cloud Status -->
     <aside class="right-sidebar">
       <div class="widget-card">
         <h3 class="widget-title">
@@ -220,16 +230,71 @@
 
       <div class="widget-card">
         <h3 class="widget-title">
-          <span>Cloud Configuration</span>
+          <span>Cloud Authentication</span>
         </h3>
         <div style="font-size: 0.8rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 0.4rem;">
           <div><strong>Project:</strong> cite-circle-3857b</div>
-          <div><strong>Hosting:</strong> cite-circle-3857b.firebaseapp.com</div>
-          <div><strong>Sync State:</strong> <span style="color: var(--accent-emerald);">Initialized</span></div>
+          <div><strong>Auth Provider:</strong> Email/Password (Identity Toolkit)</div>
+          <div><strong>Status:</strong> <span style="color: var(--accent-emerald);">Active & Synchronized</span></div>
         </div>
       </div>
     </aside>
 
+  </div>
+
+  <!-- Authentication Modal (Firebase Auth) -->
+  <div class="modal-backdrop" id="authModal" style="display: none;">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 id="authModalTitle" style="font-size: 1.1rem; font-weight: 700;">Sign In to Cite Circle</h3>
+        <button class="btn-icon" id="closeAuthModalBtn" style="border: none; font-size: 1.1rem;">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; border-bottom: 1px solid var(--border-subtle); margin-bottom: 0.5rem;">
+          <button id="authTabSignIn" class="filter-pill active" style="flex: 1; border-radius: 0; border: none; border-bottom: 2px solid var(--accent-primary);">Sign In</button>
+          <button id="authTabRegister" class="filter-pill" style="flex: 1; border-radius: 0; border: none; background: none;">Create Account</button>
+        </div>
+
+        <div id="authErrorMsg" style="display: none; padding: 0.6rem; border-radius: var(--radius-sm); background: rgba(244, 63, 94, 0.15); border: 1px solid rgba(244, 63, 94, 0.3); color: var(--accent-rose); font-size: 0.8rem;"></div>
+
+        <div id="registerOnlyFields" style="display: none; flex-direction: column; gap: 0.75rem;">
+          <div>
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem; color: var(--text-secondary);">FULL NAME</label>
+            <input type="text" id="authNameInput" class="input-field" placeholder="e.g. Dr. Ada Lovelace">
+          </div>
+          <div>
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem; color: var(--text-secondary);">ACADEMIC AFFILIATION</label>
+            <input type="text" id="authAffiliationInput" class="input-field" placeholder="e.g. Oxford Institute">
+          </div>
+          <div>
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem; color: var(--text-secondary);">RESEARCH FIELD</label>
+            <input type="text" id="authFieldInput" class="input-field" placeholder="e.g. Computational Mathematics">
+          </div>
+        </div>
+
+        <div>
+          <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem; color: var(--text-secondary);">EMAIL ADDRESS</label>
+          <input type="email" id="authEmailInput" class="input-field" placeholder="researcher@university.edu">
+        </div>
+
+        <div>
+          <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem; color: var(--text-secondary);">PASSWORD</label>
+          <input type="password" id="authPasswordInput" class="input-field" placeholder="Minimum 6 characters">
+        </div>
+
+        <button id="authSubmitBtn" class="btn-publish-action" style="margin-top: 0.5rem;">
+          Sign In
+        </button>
+
+        <div style="text-align: center; margin-top: 0.5rem;">
+          <span style="font-size: 0.8rem; color: var(--text-muted);">or</span>
+        </div>
+
+        <button id="authDemoSignInBtn" class="btn-icon" style="width: 100%; padding: 0.75rem; font-weight: 600; color: var(--accent-emerald); justify-content: center;">
+          ⚡ Fast-Track Sign In as Demo Researcher
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Publish Manuscript Modal -->

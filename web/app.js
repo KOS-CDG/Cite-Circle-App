@@ -1,4 +1,17 @@
 import { firebaseConfig } from './firebase-config.js';
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  updateProfile
+} from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+
+// Initialize Firebase
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
 
 // State management
 const STATE = {
@@ -6,6 +19,8 @@ const STATE = {
   activeField: 'all',
   theme: localStorage.getItem('citecircle_theme') || 'dark',
   selectedFile: null,
+  currentUser: null,
+  authMode: 'signin', // 'signin' or 'register'
   posts: [],
   vault: [],
   chats: []
@@ -16,9 +31,10 @@ const DEFAULT_POSTS = [
   {
     id: 'post-1',
     author: {
-      name: 'Dr. Elena Rostova',
-      institution: 'MIT Laboratory for Information & Decision Systems',
-      avatar: 'ER'
+      id: 'OycnFiKmG3SnS9ob4xk7qDlYoRh1',
+      name: 'Dr. Morgan Vance',
+      institution: 'Institute for Advanced Study',
+      avatar: 'MV'
     },
     timestamp: '2 hours ago',
     content: 'Thrilled to share our latest preprint on Transformer architectures tailored for sub-nanosecond quantum state tomography. Open-source benchmarks and mathematical proofs attached below!',
@@ -37,6 +53,7 @@ const DEFAULT_POSTS = [
   {
     id: 'post-2',
     author: {
+      id: 'prof-marcus-chen',
       name: 'Prof. Marcus Chen',
       institution: 'Oxford Institute of Biomedical Engineering',
       avatar: 'MC'
@@ -58,9 +75,10 @@ const DEFAULT_POSTS = [
   {
     id: 'post-3',
     author: {
-      name: 'Dr. Sarah Al-Mansoor',
+      id: 'dr-elena-rostova',
+      name: 'Dr. Elena Rostova',
       institution: 'CERN & ETH Zürich',
-      avatar: 'SA'
+      avatar: 'ER'
     },
     timestamp: 'Yesterday',
     content: 'Source LaTeX equations and differential cross-section models for high-luminosity LHC run 4 are now compiled. LaTeX source available for reproducible computation.',
@@ -79,7 +97,7 @@ const DEFAULT_POSTS = [
 ];
 
 const DEFAULT_CHATS = [
-  { sender: 'Dr. Alex Rivera', text: 'Has anyone benchmarked the inference latency of the new 4-bit quantized attention model on edge TPUs?', time: '10:15 AM', isMe: true },
+  { sender: 'Dr. Morgan Vance', text: 'Has anyone benchmarked the inference latency of the new 4-bit quantized attention model on edge TPUs?', time: '10:15 AM', isMe: true },
   { sender: 'Dr. Elena Rostova', text: 'Yes! We measured ~1.8ms per token on the Coral Dual Edge. Memory footprint stays under 180MB.', time: '10:18 AM', isMe: false }
 ];
 
@@ -133,11 +151,9 @@ function initStore() {
   enforceCacheLimiter();
 }
 
-// Database Limiter: Max 200 items in cache
 function enforceCacheLimiter() {
   const MAX_KEEP = 200;
   if (STATE.posts.length > MAX_KEEP) {
-    // Retain first MAX_KEEP
     STATE.posts = STATE.posts.slice(0, MAX_KEEP);
     savePosts();
   }
@@ -177,7 +193,6 @@ async function validateManuscriptFile(file) {
     return { valid: false, error: `Forbidden file extension '${ext}'. Archives and executables are strictly blocked.` };
   }
 
-  // Read header magic bytes (first 16 bytes)
   const headerSlice = file.slice(0, 16);
   const buffer = await headerSlice.arrayBuffer();
   const bytes = new Uint8Array(buffer);
@@ -216,6 +231,13 @@ function formatBytes(bytes) {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function getInitials(name) {
+  if (!name) return '??';
+  const parts = name.trim().split(' ').filter(p => p.length > 0);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 // Render Functions
@@ -368,6 +390,47 @@ function escapeHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// Sync Firebase Auth state with UI
+function updateAuthStateUI(user) {
+  STATE.currentUser = user;
+  const statusBadge = document.getElementById('cloudStatusText');
+  const headerAvatar = document.getElementById('userHeaderAvatar');
+  const openAuthBtn = document.getElementById('openAuthModalBtn');
+  const profileAvatar = document.getElementById('profileAvatar');
+  const profileName = document.getElementById('profileName');
+  const profileEmail = document.getElementById('profileEmail');
+  const profileUid = document.getElementById('profileUid');
+  const profileSignOutBtn = document.getElementById('profileSignOutBtn');
+
+  if (user) {
+    const displayName = user.displayName || user.email.split('@')[0].replace('.', ' ');
+    const initials = getInitials(displayName);
+    if (statusBadge) statusBadge.textContent = `Firebase: ${user.email}`;
+    if (headerAvatar) {
+      headerAvatar.textContent = initials;
+      headerAvatar.style.display = 'flex';
+      headerAvatar.title = `${displayName} (${user.email})`;
+    }
+    if (openAuthBtn) openAuthBtn.style.display = 'none';
+
+    if (profileAvatar) profileAvatar.textContent = initials;
+    if (profileName) profileName.textContent = displayName;
+    if (profileEmail) profileEmail.textContent = user.email;
+    if (profileUid) profileUid.textContent = `Firebase UID: ${user.uid}`;
+    if (profileSignOutBtn) profileSignOutBtn.style.display = 'inline-block';
+  } else {
+    if (statusBadge) statusBadge.textContent = 'Guest / Offline';
+    if (headerAvatar) headerAvatar.style.display = 'none';
+    if (openAuthBtn) openAuthBtn.style.display = 'inline-block';
+
+    if (profileAvatar) profileAvatar.textContent = '??';
+    if (profileName) profileName.textContent = 'Guest Researcher';
+    if (profileEmail) profileEmail.textContent = 'Not signed in';
+    if (profileUid) profileUid.textContent = 'Firebase UID: None (Local Mode)';
+    if (profileSignOutBtn) profileSignOutBtn.style.display = 'none';
+  }
+}
+
 // Tab Switching
 function setTab(tabName) {
   STATE.activeTab = tabName;
@@ -452,7 +515,7 @@ window.citeCircleApp = {
   sharePaper(postId) {
     const post = STATE.posts.find(p => p.id === postId);
     if (!post) return;
-    const shareUrl = `https://citecircle.edu/paper/${post.id}`;
+    const shareUrl = `https://cite-circle-3857b.web.app/paper/${post.id}`;
     navigator.clipboard?.writeText(shareUrl).then(() => {
       alert('Paper link copied: ' + shareUrl);
     });
@@ -474,6 +537,11 @@ document.addEventListener('DOMContentLoaded', () => {
   renderExplore();
   renderVault();
 
+  // Listen to live Firebase Auth state changes
+  onAuthStateChanged(auth, (user) => {
+    updateAuthStateUI(user);
+  });
+
   // Navigation tabs
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => {
@@ -484,8 +552,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Filter pills
   document.querySelectorAll('.filter-pill').forEach(pill => {
+    if (pill.id === 'authTabSignIn' || pill.id === 'authTabRegister') return;
     pill.addEventListener('click', () => {
-      document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.filter-pill').forEach(p => {
+        if (p.id !== 'authTabSignIn' && p.id !== 'authTabRegister') p.classList.remove('active');
+      });
       pill.classList.add('active');
       STATE.activeField = pill.getAttribute('data-field') || 'all';
       renderPosts();
@@ -500,6 +571,114 @@ document.addEventListener('DOMContentLoaded', () => {
       STATE.theme = STATE.theme === 'dark' ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', STATE.theme);
       localStorage.setItem('citecircle_theme', STATE.theme);
+    });
+  }
+
+  // Auth Modal & Handlers
+  const authModal = document.getElementById('authModal');
+  const openAuthModalBtn = document.getElementById('openAuthModalBtn');
+  const closeAuthModalBtn = document.getElementById('closeAuthModalBtn');
+  const authTabSignIn = document.getElementById('authTabSignIn');
+  const authTabRegister = document.getElementById('authTabRegister');
+  const authSubmitBtn = document.getElementById('authSubmitBtn');
+  const authDemoSignInBtn = document.getElementById('authDemoSignInBtn');
+  const authErrorMsg = document.getElementById('authErrorMsg');
+  const registerOnlyFields = document.getElementById('registerOnlyFields');
+  const userHeaderAvatar = document.getElementById('userHeaderAvatar');
+  const profileSignOutBtn = document.getElementById('profileSignOutBtn');
+
+  function showAuthModal(mode = 'signin') {
+    STATE.authMode = mode;
+    if (authErrorMsg) authErrorMsg.style.display = 'none';
+    if (mode === 'signin') {
+      document.getElementById('authModalTitle').textContent = 'Sign In to Cite Circle';
+      authSubmitBtn.textContent = 'Sign In';
+      authTabSignIn.classList.add('active');
+      authTabRegister.classList.remove('active');
+      registerOnlyFields.style.display = 'none';
+    } else {
+      document.getElementById('authModalTitle').textContent = 'Create Academic Account';
+      authSubmitBtn.textContent = 'Create Account';
+      authTabRegister.classList.add('active');
+      authTabSignIn.classList.remove('active');
+      registerOnlyFields.style.display = 'flex';
+    }
+    authModal.style.display = 'flex';
+  }
+
+  if (openAuthModalBtn) openAuthModalBtn.addEventListener('click', () => showAuthModal('signin'));
+  if (userHeaderAvatar) userHeaderAvatar.addEventListener('click', () => setTab('profile'));
+  if (closeAuthModalBtn) closeAuthModalBtn.addEventListener('click', () => authModal.style.display = 'none');
+
+  if (authTabSignIn) {
+    authTabSignIn.addEventListener('click', () => showAuthModal('signin'));
+  }
+  if (authTabRegister) {
+    authTabRegister.addEventListener('click', () => showAuthModal('register'));
+  }
+
+  if (authDemoSignInBtn) {
+    authDemoSignInBtn.addEventListener('click', async () => {
+      try {
+        authDemoSignInBtn.disabled = true;
+        authDemoSignInBtn.textContent = 'Signing in as Demo Researcher...';
+        await signInWithEmailAndPassword(auth, 'demo.researcher@cite.circle', 'citecircle2026');
+        authModal.style.display = 'none';
+      } catch (err) {
+        if (authErrorMsg) {
+          authErrorMsg.textContent = err.message;
+          authErrorMsg.style.display = 'block';
+        }
+      } finally {
+        authDemoSignInBtn.disabled = false;
+        authDemoSignInBtn.textContent = '⚡ Fast-Track Sign In as Demo Researcher';
+      }
+    });
+  }
+
+  if (authSubmitBtn) {
+    authSubmitBtn.addEventListener('click', async () => {
+      const email = document.getElementById('authEmailInput')?.value.trim();
+      const password = document.getElementById('authPasswordInput')?.value.trim();
+      const name = document.getElementById('authNameInput')?.value.trim();
+
+      if (!email || !password) {
+        if (authErrorMsg) {
+          authErrorMsg.textContent = 'Please enter email and password.';
+          authErrorMsg.style.display = 'block';
+        }
+        return;
+      }
+
+      try {
+        authSubmitBtn.disabled = true;
+        authSubmitBtn.textContent = 'Processing...';
+
+        if (STATE.authMode === 'signin') {
+          await signInWithEmailAndPassword(auth, email, password);
+        } else {
+          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          if (name && userCredential.user) {
+            await updateProfile(userCredential.user, { displayName: name });
+          }
+        }
+        authModal.style.display = 'none';
+      } catch (err) {
+        if (authErrorMsg) {
+          authErrorMsg.textContent = err.message;
+          authErrorMsg.style.display = 'block';
+        }
+      } finally {
+        authSubmitBtn.disabled = false;
+        authSubmitBtn.textContent = STATE.authMode === 'signin' ? 'Sign In' : 'Create Account';
+      }
+    });
+  }
+
+  if (profileSignOutBtn) {
+    profileSignOutBtn.addEventListener('click', async () => {
+      await signOut(auth);
+      alert('Signed out of Cite Circle Firebase Auth.');
     });
   }
 
@@ -567,7 +746,6 @@ document.addEventListener('DOMContentLoaded', () => {
       fileValidationStatus.innerHTML = `✓ Verified manuscript: ${escapeHtml(file.name)} (${result.format.toUpperCase()}, ${result.sizeFormatted})`;
       STATE.selectedFile = { file, format: result.format, size: result.sizeFormatted };
 
-      // Autofill title if empty
       const titleInput = document.getElementById('paperTitleInput');
       if (titleInput && !titleInput.value) {
         const cleanName = file.name.substring(0, file.name.lastIndexOf('.')).replace(/[_-]/g, ' ');
@@ -587,12 +765,16 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      const activeAuthorName = STATE.currentUser?.displayName || (STATE.currentUser ? STATE.currentUser.email.split('@')[0] : 'Dr. Morgan Vance');
+      const activeAuthorId = STATE.currentUser?.uid || 'OycnFiKmG3SnS9ob4xk7qDlYoRh1';
+
       const newPost = {
         id: 'post-' + Date.now(),
         author: {
-          name: 'Dr. Alex Rivera',
-          institution: 'Stanford Institute for AI',
-          avatar: 'AR'
+          id: activeAuthorId,
+          name: activeAuthorName,
+          institution: 'Institute for Advanced Study',
+          avatar: getInitials(activeAuthorName)
         },
         timestamp: 'Just now',
         content: abstract || 'New manuscript deposited to Cite Circle archives.',
@@ -620,7 +802,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('paperTitleInput').value = '';
       document.getElementById('paperAbstractInput').value = '';
 
-      alert('Manuscript published to academic feed!');
+      alert('Manuscript published to academic feed with authenticated author ID!');
     });
   }
 
@@ -631,8 +813,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const send = () => {
       const text = chatInput.value.trim();
       if (!text) return;
+      const sender = STATE.currentUser?.displayName || (STATE.currentUser ? STATE.currentUser.email.split('@')[0] : 'Dr. Morgan Vance');
       STATE.chats.push({
-        sender: 'Dr. Alex Rivera',
+        sender: sender,
         text: text,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         isMe: true
