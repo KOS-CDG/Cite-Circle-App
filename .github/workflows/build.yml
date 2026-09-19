@@ -1,27 +1,26 @@
-name: Build
+name: CI/CD Pipeline
 
 on:
   push:
     branches: ["**"]
   pull_request:
 
-# A second push to the same branch supersedes the first; no point finishing a build for a
-# commit nobody is looking at any more.
 concurrency:
-  group: build-${{ github.ref }}
+  group: ci-cd-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: assembleDebug + unit tests
+  # -------------------------------------------------------------
+  # Job 1: Android Build & Network Resilience Test Suite
+  # -------------------------------------------------------------
+  android-ci:
+    name: Android Tests & APK Assembly
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      # JDK 21, not 17: Robolectric 4.16.1 requires Java 21 to run against SDK 36. On 17
-      # every Robolectric test aborts with UnsupportedOperationException from
-      # DefaultSdkProvider.verifySupportedSdk.
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
@@ -34,20 +33,71 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # No secrets required. The secrets-gradle-plugin resolves BuildConfig.GEMINI_API_KEY
-      # from .env and falls back to the checked-in .env.example, and the google-services
-      # plugin is configured with MissingGoogleServicesStrategy.WARN so the placeholder
-      # google-services.json does not fail the build.
-      - name: Compile
-        run: ./gradlew --no-daemon assembleDebug
-
-      - name: Unit tests
+      - name: Run Unit Tests (Wi-Fi, Cellular, Offline, Database & Security)
         run: ./gradlew --no-daemon testDebugUnitTest
 
-      - name: Upload test results
-        if: success() || failure()
+      - name: Compile Debug APK
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: CiteCircle-Debug-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Upload Android Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-results
           path: app/build/reports/tests/testDebugUnitTest/
           if-no-files-found: ignore
+
+  # -------------------------------------------------------------
+  # Job 2: Backend, Security Rules & Quota Validation
+  # -------------------------------------------------------------
+  backend-ci:
+    name: Backend & Security CI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run Backend CI & Network Rules Suite
+        run: node test/backend-ci.test.js
+
+  # -------------------------------------------------------------
+  # Job 3: Live Cloud Hosting & Connectivity Verification
+  # -------------------------------------------------------------
+  cloud-health:
+    name: Cloud & Live Hosting Health Check
+    runs-on: ubuntu-latest
+    needs: [backend-ci]
+
+    steps:
+      - name: Verify Live Firebase Hosting (Primary Domain)
+        run: |
+          echo "Pinging https://cite-circle-3857b.web.app..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://cite-circle-3857b.web.app)
+          echo "HTTP Status: $STATUS"
+          if [ "$STATUS" -ne 200 ]; then
+            echo "Failed to reach live primary domain"
+            exit 1
+          fi
+
+      - name: Verify Live Firebase Hosting (Secondary Domain)
+        run: |
+          echo "Pinging https://cite-circle-3857b.firebaseapp.com..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://cite-circle-3857b.firebaseapp.com)
+          echo "HTTP Status: $STATUS"
+          if [ "$STATUS" -ne 200 ]; then
+            echo "Failed to reach live secondary domain"
+            exit 1
+          fi
