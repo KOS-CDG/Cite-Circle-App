@@ -94,7 +94,7 @@ class ChatRepository(
             paperTitle.isNotBlank() ->
                 "Thanks for sharing “$paperTitle”! I will add this to our reading circle right away."
             userMessage.contains("proof", ignoreCase = true) || userMessage.contains("section", ignoreCase = true) ->
-                "I reviewed the tensor calculations and the proof is airtight. Let's submit to arXiv tomorrow! 🚀"
+                "I reviewed the tensor calculations and the proof is airtight. Let's submit to arXiv tomorrow!"
             userMessage.contains("cite", ignoreCase = true) || userMessage.contains("paper", ignoreCase = true) ->
                 "Great analysis! We should compare this with the latest preprint findings from Princeton."
             userMessage.contains("hi", ignoreCase = true) || userMessage.contains("hello", ignoreCase = true) ->
@@ -143,6 +143,29 @@ class ChatRepository(
         return convId
     }
 
+    suspend fun startOrGetConversationWithAuthor(
+        name: String,
+        initials: String,
+        affiliation: String
+    ): String {
+        val convId = "conv_" + name.filter { it.isLetterOrDigit() }.lowercase()
+        val existing = conversationDao.findConversation(convId)
+        if (existing != null) return existing.id
+
+        val newConv = ConversationEntity(
+            id = convId,
+            participantName = name,
+            participantInitials = initials,
+            participantAffiliation = affiliation,
+            lastMessage = "Started academic discussion.",
+            lastMessageTimestamp = System.currentTimeMillis(),
+            unreadCount = 0,
+            isOnline = true
+        )
+        conversationDao.insertConversation(newConv)
+        return convId
+    }
+
     private suspend fun seedDefaultConversations() {
         val now = System.currentTimeMillis()
         val c1 = ConversationEntity(
@@ -150,7 +173,7 @@ class ChatRepository(
             participantName = "Dr. Elena Rostova",
             participantInitials = "EL",
             participantAffiliation = "Oxford University",
-            lastMessage = "Brilliant. I'm submitting the camera-ready version to the preprint server now. 🚀",
+            lastMessage = "Brilliant. I'm submitting the camera-ready version to the preprint server now.",
             lastMessageTimestamp = now - 1000 * 60 * 12,
             unreadCount = 1,
             isOnline = true,
@@ -214,7 +237,7 @@ class ChatRepository(
             conversationId = "c_elena",
             senderName = "Dr. Elena Rostova",
             senderInitials = "EL",
-            text = "Brilliant. I'm submitting the camera-ready version to the preprint server now. 🚀",
+            text = "Brilliant. I'm submitting the camera-ready version to the preprint server now.",
             timestamp = now - 1000 * 60 * 12,
             isOutgoing = false
         )

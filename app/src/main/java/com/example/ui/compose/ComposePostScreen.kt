@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.HomeViewModel
+import com.example.ui.theme.DividerLight
 import com.example.R
 import com.example.data.AuthorIdentity
 import com.example.data.CitationFormatter
@@ -203,11 +204,13 @@ fun ComposePostScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp)
+            .statusBarsPadding()
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -215,7 +218,7 @@ fun ComposePostScreen(
                 stringResource(
                     if (isEdit) R.string.compose_title_edit else R.string.compose_title_new
                 ),
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onBackground
             )
             IconButton(onClick = { discard() }) {
@@ -226,9 +229,16 @@ fun ComposePostScreen(
                 )
             }
         }
+        HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
 
-        Spacer(Modifier.height(8.dp))
-        SectionLabel(stringResource(R.string.section_commentary))
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+        ) {
+            Spacer(Modifier.height(12.dp))
+            SectionLabel(stringResource(R.string.section_commentary))
         EditorialTextField(
             value = commentary,
             onValueChange = { commentary = it },
@@ -610,6 +620,7 @@ fun ComposePostScreen(
         }
 
         Spacer(Modifier.height(32.dp))
+        }
     }
 }
 

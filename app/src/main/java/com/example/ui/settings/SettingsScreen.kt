@@ -1,6 +1,5 @@
 package com.example.ui.settings
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -120,6 +119,8 @@ fun SettingsScreen(
     var showSwitchAccountDialog by remember { mutableStateOf(false) }
     var showTermsDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
+    var showHelpSupportDialog by remember { mutableStateOf(false) }
+    var showAboutAppDialog by remember { mutableStateOf(false) }
 
     var dataSaverEnabled by remember { mutableStateOf(false) }
     var citationAlertsEnabled by remember { mutableStateOf(true) }
@@ -179,8 +180,7 @@ fun SettingsScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
@@ -425,7 +425,7 @@ fun SettingsScreen(
                             icon = Icons.AutoMirrored.Outlined.HelpOutline,
                             title = "Help & Support Center",
                             subtitle = "Troubleshooting, manuscript submission guidelines",
-                            onClick = { /* Open support */ }
+                            onClick = { showHelpSupportDialog = true }
                         )
 
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
@@ -434,7 +434,7 @@ fun SettingsScreen(
                             icon = Icons.Outlined.Info,
                             title = "About Cite Circle",
                             subtitle = "Version 1.2.0 • Firebase cite-circle-3857b",
-                            onClick = { /* About */ }
+                            onClick = { showAboutAppDialog = true }
                         )
                     }
                 }
@@ -885,6 +885,78 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteAccountDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // 7. Help & Support Dialog
+    if (showHelpSupportDialog) {
+        AlertDialog(
+            onDismissRequest = { showHelpSupportDialog = false },
+            title = {
+                Text(
+                    "Help & Support Center",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Frequently asked questions and guides for manuscript sharing and reading circles:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("• BibTeX & Citation Export", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                        Text("Tap the overflow icon on any paper to copy full BibTeX records formatted according to IEEE/ACM standards.", style = MaterialTheme.typography.bodySmall)
+
+                        Text("• Offline Storage & Vault", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                        Text("Papers saved to the Vault are stored locally in Room v5 database and accessible with zero network connectivity.", style = MaterialTheme.typography.bodySmall)
+
+                        Text("• Peer Collaboration & Reviews", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                        Text("Use Messenger to launch encrypted academic discussions with co-authors and cited researchers.", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showHelpSupportDialog = false }) { Text("Got it") }
+            }
+        )
+    }
+
+    // 8. About Cite Circle Dialog
+    if (showAboutAppDialog) {
+        AlertDialog(
+            onDismissRequest = { showAboutAppDialog = false },
+            title = {
+                Text(
+                    "About Cite Circle",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Cite Circle for Android",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text("Version: 1.2.0 (Build 2026.09.19)")
+                    Text("Design System: Meta Android Architecture (Facebook / Messenger)")
+                    Text("Storage: Room v5 (Offline First SQLite) + Firebase Sync")
+                    Text("UI Framework: Jetpack Compose + Material 3")
+                    Text("Constraint Compliance: 100% Flat Solid Surfaces · Zero Emojis · Zero Gradients")
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Cite Circle is built for researchers, scholars, and peer reviewers to collaborate without algorithmic bloat.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAboutAppDialog = false }) { Text("Close") }
             }
         )
     }

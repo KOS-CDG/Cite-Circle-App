@@ -10,9 +10,18 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.FormatQuote
 import androidx.compose.material3.*
@@ -38,6 +47,10 @@ import com.example.data.SavedPaper
 import com.example.data.chat.ChatMessageEntity
 import com.example.data.chat.ChatRepository
 import com.example.data.formatTimeAgo
+import com.example.ui.theme.AccentGreen
+import com.example.ui.theme.BrandBlue
+import com.example.ui.theme.DividerLight
+import com.example.ui.theme.SurfaceInset
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -57,6 +70,9 @@ fun ChatThreadScreen(
     var inputText by rememberSaveable { mutableStateOf("") }
     var selectedPaperToCite by remember { mutableStateOf<SavedPaper?>(null) }
     var showPaperPicker by remember { mutableStateOf(false) }
+    var showVoiceCallDialog by remember { mutableStateOf(false) }
+    var showVideoCallDialog by remember { mutableStateOf(false) }
+    var showInfoDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(conversationId) {
         chatRepository.markAsRead(conversationId)
@@ -150,7 +166,7 @@ fun ChatThreadScreen(
                 ) {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
-                            Icons.Filled.ArrowBack,
+                            Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.cd_back),
                             tint = MaterialTheme.colorScheme.onSurface
                         )
@@ -164,7 +180,7 @@ fun ChatThreadScreen(
                                     modifier = Modifier
                                         .size(10.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFF057642))
+                                        .background(AccentGreen)
                                         .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
                                 )
                             }
@@ -185,7 +201,7 @@ fun ChatThreadScreen(
                                 if (conversation!!.isOnline) "Online • ${conversation!!.participantAffiliation}"
                                 else conversation!!.participantAffiliation,
                                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                color = if (conversation!!.isOnline) Color(0xFF057642)
+                                color = if (conversation!!.isOnline) AccentGreen
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -202,6 +218,29 @@ fun ChatThreadScreen(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
+                        }
+
+                        // Action icons: voice call, video call, info
+                        IconButton(onClick = { showVoiceCallDialog = true }) {
+                            Icon(
+                                Icons.Filled.Call,
+                                contentDescription = "Voice Call",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        IconButton(onClick = { showVideoCallDialog = true }) {
+                            Icon(
+                                Icons.Filled.Videocam,
+                                contentDescription = "Video Call",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        IconButton(onClick = { showInfoDialog = true }) {
+                            Icon(
+                                Icons.Filled.Info,
+                                contentDescription = "Info",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
                 }
@@ -262,9 +301,59 @@ fun ChatThreadScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(horizontal = 4.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Left attachment icons (Messenger-style)
+                    IconButton(onClick = { showPaperPicker = true }, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            Icons.Filled.AddCircle,
+                            contentDescription = "Attach Paper",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            inputText = if (inputText.isBlank()) "[Figure Attached]" else "$inputText [Figure Attached]"
+                        },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.CameraAlt,
+                            contentDescription = "Camera",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            inputText = if (inputText.isBlank()) "[Chart Attached]" else "$inputText [Chart Attached]"
+                        },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Image,
+                            contentDescription = "Gallery",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            inputText = if (inputText.isBlank()) "[Audio Note 0:15]" else "$inputText [Audio Note 0:15]"
+                        },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Mic,
+                            contentDescription = "Audio",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    // Paper citation picker icon
                     IconButton(
                         onClick = { showPaperPicker = true },
                         modifier = Modifier.size(40.dp)
@@ -302,12 +391,13 @@ fun ChatThreadScreen(
                         )
                     )
 
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(4.dp))
 
+                    // Dynamic right button: Send when content available, ThumbUp otherwise
                     val canSend = inputText.isNotBlank() || selectedPaperToCite != null
-                    IconButton(
-                        onClick = {
-                            if (canSend) {
+                    if (canSend) {
+                        IconButton(
+                            onClick = {
                                 val textToSend = inputText
                                 val paper = selectedPaperToCite
                                 inputText = ""
@@ -323,24 +413,38 @@ fun ChatThreadScreen(
                                         }.orEmpty()
                                     )
                                 }
-                            }
-                        },
-                        enabled = canSend,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (canSend) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.surfaceVariant
+                            },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Send,
+                                contentDescription = stringResource(R.string.cd_send),
+                                tint = BrandBlue,
+                                modifier = Modifier.size(22.dp)
                             )
-                    ) {
-                        Icon(
-                            Icons.Default.Send,
-                            contentDescription = stringResource(R.string.cd_send),
-                            tint = if (canSend) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                            modifier = Modifier.size(18.dp)
-                        )
+                        }
+                    } else {
+                        IconButton(
+                            onClick = {
+                                scope.launch {
+                                    chatRepository.sendMessage(
+                                        conversationId = conversationId,
+                                        text = "Endorsed your research update",
+                                        quotedPaperId = "",
+                                        quotedPaperTitle = "",
+                                        quotedCitation = ""
+                                    )
+                                }
+                            },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.ThumbUp,
+                                contentDescription = "Endorse",
+                                tint = BrandBlue,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -360,6 +464,57 @@ fun ChatThreadScreen(
             }
         }
     }
+
+    if (showVoiceCallDialog) {
+        AlertDialog(
+            onDismissRequest = { showVoiceCallDialog = false },
+            title = { Text("Encrypted Voice Session") },
+            text = { Text("Connecting audio channel with ${conversation?.participantName ?: "researcher"} (${conversation?.participantAffiliation ?: "Academic Circle"}).") },
+            confirmButton = {
+                TextButton(onClick = { showVoiceCallDialog = false }) {
+                    Text("End Session", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        )
+    }
+
+    if (showVideoCallDialog) {
+        AlertDialog(
+            onDismissRequest = { showVideoCallDialog = false },
+            title = { Text("Peer Review Video Seminar") },
+            text = { Text("Starting secure video collaboration room with ${conversation?.participantName ?: "researcher"}.") },
+            confirmButton = {
+                TextButton(onClick = { showVideoCallDialog = false }) {
+                    Text("Leave Seminar", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        )
+    }
+
+    if (showInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showInfoDialog = false },
+            title = { Text("Conversation Info") },
+            text = {
+                Column {
+                    Text("Collaborator: ${conversation?.participantName ?: "Unknown"}", fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Affiliation: ${conversation?.participantAffiliation.orEmpty().ifBlank { "Academic Peer" }}")
+                    if (conversation?.attachedPaperTitle?.isNotBlank() == true) {
+                        Spacer(Modifier.height(6.dp))
+                        Text("Discussion Subject: ${conversation?.attachedPaperTitle}")
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text("Security: End-to-End Academic Sandbox Protocol")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showInfoDialog = false }) {
+                    Text("Dismiss")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -368,8 +523,8 @@ private fun ChatMessageBubble(
     navController: NavController
 ) {
     val alignment = if (message.isOutgoing) Alignment.CenterEnd else Alignment.CenterStart
-    val bgColor = if (message.isOutgoing) MaterialTheme.colorScheme.primary
-    else MaterialTheme.colorScheme.surfaceVariant
+    // Outgoing: solid BrandBlue. Incoming: solid SurfaceInset.
+    val bgColor = if (message.isOutgoing) BrandBlue else SurfaceInset
     val textColor = if (message.isOutgoing) MaterialTheme.colorScheme.onPrimary
     else MaterialTheme.colorScheme.onSurface
 
@@ -405,15 +560,26 @@ private fun ChatMessageBubble(
                         }
                         .padding(10.dp)
                 ) {
-                    Text(
-                        "📄 ${message.quotedPaperTitle.ifBlank { "Attached Paper" }}",
-                        style = MaterialTheme.typography.titleSmall.copy(fontSize = 12.sp),
-                        fontWeight = FontWeight.Bold,
-                        color = if (message.isOutgoing) MaterialTheme.colorScheme.tertiary
-                        else MaterialTheme.colorScheme.primary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    // Paper title row with Article icon instead of emoji
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Outlined.Article,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = if (message.isOutgoing) MaterialTheme.colorScheme.tertiary
+                                   else MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            message.quotedPaperTitle.ifBlank { "Attached Paper" },
+                            style = MaterialTheme.typography.titleSmall.copy(fontSize = 12.sp),
+                            fontWeight = FontWeight.Bold,
+                            color = if (message.isOutgoing) MaterialTheme.colorScheme.tertiary
+                                    else MaterialTheme.colorScheme.primary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                     if (message.quotedCitation.isNotBlank()) {
                         Spacer(Modifier.height(4.dp))
                         Text(
@@ -451,10 +617,12 @@ private fun ChatMessageBubble(
                 )
                 if (message.isOutgoing) {
                     Spacer(Modifier.width(4.dp))
-                    Text(
-                        "✓✓",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                    // DoneAll icon replaces double checkmark icon
+                    Icon(
+                        Icons.Filled.DoneAll,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                     )
                 }
             }

@@ -38,6 +38,7 @@ import com.example.data.security.DocumentFormat
 import com.example.ui.components.EmptyState
 import com.example.ui.components.ListRowSkeleton
 import com.example.ui.components.RefreshableBox
+import com.example.ui.theme.DividerLight
 
 /**
  * Academic Library & Research Paper Vault.
@@ -76,54 +77,64 @@ fun ReadingListsScreen(viewModel: HomeViewModel, navController: NavController) {
     }
 
     RefreshableBox(isRefreshing = isRefreshing, onRefresh = viewModel::refresh) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    stringResource(R.string.saved_title),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                if (!saved.isLoading) {
-                    Text(
-                        pluralStringResource(
-                            R.plurals.entry_count,
-                            filteredItems.size,
-                            filteredItems.size
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Filter Chips: All Saved vs PDF Vault
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    label = { Text("All Saved (${saved.items.size})") }
-                )
-                FilterChip(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Outlined.PictureAsPdf,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
+        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+            Surface(color = MaterialTheme.colorScheme.surface) {
+                Column(modifier = Modifier.statusBarsPadding()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(R.string.saved_title),
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-                    },
-                    label = { Text("Paper Vault ($pdfCount)") }
-                )
+                        if (!saved.isLoading) {
+                            Text(
+                                pluralStringResource(
+                                    R.plurals.entry_count,
+                                    filteredItems.size,
+                                    filteredItems.size
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Filter Chips: All Saved vs PDF Vault
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            label = { Text("All Saved (${saved.items.size})") }
+                        )
+                        FilterChip(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Outlined.PictureAsPdf,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            label = { Text("Paper Vault ($pdfCount)") }
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
+                }
             }
 
             // Search Bar
@@ -164,7 +175,11 @@ fun ReadingListsScreen(viewModel: HomeViewModel, navController: NavController) {
                 filteredItems.isEmpty() -> EmptyState(
                     title = if (selectedTab == 1) "No Papers in PDF Vault" else stringResource(R.string.saved_empty_title),
                     message = if (selectedTab == 1) "Save research papers with PDFs attached or open-access links to view them offline in your vault." else stringResource(R.string.saved_empty_message),
-                    icon = if (selectedTab == 1) Icons.Outlined.PictureAsPdf else Icons.Outlined.BookmarkBorder
+                    icon = if (selectedTab == 1) Icons.Outlined.PictureAsPdf else Icons.Outlined.BookmarkBorder,
+                    actionLabel = if (searchQuery.isNotBlank()) "Clear Search" else "Explore Papers",
+                    onAction = {
+                        if (searchQuery.isNotBlank()) searchQuery = "" else navController.navigate("fields")
+                    }
                 )
 
                 else -> LazyColumn(
@@ -209,7 +224,8 @@ private fun SavedEntryCard(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = MaterialTheme.shapes.medium,
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        border = BorderStroke(0.5.dp, DividerLight),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(

@@ -1,23 +1,28 @@
 package com.example.ui.post
 
 import android.net.Uri
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.Verified
-import androidx.compose.material.icons.outlined.BookmarkBorder
-import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.ModeComment
+import androidx.compose.material.icons.outlined.PersonRemove
 import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.Repeat
-import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material.icons.outlined.Verified
+import androidx.compose.material.icons.outlined.ThumbUp
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,8 +31,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -46,13 +53,16 @@ import com.example.data.formatTimeAgo
 import com.example.data.isQuote
 import com.example.data.security.DocumentFormat
 import com.example.ui.share.ShareUtils
+import com.example.ui.theme.BrandBlue
+import com.example.ui.theme.DividerLight
+import com.example.ui.theme.SurfaceInset
 import kotlinx.coroutines.launch
 import java.io.File
 
 /**
- * A post in the feed: a flat white card on the neutral page.
+ * A post in the feed: a flat full-bleed surface on the neutral page.
  *
- * Cards carry no border and no shadow. Separation comes from the page colour showing through
+ * No Card wrapper, no border, no shadow. Separation comes from the page colour showing through
  * the gaps between them, which is how both reference apps build a feed — a hairline outline
  * on every card reads as a form, not a stream.
  *
@@ -66,63 +76,75 @@ fun PostCard(
     navController: NavController,
     onClick: (() -> Unit)? = { navController.navigate("post/${paper.id}") }
 ) {
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .then(onClick?.let { action -> Modifier.clickable { action() } } ?: Modifier),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = MaterialTheme.shapes.medium,
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            .background(MaterialTheme.colorScheme.surface)
+            .then(onClick?.let { action -> Modifier.clickable { action() } } ?: Modifier)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            if (paper.isQuote) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Outlined.Repeat,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        stringResource(R.string.post_cited_from, paper.quotedAuthorName),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-
-            PostHeader(paper)
-
-            if (paper.content.isNotBlank()) {
-                Spacer(Modifier.height(12.dp))
+        if (paper.isQuote) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.Repeat,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.width(8.dp))
                 Text(
-                    paper.content,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    stringResource(R.string.post_cited_from, paper.quotedAuthorName),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
 
-            if (paper.imageUri.isNotBlank()) {
-                Spacer(Modifier.height(12.dp))
-                PostImage(paper.imageUri) {
-                    navController.navigate("image/" + Uri.encode(paper.imageUri))
-                }
+        Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            PostHeader(paper, viewModel, navController)
+        }
+
+        if (paper.content.isNotBlank()) {
+            Text(
+                paper.content,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+
+        if (paper.imageUri.isNotBlank()) {
+            Spacer(Modifier.height(8.dp))
+            PostImage(paper.imageUri) {
+                navController.navigate("image/" + Uri.encode(paper.imageUri))
             }
+            Spacer(Modifier.height(8.dp))
+        }
 
-            if (paper.isQuote) {
-                Spacer(Modifier.height(12.dp))
-                QuotedCard(paper)
+        if (paper.isQuote) {
+            Spacer(Modifier.height(8.dp))
+            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                QuotedCard(
+                    paper = paper,
+                    onClick = if (paper.quotedId.isNotBlank()) {
+                        { navController.navigate("post/${paper.quotedId}") }
+                    } else null
+                )
             }
+        }
 
-            if (paper.abstractText.isNotBlank()) {
-                Spacer(Modifier.height(12.dp))
+        if (paper.abstractText.isNotBlank()) {
+            Spacer(Modifier.height(8.dp))
+            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                 PaperAbstractSection(paper.abstractText)
             }
+        }
 
-            if (paper.pdfLocalPath.isNotBlank() || paper.pdfUrl.isNotBlank()) {
-                Spacer(Modifier.height(12.dp))
+        if (paper.pdfLocalPath.isNotBlank() || paper.pdfUrl.isNotBlank()) {
+            Spacer(Modifier.height(8.dp))
+            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                 PaperPdfBadge(
                     paper = paper,
                     onReadPdf = {
@@ -133,27 +155,62 @@ fun PostCard(
                     }
                 )
             }
-
-            Spacer(Modifier.height(12.dp))
-            CitationBlock(paper, viewModel)
-
-            Spacer(Modifier.height(4.dp))
-            // On the detail screen the thread is already below, so the comment count is
-            // informational there rather than a link back to the screen we are on.
-            PostActionBar(paper, viewModel, navController, commentOpensThread = onClick != null)
         }
+
+        if (CitationFormatter.isStyleable(paper) || paper.citationOverride.isNotBlank()) {
+            Spacer(Modifier.height(10.dp))
+            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                CitationBlock(paper, viewModel)
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+        Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+            SocialProofBar(
+                paper = paper,
+                onClickComments = {
+                    if (onClick != null) onClick() else navController.navigate("post/${paper.id}")
+                }
+            )
+        }
+
+        Spacer(Modifier.height(4.dp))
+        // On the detail screen the thread is already below, so the comment count is
+        // informational there rather than a link back to the screen we are on.
+        PostActionBar(paper, viewModel, navController, commentOpensThread = onClick != null)
     }
 }
 
 @Composable
-fun PostHeader(paper: SavedPaper) {
+fun PostHeader(
+    paper: SavedPaper,
+    viewModel: HomeViewModel? = null,
+    navController: NavController? = null
+) {
+    var showOverflow by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
+
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Avatar(paper.authorInitials, 40.dp)
+        Avatar(
+            initials = paper.authorInitials,
+            size = 42.dp,
+            modifier = if (navController != null) {
+                Modifier.clickable { navController.navigate("profile") }
+            } else Modifier
+        )
         Spacer(Modifier.width(12.dp))
-        Column {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .then(
+                    if (navController != null) {
+                        Modifier.clickable { navController.navigate("profile") }
+                    } else Modifier
+                )
+        ) {
             Text(
                 paper.authorName,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
@@ -163,11 +220,64 @@ fun PostHeader(paper: SavedPaper) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(
-                formatTimeAgo(paper.publishedAt),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${formatTimeAgo(paper.publishedAt)} · ",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Icon(
+                    Icons.Filled.Public,
+                    contentDescription = null,
+                    modifier = Modifier.size(12.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Box {
+            IconButton(onClick = { showOverflow = true }) {
+                Icon(
+                    Icons.Filled.MoreHoriz,
+                    contentDescription = "More options",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            DropdownMenu(expanded = showOverflow, onDismissRequest = { showOverflow = false }) {
+                DropdownMenuItem(
+                    text = { Text(if (paper.isBookmarked) "Remove from Vault" else "Save to Vault") },
+                    onClick = {
+                        showOverflow = false
+                        viewModel?.toggleBookmark(paper.id, paper.isBookmarked)
+                    },
+                    leadingIcon = { Icon(Icons.Filled.Bookmark, contentDescription = null) }
+                )
+                DropdownMenuItem(
+                    text = { Text("Copy BibTeX Citation") },
+                    onClick = {
+                        showOverflow = false
+                        val bib = CitationFormatter.export(paper, ExportFormat.BIBTEX)
+                        clipboardManager.setText(AnnotatedString(bib))
+                        viewModel?.report("BibTeX citation copied to clipboard")
+                    },
+                    leadingIcon = { Icon(Icons.Outlined.ContentCopy, contentDescription = null) }
+                )
+                DropdownMenuItem(
+                    text = { Text("Hide Post") },
+                    onClick = {
+                        showOverflow = false
+                        viewModel?.report("Post hidden from feed")
+                    },
+                    leadingIcon = { Icon(Icons.Outlined.VisibilityOff, contentDescription = null) }
+                )
+                DropdownMenuItem(
+                    text = { Text("Unfollow Researcher") },
+                    onClick = {
+                        showOverflow = false
+                        viewModel?.report("Unfollowed ${paper.authorName}")
+                    },
+                    leadingIcon = { Icon(Icons.Outlined.PersonRemove, contentDescription = null) }
+                )
+            }
         }
     }
 }
@@ -182,24 +292,20 @@ fun PostImage(path: String, onClick: (() -> Unit)? = null) {
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = 320.dp)
-            .clip(MaterialTheme.shapes.small)
             .then(onClick?.let { action -> Modifier.clickable { action() } } ?: Modifier)
     )
 }
 
 /** The snapshot of the post being quoted, rendered as an inset panel. */
 @Composable
-fun QuotedCard(paper: SavedPaper) {
+fun QuotedCard(paper: SavedPaper, onClick: (() -> Unit)? = null) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.small)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(
-                1.dp,
-                MaterialTheme.colorScheme.outlineVariant,
-                MaterialTheme.shapes.small
-            )
+            .background(SurfaceInset)
+            .border(0.5.dp, DividerLight, MaterialTheme.shapes.small)
+            .then(onClick?.let { action -> Modifier.clickable { action() } } ?: Modifier)
             .padding(14.dp)
     ) {
         Text(
@@ -230,7 +336,58 @@ fun QuotedCard(paper: SavedPaper) {
     }
 }
 
-/** Endorse, comment, repost, bookmark, share — with live counts. */
+/** Reaction + social counts summary bar above the action divider. */
+@Composable
+private fun SocialProofBar(paper: SavedPaper, onClickComments: (() -> Unit)? = null) {
+    Row(
+        modifier = Modifier.fillMaxWidth().height(36.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ReactionChip(Icons.Filled.ThumbUp, BrandBlue)
+            Spacer(Modifier.width((-4).dp))
+            ReactionChip(Icons.Filled.Lightbulb, MaterialTheme.colorScheme.tertiary)
+            Spacer(Modifier.width((-4).dp))
+            ReactionChip(Icons.Filled.School, MaterialTheme.colorScheme.secondary)
+            if (paper.endorsementCount > 0) {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    paper.endorsementCount.toString(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        if (paper.commentCount > 0 || paper.repostCount > 0) {
+            Text(
+                buildString {
+                    if (paper.commentCount > 0) append("${paper.commentCount} comments")
+                    if (paper.commentCount > 0 && paper.repostCount > 0) append(" · ")
+                    if (paper.repostCount > 0) append("${paper.repostCount} citations")
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.then(onClickComments?.let { Modifier.clickable { it() } } ?: Modifier)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReactionChip(icon: ImageVector, tint: Color) {
+    Box(
+        modifier = Modifier
+            .size(22.dp)
+            .clip(CircleShape)
+            .background(tint),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.White)
+    }
+}
+
+/** Facebook-style 3-action bar: Endorse, Comment, Cite. */
 @Composable
 fun PostActionBar(
     paper: SavedPaper,
@@ -239,89 +396,58 @@ fun PostActionBar(
     commentOpensThread: Boolean = true
 ) {
     Column {
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxWidth().height(44.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            PostAction(
-                icon = if (paper.isEndorsed) Icons.Filled.Verified else Icons.Outlined.Verified,
-                contentDescription = if (paper.isEndorsed) {
-                    stringResource(R.string.cd_remove_endorsement)
-                } else {
-                    stringResource(R.string.cd_endorse)
-                },
-                count = paper.endorsementCount,
+            FacebookPostAction(
+                icon = if (paper.isEndorsed) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
+                label = "Endorse",
                 active = paper.isEndorsed,
-                activeColor = MaterialTheme.colorScheme.secondary,
-                onClick = { viewModel.toggleEndorsement(paper.id, paper.isEndorsed) }
+                activeColor = BrandBlue,
+                onClick = { viewModel.toggleEndorsement(paper.id, paper.isEndorsed) },
+                modifier = Modifier.weight(1f)
             )
-            PostAction(
-                icon = Icons.Outlined.ChatBubbleOutline,
-                contentDescription = if (commentOpensThread) {
-                    stringResource(R.string.cd_open_discussion)
-                } else {
-                    stringResource(R.string.cd_comments)
-                },
-                count = paper.commentCount,
-                enabled = commentOpensThread,
-                onClick = { navController.navigate("post/${paper.id}") }
+            FacebookPostAction(
+                icon = Icons.Outlined.ModeComment,
+                label = "Comment",
+                active = false,
+                onClick = { if (commentOpensThread) navController.navigate("post/${paper.id}") },
+                modifier = Modifier.weight(1f)
             )
-            PostAction(
+            FacebookPostAction(
                 icon = Icons.Outlined.Repeat,
-                contentDescription = stringResource(R.string.cd_cite_post),
-                count = paper.repostCount,
-                onClick = { navController.navigate("quote/${paper.id}") }
-            )
-            PostAction(
-                icon = if (paper.isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                contentDescription = if (paper.isBookmarked) {
-                    stringResource(R.string.cd_remove_bookmark)
-                } else {
-                    stringResource(R.string.cd_save)
-                },
-                active = paper.isBookmarked,
-                onClick = { viewModel.toggleBookmark(paper.id, paper.isBookmarked) }
-            )
-            PostAction(
-                icon = Icons.Outlined.Share,
-                contentDescription = stringResource(R.string.cd_share),
-                onClick = { navController.navigate("share/${paper.id}") }
+                label = "Cite",
+                active = false,
+                onClick = { navController.navigate("quote/${paper.id}") },
+                modifier = Modifier.weight(1f)
             )
         }
+        HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
     }
 }
 
 @Composable
-private fun PostAction(
+private fun FacebookPostAction(
     icon: ImageVector,
-    contentDescription: String,
-    count: Int = 0,
+    label: String,
     active: Boolean = false,
-    enabled: Boolean = true,
-    activeColor: Color = MaterialTheme.colorScheme.primary,
-    onClick: () -> Unit
+    activeColor: Color = BrandBlue,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val tint = if (active) activeColor else MaterialTheme.colorScheme.onSurfaceVariant
-
     Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .clip(MaterialTheme.shapes.extraSmall)
-            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
-            // Keeps the tap target at the 48dp minimum without inflating the visual row.
-            .padding(horizontal = 10.dp, vertical = 12.dp)
+        modifier = modifier
+            .fillMaxHeight()
+            .clickable(onClick = onClick),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(20.dp), tint = tint)
-        if (count > 0) {
-            Spacer(Modifier.width(6.dp))
-            Text(
-                count.toString(),
-                style = MaterialTheme.typography.labelMedium,
-                color = tint
-            )
-        }
+        Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp), tint = tint)
+        Spacer(Modifier.width(6.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = tint)
     }
 }
 
@@ -451,56 +577,51 @@ fun PaperPdfBadge(
     }
     val isPdf = format == DocumentFormat.PDF
 
-    Surface(
-        onClick = onReadPdf,
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
-        modifier = Modifier.fillMaxWidth()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.small)
+            .background(SurfaceInset)
+            .clickable(onClick = onReadPdf)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.weight(1f)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(
-                    if (isPdf) Icons.Outlined.PictureAsPdf else Icons.Outlined.Description,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp)
-                )
-                Spacer(Modifier.width(10.dp))
-                Column {
-                    Text(
-                        "Full Manuscript Available (${format.label})",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Text(
-                        if (paper.pdfLocalPath.isNotBlank()) "Downloaded in Vault (${PdfStore.getFormattedSize(paper.pdfLocalPath)}) • Tap to read"
-                        else if (paper.openAccess) "Open Access PDF • Tap to stream & read"
-                        else "Preprint Manuscript • Tap to read",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
-                    )
-                }
-            }
-            Text(
-                if (isPdf) "Read PDF" else "Open ${format.label}",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .clip(MaterialTheme.shapes.extraSmall)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            Icon(
+                if (isPdf) Icons.Outlined.PictureAsPdf else Icons.Outlined.Description,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(22.dp)
             )
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Text(
+                    "Full Manuscript Available (${format.label})",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    if (paper.pdfLocalPath.isNotBlank()) "Downloaded in Vault (${PdfStore.getFormattedSize(paper.pdfLocalPath)}) · Tap to read"
+                    else if (paper.openAccess) "Open Access PDF · Tap to stream & read"
+                    else "Preprint Manuscript · Tap to read",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
+        Text(
+            if (isPdf) "Read PDF" else "Open ${format.label}",
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+            color = BrandBlue,
+            modifier = Modifier
+                .clip(MaterialTheme.shapes.extraSmall)
+                .background(BrandBlue.copy(alpha = 0.10f))
+                .padding(horizontal = 10.dp, vertical = 6.dp)
+        )
     }
 }
 
@@ -513,7 +634,7 @@ fun PaperAbstractSection(abstractText: String) {
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.small)
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), MaterialTheme.shapes.small)
+            .border(0.5.dp, DividerLight, MaterialTheme.shapes.small)
             .padding(12.dp)
     ) {
         Row(
@@ -554,4 +675,3 @@ fun PaperAbstractSection(abstractText: String) {
         )
     }
 }
-

@@ -27,6 +27,7 @@ import com.example.HomeViewModel
 import com.example.R
 import com.example.data.CitationFormatter
 import com.example.data.CitationStyle
+import com.example.ui.theme.DividerLight
 
 /**
  * The academic analogue of a repost: republish someone's entry with your own commentary.
@@ -59,11 +60,13 @@ fun QuotePostScreen(paperId: String, viewModel: HomeViewModel, navController: Na
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp)
+            .statusBarsPadding()
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -71,14 +74,14 @@ fun QuotePostScreen(paperId: String, viewModel: HomeViewModel, navController: Na
                 Icon(
                     Icons.Outlined.Repeat,
                     contentDescription = null,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(20.dp),
                     tint = MaterialTheme.colorScheme.primary
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
                     stringResource(R.string.quote_title),
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.primary
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
             IconButton(onClick = { navController.popBackStack() }) {
@@ -89,10 +92,17 @@ fun QuotePostScreen(paperId: String, viewModel: HomeViewModel, navController: Na
                 )
             }
         }
+        HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
 
-        Spacer(Modifier.height(16.dp))
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+        ) {
+            Spacer(Modifier.height(16.dp))
 
-        OutlinedTextField(
+            OutlinedTextField(
             value = commentary,
             onValueChange = { commentary = it },
             modifier = Modifier.fillMaxWidth(),
@@ -194,5 +204,6 @@ fun QuotePostScreen(paperId: String, viewModel: HomeViewModel, navController: Na
         }
 
         Spacer(Modifier.height(32.dp))
+        }
     }
 }
