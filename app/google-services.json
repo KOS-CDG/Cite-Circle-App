@@ -1,26 +1,21 @@
 {
   "project_info": {
-    "project_number": "1234567890",
-    "project_id": "dummy-project",
-    "storage_bucket": "dummy-project.appspot.com"
+    "project_number": "225994100205",
+    "project_id": "cite-circle-3857b",
+    "storage_bucket": "cite-circle-3857b.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1234567890:android:0987654321",
+        "mobilesdk_app_id": "1:225994100205:android:614c91c79c6f0cfcb12be4",
         "android_client_info": {
           "package_name": "com.aistudio.folio.wzpx"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "dummy-client-id",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "dummy-api-key"
+          "current_key": "AIzaSyD3g4d-N64PtDHZRibtmuDSxfV6T4RAiBk"
         }
       ],
       "services": {

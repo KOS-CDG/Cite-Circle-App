@@ -17,3 +17,6 @@ local.properties
 .env
 debug.keystore
 *.apk
+*service-account*.json
+*credentials*.json
+serviceAccountKey.json

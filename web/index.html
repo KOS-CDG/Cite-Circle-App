@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cite Circle — Academic Research Network</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Top App Bar -->
+  <header class="app-header">
+    <a href="#" class="brand-container">
+      <div class="brand-logo">C</div>
+      <div>
+        <h1 class="brand-title">Cite Circle</h1>
+      </div>
+    </a>
+
+    <div class="header-search">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="globalSearchInput" placeholder="Search papers, authors, DOIs (e.g. arXiv:2401.0001)...">
+    </div>
+
+    <div class="header-actions">
+      <div class="cloud-status-badge" id="cloudStatusBadge" title="Firebase Project: cite-circle-3857b">
+        <div class="cloud-status-dot"></div>
+        <span id="cloudStatusText">Cloud Ready</span>
+      </div>
+      <button class="btn-icon" id="themeToggleBtn" title="Toggle Theme">🌓</button>
+      <div class="author-avatar" id="userHeaderAvatar" style="width: 34px; height: 34px; font-size: 0.85rem; cursor: pointer;" title="Active Profile">AR</div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div class="app-container">
+
+    <!-- Left Navigation Sidebar -->
+    <aside class="nav-sidebar">
+      <nav style="display: flex; flex-direction: column; gap: 0.35rem;">
+        <a class="nav-item active" data-tab="feed">
+          <span>📰</span>
+          <span>Feed</span>
+        </a>
+        <a class="nav-item" data-tab="explore">
+          <span>🧭</span>
+          <span>Explore</span>
+        </a>
+        <a class="nav-item" data-tab="vault">
+          <span>📑</span>
+          <span>Paper Vault</span>
+          <span class="nav-item-badge" id="vaultCountBadge">0</span>
+        </a>
+        <a class="nav-item" data-tab="chat">
+          <span>💬</span>
+          <span>Discussions</span>
+        </a>
+        <a class="nav-item" data-tab="profile">
+          <span>👤</span>
+          <span>Profile & Privacy</span>
+        </a>
+      </nav>
+
+      <button class="btn-publish-action" id="openPublishModalBtn">
+        <span style="font-size: 1.1rem; font-weight: bold;">+</span>
+        <span>Publish Paper</span>
+      </button>
+
+      <!-- System Quota / Limiter Card -->
+      <div style="margin-top: 2rem; padding: 1rem; border-radius: var(--radius-md); background-color: var(--bg-card); border: 1px solid var(--border-subtle); font-size: 0.8rem; display: flex; flex-direction: column; gap: 0.4rem;">
+        <div style="font-weight: 600; color: var(--text-primary); display: flex; align-items: center; justify-content: space-between;">
+          <span>Database Quotas</span>
+          <span style="color: var(--accent-emerald);">Active</span>
+        </div>
+        <div style="color: var(--text-secondary);">Query limiter: 50 items/page</div>
+        <div style="color: var(--text-secondary);">Cache eviction: Max 200 items</div>
+        <div style="color: var(--text-secondary);">Upload guard: 50 MB / No ZIP</div>
+      </div>
+    </aside>
+
+    <!-- Main Content Stream -->
+    <main class="main-content">
+
+      <!-- View: Feed -->
+      <section id="viewFeed">
+        <div class="section-header">
+          <h2 class="section-title">Academic Feed</h2>
+          <div class="filter-pills">
+            <button class="filter-pill active" data-field="all">All Disciplines</button>
+            <button class="filter-pill" data-field="AI & ML">AI & Machine Learning</button>
+            <button class="filter-pill" data-field="Quantum Computing">Quantum Computing</button>
+            <button class="filter-pill" data-field="Computational Biology">Biology</button>
+            <button class="filter-pill" data-field="Neuroscience">Neuroscience</button>
+          </div>
+        </div>
+
+        <div id="postsList" style="display: flex; flex-direction: column; gap: 1.25rem;">
+          <!-- Dynamically populated posts -->
+        </div>
+      </section>
+
+      <!-- View: Explore / Discover -->
+      <section id="viewExplore" style="display: none;">
+        <div class="section-header">
+          <h2 class="section-title">Explore Research Fields</h2>
+        </div>
+        <div id="exploreFieldsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem;">
+          <!-- Dynamic field cards -->
+        </div>
+      </section>
+
+      <!-- View: Paper Vault -->
+      <section id="viewVault" style="display: none;">
+        <div class="section-header">
+          <h2 class="section-title">Saved Paper Vault</h2>
+          <button class="btn-icon" id="exportAllCitationsBtn" style="padding: 0.4rem 0.8rem; font-size: 0.825rem; font-weight: 600;">
+            📥 Export BibTeX
+          </button>
+        </div>
+        <div id="vaultPapersList" style="display: flex; flex-direction: column; gap: 1rem;">
+          <!-- Dynamic vault papers -->
+        </div>
+      </section>
+
+      <!-- View: Chat & Peer Discussions -->
+      <section id="viewChat" style="display: none;">
+        <div class="section-header">
+          <h2 class="section-title">Academic Messenger</h2>
+        </div>
+        <div style="background-color: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); height: 580px; display: flex; flex-direction: column;">
+          <div id="chatMessagesArea" style="flex: 1; padding: 1.25rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem;">
+            <!-- Chat messages -->
+          </div>
+          <div style="padding: 1rem; border-top: 1px solid var(--border-subtle); display: flex; gap: 0.75rem;">
+            <input type="text" id="chatInput" class="input-field" placeholder="Discuss methodologies, citations, findings..." style="resize: none;">
+            <button id="sendChatBtn" class="btn-publish-action" style="margin-top: 0; padding: 0.65rem 1.25rem;">Send</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- View: Profile & Privacy -->
+      <section id="viewProfile" style="display: none;">
+        <div class="section-header">
+          <h2 class="section-title">Researcher Profile & Governance</h2>
+        </div>
+        <div class="post-card">
+          <div style="display: flex; align-items: center; gap: 1.25rem;">
+            <div class="author-avatar" style="width: 64px; height: 64px; font-size: 1.5rem;">AR</div>
+            <div>
+              <h3 style="font-size: 1.25rem; font-weight: 700;">Dr. Alex Rivera</h3>
+              <p style="color: var(--text-secondary); font-size: 0.9rem;">Senior Researcher • Stanford Institute for AI</p>
+              <p style="color: var(--text-muted); font-size: 0.8rem; font-family: var(--font-mono);">alex.rivera@citecircle.edu</p>
+            </div>
+          </div>
+          <div style="display: flex; gap: 2rem; margin-top: 0.5rem; border-top: 1px solid var(--border-subtle); padding-top: 1rem;">
+            <div>
+              <div style="font-size: 1.25rem; font-weight: 700; color: var(--accent-primary);">14</div>
+              <div style="font-size: 0.75rem; color: var(--text-secondary);">Publications</div>
+            </div>
+            <div>
+              <div style="font-size: 1.25rem; font-weight: 700; color: var(--accent-emerald);">842</div>
+              <div style="font-size: 0.75rem; color: var(--text-secondary);">Citations</div>
+            </div>
+            <div>
+              <div style="font-size: 1.25rem; font-weight: 700; color: var(--accent-purple);">12</div>
+              <div style="font-size: 0.75rem; color: var(--text-secondary);">h-index</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Privacy & Local Data Governance Card -->
+        <div class="post-card" style="margin-top: 1.5rem;">
+          <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 0.5rem;">Data Governance & Privacy Controls</h3>
+          <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.6;">
+            Cite Circle respects academic data sovereignty. All documents are stored in sandboxed local storage,
+            and network synchronization is secured through authenticated Firestore rules.
+          </p>
+          <div style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
+            <button id="clearWebCacheBtn" class="btn-icon" style="padding: 0.6rem 1rem; font-weight: 600; color: var(--accent-amber);">
+              🧹 Clear Local Cache (Retains Vault)
+            </button>
+            <button id="wipeAllDataBtn" class="btn-icon" style="padding: 0.6rem 1rem; font-weight: 600; color: var(--accent-rose);">
+              🗑️ GDPR Right to Erasure (Wipe All Data)
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Right Sidebar: Trends & Recommended Research -->
+    <aside class="right-sidebar">
+      <div class="widget-card">
+        <h3 class="widget-title">
+          <span>Trending Topics</span>
+          <span style="font-size: 0.75rem; color: var(--accent-emerald);">Live</span>
+        </h3>
+        <div class="trend-list">
+          <div class="trend-item" data-tag="Quantum-Computing">
+            <span class="trend-topic">#QuantumAlgorithms</span>
+            <span class="trend-count">1.4k citations this week</span>
+          </div>
+          <div class="trend-item" data-tag="Agentic-AI">
+            <span class="trend-topic">#AgenticReasoning</span>
+            <span class="trend-count">3.8k citations this week</span>
+          </div>
+          <div class="trend-item" data-tag="Neural-Networks">
+            <span class="trend-topic">#DiffusionModels</span>
+            <span class="trend-count">2.1k citations this week</span>
+          </div>
+          <div class="trend-item" data-tag="CRISPR">
+            <span class="trend-topic">#EpigeneticReprogramming</span>
+            <span class="trend-count">920 citations this week</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="widget-card">
+        <h3 class="widget-title">
+          <span>Cloud Configuration</span>
+        </h3>
+        <div style="font-size: 0.8rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 0.4rem;">
+          <div><strong>Project:</strong> cite-circle-3857b</div>
+          <div><strong>Hosting:</strong> cite-circle-3857b.firebaseapp.com</div>
+          <div><strong>Sync State:</strong> <span style="color: var(--accent-emerald);">Initialized</span></div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- Publish Manuscript Modal -->
+  <div class="modal-backdrop" id="publishModal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700;">Publish Research Manuscript</h3>
+        <button class="btn-icon" id="closePublishModalBtn" style="border: none; font-size: 1.1rem;">✕</button>
+      </div>
+      <div class="modal-body">
+        <div>
+          <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.35rem; color: var(--text-secondary);">MANUSCRIPT FILE (PDF, WORD DOCX, LATEX, TXT)</label>
+          <div class="dropzone" id="fileDropzone">
+            <div id="dropzoneContent">
+              <div style="font-size: 2rem; margin-bottom: 0.5rem;">📄</div>
+              <div style="font-weight: 600; font-size: 0.95rem;">Drag & drop your manuscript or click to browse</div>
+              <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Supported: PDF, DOCX, DOC, TEX, TXT, MD (Max 50 MB)</div>
+              <div style="font-size: 0.75rem; color: var(--accent-rose); margin-top: 0.25rem;">Strictly No ZIP or Executable Files</div>
+            </div>
+            <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.tex,.txt,.md,.rtf" style="display: none;">
+          </div>
+          <div id="fileValidationStatus" style="font-size: 0.8rem; margin-top: 0.5rem; display: none;"></div>
+        </div>
+
+        <div>
+          <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.35rem; color: var(--text-secondary);">PAPER TITLE</label>
+          <input type="text" id="paperTitleInput" class="input-field" placeholder="e.g. Scalable Diffusion Transformers for Multi-Modal Synthesis">
+        </div>
+
+        <div>
+          <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.35rem; color: var(--text-secondary);">DISCIPLINE / RESEARCH FIELD</label>
+          <select id="paperFieldSelect" class="input-field">
+            <option value="AI & ML">AI & Machine Learning</option>
+            <option value="Quantum Computing">Quantum Computing</option>
+            <option value="Computational Biology">Computational Biology</option>
+            <option value="Neuroscience">Neuroscience</option>
+            <option value="Physics & Astronomy">Physics & Astronomy</option>
+            <option value="Mathematics">Mathematics</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.35rem; color: var(--text-secondary);">ABSTRACT OR COMMENTARY</label>
+          <textarea id="paperAbstractInput" class="input-field" rows="3" placeholder="Summarize your key findings, methodology, and citations..."></textarea>
+        </div>
+
+        <button id="submitPublishBtn" class="btn-publish-action" style="margin-top: 0.5rem;">
+          Publish to Academic Feed
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main JavaScript App Entry -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>
