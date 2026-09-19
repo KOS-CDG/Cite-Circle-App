@@ -8,6 +8,7 @@ import com.example.data.AuthorIdentity
 import com.example.data.Comment
 import com.example.data.ImageStore
 import com.example.data.PaperRepository
+import com.example.data.PdfStore
 import com.example.data.SavedPaper
 import com.example.data.SettingsRepository
 import com.example.data.VenueCount
@@ -124,6 +125,14 @@ class HomeViewModel(
         )
 
     val bookmarks: StateFlow<ListState<SavedPaper>> = repository.bookmarkedPapers
+        .map { ListState(items = it, isLoading = false) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = ListState()
+        )
+
+    val vaultPapers: StateFlow<ListState<SavedPaper>> = repository.vaultPapers
         .map { ListState(items = it, isLoading = false) }
         .stateIn(
             scope = viewModelScope,
@@ -307,10 +316,26 @@ class HomeViewModel(
         }
     }
 
-    /** Called once an undo can no longer happen, to reclaim the image the post held. */
-    fun forgetPaper(imageUri: String) {
-        if (imageUri.isBlank()) return
-        viewModelScope.launch { ImageStore.delete(appContext, imageUri) }
+    /** Called once an undo can no longer happen, to reclaim the image and pdf files the post held. */
+    fun forgetPaper(imageUri: String, pdfLocalPath: String = "") {
+        if (imageUri.isNotBlank()) {
+            viewModelScope.launch { ImageStore.delete(appContext, imageUri) }
+        }
+        if (pdfLocalPath.isNotBlank()) {
+            viewModelScope.launch { PdfStore.delete(appContext, pdfLocalPath) }
+        }
+    }
+
+    fun cacheRemotePdf(paperId: String, pdfUrl: String) {
+        viewModelScope.launch {
+            val localPath = PdfStore.downloadPdf(appContext, pdfUrl)
+            if (localPath != null) {
+                repository.updatePdfLocalPath(paperId, localPath)
+                report("Paper PDF saved to offline vault!")
+            } else {
+                report("Failed to download PDF. Please check network.")
+            }
+        }
     }
 
     fun toggleEndorsement(id: String, currentStatus: Boolean) {

@@ -65,9 +65,10 @@ private val Gutter = 16.dp
 /** Destinations reached by going deeper, as opposed to the five peer tabs. */
 private fun isPushedRoute(route: String?): Boolean {
   val r = route.orEmpty()
-  return r == "compose" || r == "chat" || r == "notifications" ||
+  return r == "compose" || r == "chat" || r == "notifications" || r == "messenger" ||
     r.startsWith("post/") || r.startsWith("quote/") || r.startsWith("share/") ||
-    r.startsWith("edit/") || r.startsWith("image/") || r.startsWith("venue/")
+    r.startsWith("edit/") || r.startsWith("image/") || r.startsWith("venue/") ||
+    r.startsWith("chat_thread/") || r.startsWith("pdf_viewer")
 }
 
 class MainActivity : ComponentActivity() {
@@ -123,7 +124,9 @@ fun FolioApp(viewModel: HomeViewModel) {
     currentRoute.startsWith("post/") ||
     currentRoute.startsWith("quote/") ||
     currentRoute.startsWith("venue/") ||
-    currentRoute.startsWith("image/")
+    currentRoute.startsWith("image/") ||
+    currentRoute.startsWith("chat_thread/") ||
+    currentRoute.startsWith("pdf_viewer")
 
   // One snackbar for the whole app. Failures used to be silent everywhere except the share
   // screen, which had its own local host.
@@ -196,6 +199,23 @@ fun FolioApp(viewModel: HomeViewModel) {
       composable("opps") { com.example.ui.opportunities.OpportunitiesScreen() }
       composable("profile") { ProfileScreen(viewModel, navController) }
       composable("chat") { com.example.ui.chat.ChatScreen() }
+      composable("messenger") {
+        val app = context.applicationContext as MyApplication
+        com.example.ui.chat.MessengerScreen(app.chatRepository, navController)
+      }
+      composable(
+        route = "chat_thread/{convId}",
+        arguments = listOf(navArgument("convId") { type = NavType.StringType })
+      ) { entry ->
+        val app = context.applicationContext as MyApplication
+        val convId = entry.arguments?.getString("convId").orEmpty()
+        com.example.ui.chat.ChatThreadScreen(
+          conversationId = convId,
+          chatRepository = app.chatRepository,
+          homeViewModel = viewModel,
+          navController = navController
+        )
+      }
       composable("notifications") { NotificationsScreen(viewModel, navController) }
       composable(
         route = "venue/{name}",
@@ -266,8 +286,45 @@ fun FolioApp(viewModel: HomeViewModel) {
           navController = navController
         )
       }
+      composable(
+        route = "pdf_viewer?path={path}&url={url}&title={title}",
+        arguments = listOf(
+          navArgument("path") {
+            type = NavType.StringType
+            defaultValue = ""
+          },
+          navArgument("url") {
+            type = NavType.StringType
+            defaultValue = ""
+          },
+          navArgument("title") {
+            type = NavType.StringType
+            defaultValue = "Research Paper"
+          }
+        )
+      ) { entry ->
+        val rawPath = entry.arguments?.getString("path").orEmpty()
+        val rawUrl = entry.arguments?.getString("url").orEmpty()
+        val title = entry.arguments?.getString("title").orEmpty()
+        val decodedPath = if (rawPath.isNotBlank()) Uri.decode(rawPath) else ""
+        val decodedUrl = if (rawUrl.isNotBlank()) Uri.decode(rawUrl) else ""
+        com.example.ui.post.PdfViewerScreen(
+          initialLocalPath = decodedPath,
+          remoteUrl = decodedUrl,
+          paperTitle = title,
+          onBack = { navController.popBackStack() }
+        )
+      }
     }
   }
+}
+
+/** Navigates safely to in-app PDF viewer with encoded arguments */
+fun NavController.navigateToPdf(path: String = "", url: String = "", title: String = "Paper") {
+  val encPath = if (path.isNotBlank()) Uri.encode(path) else ""
+  val encUrl = if (url.isNotBlank()) Uri.encode(url) else ""
+  val encTitle = if (title.isNotBlank()) Uri.encode(title) else "Paper"
+  this.navigate("pdf_viewer?path=$encPath&url=$encUrl&title=$encTitle")
 }
 
 /**
@@ -279,6 +336,10 @@ fun FolioApp(viewModel: HomeViewModel) {
 @Composable
 private fun AppTopBar(navController: NavController, viewModel: HomeViewModel) {
   val unread by viewModel.unreadActivityCount.collectAsStateWithLifecycle()
+  val context = androidx.compose.ui.platform.LocalContext.current
+  val app = context.applicationContext as MyApplication
+  val unreadMessages by app.chatRepository.totalUnreadCount.collectAsStateWithLifecycle(initialValue = 0)
+
   Surface(color = MaterialTheme.colorScheme.surface) {
     Column(modifier = Modifier.statusBarsPadding()) {
       Row(
@@ -322,13 +383,29 @@ private fun AppTopBar(navController: NavController, viewModel: HomeViewModel) {
               )
             }
           }
-          @Suppress("DEPRECATION")
-          IconButton(onClick = { navController.navigate("chat") }) {
-            Icon(
-              Icons.Outlined.Chat,
-              contentDescription = stringResource(R.string.cd_assistant),
-              tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+          IconButton(onClick = { navController.navigate("messenger") }) {
+            BadgedBox(
+              badge = {
+                val count = unreadMessages ?: 0
+                if (count > 0) {
+                  Badge(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                  ) {
+                    Text(
+                      if (count > 99) stringResource(R.string.badge_overflow)
+                      else count.toString()
+                    )
+                  }
+                }
+              }
+            ) {
+              Icon(
+                Icons.Outlined.Chat,
+                contentDescription = stringResource(R.string.cd_messages),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+              )
+            }
           }
         }
       }

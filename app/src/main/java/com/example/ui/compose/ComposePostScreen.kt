@@ -15,6 +15,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.AddPhotoAlternate
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -36,7 +38,9 @@ import com.example.data.AuthorIdentity
 import com.example.data.CitationFormatter
 import com.example.data.CitationStyle
 import com.example.data.ImageStore
+import com.example.data.PdfStore
 import com.example.data.SavedPaper
+import com.example.network.AcademicPaperResolver
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.UUID
@@ -62,6 +66,10 @@ fun ComposePostScreen(
 
     var commentary by rememberSaveable { mutableStateOf(existing?.content.orEmpty()) }
     var imagePath by rememberSaveable { mutableStateOf(existing?.imageUri.orEmpty()) }
+    var pdfLocalPath by rememberSaveable { mutableStateOf(existing?.pdfLocalPath.orEmpty()) }
+    var pdfUrl by rememberSaveable { mutableStateOf(existing?.pdfUrl.orEmpty()) }
+    var abstractText by rememberSaveable { mutableStateOf(existing?.abstractText.orEmpty()) }
+    var openAccess by rememberSaveable { mutableStateOf(existing?.openAccess ?: false) }
     var title by rememberSaveable { mutableStateOf(existing?.title.orEmpty()) }
     var authors by rememberSaveable { mutableStateOf(existing?.authors.orEmpty()) }
     var year by rememberSaveable { mutableStateOf(existing?.year.orEmpty()) }
@@ -73,10 +81,13 @@ fun ComposePostScreen(
     }
     var previewStyle by rememberSaveable { mutableStateOf(CitationStyle.DEFAULT) }
     var showErrors by rememberSaveable { mutableStateOf(false) }
+    var isResolvingDoi by remember { mutableStateOf(false) }
+    var doiStatusMessage by remember { mutableStateOf("") }
 
-    // The image the post already had. Only a *newly* picked file should be cleaned up on
-    // discard — deleting this one would strip the figure off the saved post.
+    // The image and pdf the post already had. Only *newly* picked files should be cleaned up on
+    // discard — deleting these would strip attachments off the saved post.
     val originalImage = remember { existing?.imageUri.orEmpty() }
+    val originalPdf = remember { existing?.pdfLocalPath.orEmpty() }
 
     // Read here because the picker callback below is a plain lambda, not a composable.
     val imageUnreadable = stringResource(R.string.image_unreadable)
@@ -99,7 +110,11 @@ fun ComposePostScreen(
         venue = venue.trim(),
         doi = doi.trim(),
         url = url.trim(),
-        imageUri = imagePath
+        imageUri = imagePath,
+        pdfUrl = pdfUrl.trim(),
+        pdfLocalPath = pdfLocalPath.trim(),
+        abstractText = abstractText.trim(),
+        openAccess = openAccess || pdfUrl.isNotBlank()
     )
 
     // The picker's URI grant is transient, so ImageStore copies the bytes into app storage
@@ -126,12 +141,37 @@ fun ComposePostScreen(
         }
     }
 
-    /** Discarding must not leave a newly copied image behind, nor delete the saved one. */
+    val pdfPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val previous = pdfLocalPath
+                val stored = PdfStore.persist(context, uri)
+                if (stored == null) {
+                    viewModel.report("Unable to process selected PDF file")
+                } else {
+                    pdfLocalPath = stored
+                    if (previous.isNotBlank() && previous != originalPdf) {
+                        PdfStore.delete(context, previous)
+                    }
+                }
+            }
+        }
+    }
+
+    /** Discarding must not leave a newly copied image or PDF behind, nor delete the saved ones. */
     fun discard() {
-        val pending = imagePath
+        val pendingImage = imagePath
         imagePath = ""
-        if (pending.isNotBlank() && pending != originalImage) {
-            scope.launch { ImageStore.delete(context, pending) }
+        if (pendingImage.isNotBlank() && pendingImage != originalImage) {
+            scope.launch { ImageStore.delete(context, pendingImage) }
+        }
+
+        val pendingPdf = pdfLocalPath
+        pdfLocalPath = ""
+        if (pendingPdf.isNotBlank() && pendingPdf != originalPdf) {
+            scope.launch { PdfStore.delete(context, pendingPdf) }
         }
         onDone()
     }
@@ -237,6 +277,87 @@ fun ComposePostScreen(
             }
         }
 
+        Spacer(Modifier.height(10.dp))
+        if (pdfLocalPath.isBlank()) {
+            OutlinedButton(
+                onClick = { pdfPicker.launch(arrayOf("application/pdf")) },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = MaterialTheme.shapes.extraLarge,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Icon(
+                    Icons.Outlined.PictureAsPdf,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Attach Research Paper PDF",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.small)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .border(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant,
+                        MaterialTheme.shapes.small
+                    )
+                    .padding(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            Icons.Outlined.PictureAsPdf,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                "Research Paper PDF Attached",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                PdfStore.getFormattedSize(pdfLocalPath),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = {
+                            val pending = pdfLocalPath
+                            pdfLocalPath = ""
+                            scope.launch { PdfStore.delete(context, pending) }
+                        }
+                    ) {
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = "Remove PDF",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
         Spacer(Modifier.height(28.dp))
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Spacer(Modifier.height(28.dp))
@@ -282,12 +403,69 @@ fun ComposePostScreen(
         if (showErrors && yearError) FieldError(stringResource(R.string.error_year))
 
         Spacer(Modifier.height(12.dp))
-        EditorialTextField(
-            value = doi,
-            onValueChange = { doi = it },
-            placeholder = stringResource(R.string.field_doi),
-            keyboardType = KeyboardType.Uri
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                EditorialTextField(
+                    value = doi,
+                    onValueChange = {
+                        doi = it
+                        doiStatusMessage = ""
+                    },
+                    placeholder = stringResource(R.string.field_doi),
+                    keyboardType = KeyboardType.Uri
+                )
+            }
+            Button(
+                onClick = {
+                    if (doi.isNotBlank()) {
+                        isResolvingDoi = true
+                        doiStatusMessage = ""
+                        scope.launch {
+                            val resolved = AcademicPaperResolver.resolveDoi(doi)
+                            isResolvingDoi = false
+                            if (resolved != null) {
+                                if (title.isBlank() || title == existing?.title) title = resolved.title
+                                if (authors.isBlank() || authors == existing?.authors) authors = resolved.authors
+                                if (year.isBlank() || year == existing?.year) year = resolved.year
+                                if (venue.isBlank() || venue == existing?.venue) venue = resolved.venue
+                                if (url.isBlank() || url == existing?.url) url = resolved.url
+                                if (abstractText.isBlank() || abstractText == existing?.abstractText) abstractText = resolved.abstractText
+                                if (pdfUrl.isBlank() || pdfUrl == existing?.pdfUrl) pdfUrl = resolved.pdfUrl
+                                if (resolved.isOpenAccess) openAccess = true
+                                doiStatusMessage = if (resolved.pdfUrl.isNotBlank()) "Metadata & Open-Access PDF imported!" else "Metadata imported from catalog!"
+                            } else {
+                                doiStatusMessage = "Could not resolve DOI. Enter details manually."
+                            }
+                        }
+                    }
+                },
+                enabled = doi.isNotBlank() && !isResolvingDoi,
+                shape = MaterialTheme.shapes.small,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+            ) {
+                if (isResolvingDoi) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("Auto-fill", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+        if (doiStatusMessage.isNotBlank()) {
+            Text(
+                doiStatusMessage,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (doiStatusMessage.startsWith("Metadata")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
 
         Spacer(Modifier.height(12.dp))
         EditorialTextField(
@@ -295,6 +473,22 @@ fun ComposePostScreen(
             onValueChange = { url = it },
             placeholder = stringResource(R.string.field_url),
             keyboardType = KeyboardType.Uri
+        )
+
+        Spacer(Modifier.height(12.dp))
+        EditorialTextField(
+            value = pdfUrl,
+            onValueChange = { pdfUrl = it },
+            placeholder = "Open-Access PDF Link (e.g. arXiv / preprint link)",
+            keyboardType = KeyboardType.Uri
+        )
+
+        Spacer(Modifier.height(12.dp))
+        EditorialTextField(
+            value = abstractText,
+            onValueChange = { abstractText = it },
+            placeholder = "Abstract (auto-populated from DOI or enter manually)",
+            minLines = 3
         )
 
         Spacer(Modifier.height(12.dp))
@@ -337,7 +531,12 @@ fun ComposePostScreen(
                                 quotedId = existing.quotedId,
                                 quotedAuthorName = existing.quotedAuthorName,
                                 quotedTitle = existing.quotedTitle,
-                                quotedContent = existing.quotedContent
+                                quotedContent = existing.quotedContent,
+                                imageUri = imagePath,
+                                pdfLocalPath = pdfLocalPath,
+                                pdfUrl = pdfUrl,
+                                abstractText = abstractText,
+                                openAccess = openAccess || pdfUrl.isNotBlank()
                             )
                         } else {
                             draft.copy(
@@ -346,11 +545,16 @@ fun ComposePostScreen(
                             )
                         }
                     )
-                    // A replaced figure is only safe to delete once the change is committed.
+                    // A replaced figure or PDF is only safe to delete once the change is committed.
                     if (existing != null && originalImage.isNotBlank() &&
                         originalImage != imagePath
                     ) {
                         viewModel.forgetPaper(originalImage)
+                    }
+                    if (existing != null && originalPdf.isNotBlank() &&
+                        originalPdf != pdfLocalPath
+                    ) {
+                        viewModel.forgetPaper("", originalPdf)
                     }
                     onDone()
                 }

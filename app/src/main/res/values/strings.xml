@@ -181,6 +181,20 @@
     <string name="cd_remove_image">Remove image</string>
     <string name="cd_uploaded_image">Uploaded image</string>
 
+    <!-- Messenger -->
+    <string name="messenger_title">Messages</string>
+    <string name="messenger_active_collaborators">Active Collaborators</string>
+    <string name="messenger_online">Online</string>
+    <string name="messenger_empty_title">No conversations yet</string>
+    <string name="messenger_empty_message">Connect with researchers or start a reading circle to begin discussing papers.</string>
+    <string name="messenger_assistant_banner">Ask Cite AI Assistant</string>
+    <string name="messenger_view_paper">View Paper</string>
+    <string name="messenger_share_paper">Cite Paper</string>
+    <string name="messenger_select_paper_to_share">Select a paper to cite in chat</string>
+    <string name="messenger_input_placeholder">Message %1$s…</string>
+    <string name="cd_attach_paper">Attach paper citation</string>
+    <string name="cd_messages">Messages</string>
+
     <plurals name="entry_count">
         <item quantity="one">%d entry</item>
         <item quantity="other">%d entries</item>

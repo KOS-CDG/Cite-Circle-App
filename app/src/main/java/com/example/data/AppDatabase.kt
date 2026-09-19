@@ -12,6 +12,10 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.room.withTransaction
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.example.data.chat.ChatMessageDao
+import com.example.data.chat.ChatMessageEntity
+import com.example.data.chat.ConversationDao
+import com.example.data.chat.ConversationEntity
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -61,7 +65,13 @@ data class SavedPaper(
     val quotedId: String = "",
     val quotedAuthorName: String = "",
     val quotedTitle: String = "",
-    val quotedContent: String = ""
+    val quotedContent: String = "",
+
+    // --- paper vault / pdf ------------------------------------------------
+    val pdfUrl: String = "",
+    val pdfLocalPath: String = "",
+    val abstractText: String = "",
+    val openAccess: Boolean = false
 )
 
 /**
@@ -133,6 +143,12 @@ interface SavedPaperDao {
 
     @Query("UPDATE saved_papers SET repostCount = repostCount + 1 WHERE id = :id")
     suspend fun incrementRepostCount(id: String)
+
+    @Query("SELECT * FROM saved_papers WHERE pdfLocalPath != '' OR pdfUrl != '' ORDER BY publishedAt DESC")
+    fun getVaultPapers(): Flow<List<SavedPaper>>
+
+    @Query("UPDATE saved_papers SET pdfLocalPath = :localPath WHERE id = :id")
+    suspend fun updatePdfLocalPath(id: String, localPath: String)
 }
 
 @Dao
@@ -160,10 +176,21 @@ interface CommentDao {
     suspend fun countFor(paperId: String): Int
 }
 
-@Database(entities = [SavedPaper::class, Comment::class], version = 2, exportSchema = false)
+@Database(
+    entities = [
+        SavedPaper::class,
+        Comment::class,
+        ConversationEntity::class,
+        ChatMessageEntity::class
+    ],
+    version = 4,
+    exportSchema = false
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun savedPaperDao(): SavedPaperDao
     abstract fun commentDao(): CommentDao
+    abstract fun conversationDao(): ConversationDao
+    abstract fun chatMessageDao(): ChatMessageDao
 
     companion object {
         /**
@@ -250,6 +277,57 @@ abstract class AppDatabase : RoomDatabase() {
                 )
             }
         }
+
+        fun migration2To3(): Migration = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `conversations` (
+                        `id` TEXT NOT NULL,
+                        `participantName` TEXT NOT NULL,
+                        `participantInitials` TEXT NOT NULL,
+                        `participantAffiliation` TEXT NOT NULL,
+                        `lastMessage` TEXT NOT NULL,
+                        `lastMessageTimestamp` INTEGER NOT NULL,
+                        `unreadCount` INTEGER NOT NULL,
+                        `isOnline` INTEGER NOT NULL,
+                        `attachedPaperId` TEXT NOT NULL,
+                        `attachedPaperTitle` TEXT NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `chat_messages` (
+                        `id` TEXT NOT NULL,
+                        `conversationId` TEXT NOT NULL,
+                        `senderName` TEXT NOT NULL,
+                        `senderInitials` TEXT NOT NULL,
+                        `text` TEXT NOT NULL,
+                        `timestamp` INTEGER NOT NULL,
+                        `isOutgoing` INTEGER NOT NULL,
+                        `quotedPaperId` TEXT NOT NULL,
+                        `quotedPaperTitle` TEXT NOT NULL,
+                        `quotedCitation` TEXT NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_chat_messages_conversationId` ON `chat_messages` (`conversationId`)"
+                )
+            }
+        }
+
+        fun migration3To4(): Migration = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `saved_papers` ADD COLUMN `pdfUrl` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `saved_papers` ADD COLUMN `pdfLocalPath` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `saved_papers` ADD COLUMN `abstractText` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `saved_papers` ADD COLUMN `openAccess` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
     }
 }
 
@@ -266,6 +344,7 @@ class PaperRepository(private val database: AppDatabase) {
 
     val allPapers: Flow<List<SavedPaper>> = dao.getAllPapers()
     val bookmarkedPapers: Flow<List<SavedPaper>> = dao.getBookmarkedPapers()
+    val vaultPapers: Flow<List<SavedPaper>> = dao.getVaultPapers()
     val recentQuotes: Flow<List<SavedPaper>> = dao.getRecentQuotes()
     val recentComments: Flow<List<Comment>> = commentDao.recentComments()
     val venueCounts: Flow<List<VenueCount>> = dao.getVenueCounts()
@@ -277,6 +356,8 @@ class PaperRepository(private val database: AppDatabase) {
     fun comments(paperId: String): Flow<List<Comment>> = commentDao.commentsFor(paperId)
 
     suspend fun savePaper(paper: SavedPaper) = dao.insertPaper(paper)
+
+    suspend fun updatePdfLocalPath(id: String, localPath: String) = dao.updatePdfLocalPath(id, localPath)
 
     /** Removes a post and everything hanging off it. */
     suspend fun deletePaper(id: String) {
