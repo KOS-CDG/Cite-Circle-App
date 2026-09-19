@@ -64,4 +64,10 @@ interface UserAccountDao {
 
     @Query("SELECT COUNT(*) FROM user_accounts")
     suspend fun countUsers(): Int
+
+    @Query("UPDATE user_accounts SET displayName = :displayName, affiliation = :affiliation, researchField = :researchField WHERE LOWER(email) = LOWER(:email)")
+    suspend fun updateProfileInfo(email: String, displayName: String, affiliation: String, researchField: String)
+
+    @Query("UPDATE user_accounts SET passwordHash = :passwordHash WHERE LOWER(email) = LOWER(:email)")
+    suspend fun updatePasswordHash(email: String, passwordHash: String)
 }

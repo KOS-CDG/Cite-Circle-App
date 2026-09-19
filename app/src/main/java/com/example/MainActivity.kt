@@ -71,6 +71,7 @@ private val Gutter = 16.dp
 private fun isPushedRoute(route: String?): Boolean {
   val r = route.orEmpty()
   return r == "compose" || r == "chat" || r == "notifications" || r == "messenger" ||
+    r == "settings" ||
     r.startsWith("post/") || r.startsWith("quote/") || r.startsWith("share/") ||
     r.startsWith("edit/") || r.startsWith("image/") || r.startsWith("venue/") ||
     r.startsWith("chat_thread/") || r.startsWith("pdf_viewer") ||
@@ -130,6 +131,7 @@ fun FolioApp(viewModel: HomeViewModel) {
   val chromeless = currentRoute == "auth" ||
     currentRoute == "onboarding_permissions" ||
     currentRoute == "privacy_policy" ||
+    currentRoute == "settings" ||
     currentRoute == "compose" ||
     currentRoute.startsWith("share/") ||
     currentRoute.startsWith("post/") ||
@@ -221,6 +223,12 @@ fun FolioApp(viewModel: HomeViewModel) {
       composable("lists") { com.example.ui.lists.ReadingListsScreen(viewModel, navController) }
       composable("opps") { com.example.ui.opportunities.OpportunitiesScreen() }
       composable("profile") { ProfileScreen(viewModel, navController) }
+      composable("settings") {
+        com.example.ui.settings.SettingsScreen(
+          viewModel = viewModel,
+          navController = navController
+        )
+      }
       composable("chat") { com.example.ui.chat.ChatScreen() }
       composable("messenger") {
         val app = context.applicationContext as MyApplication
@@ -1007,16 +1015,25 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                   )
                 }
               }
-              IconButton(onClick = { viewModel.toggleTheme() }) {
-                Icon(
-                  if (isDarkMode) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
-                  contentDescription = if (isDarkMode) {
-                    stringResource(R.string.cd_switch_to_light_theme)
-                  } else {
-                    stringResource(R.string.cd_switch_to_dark_theme)
-                  },
-                  tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { navController.navigate("settings") }) {
+                  Icon(
+                    Icons.Outlined.Settings,
+                    contentDescription = "Settings & Privacy",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                  )
+                }
+                IconButton(onClick = { viewModel.toggleTheme() }) {
+                  Icon(
+                    if (isDarkMode) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
+                    contentDescription = if (isDarkMode) {
+                      stringResource(R.string.cd_switch_to_light_theme)
+                    } else {
+                      stringResource(R.string.cd_switch_to_dark_theme)
+                    },
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                  )
+                }
               }
             }
 
@@ -1069,6 +1086,18 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
 
             Spacer(Modifier.height(14.dp))
 
+            Button(
+              onClick = { navController.navigate("settings") },
+              modifier = Modifier.fillMaxWidth(),
+              shape = MaterialTheme.shapes.small
+            ) {
+              Icon(Icons.Outlined.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
+              Spacer(Modifier.width(8.dp))
+              Text("Settings & Privacy (Accounts Center)")
+            }
+
+            Spacer(Modifier.height(8.dp))
+
             OutlinedButton(
               onClick = { navController.navigate("privacy_policy") },
               modifier = Modifier.fillMaxWidth(),
@@ -1082,14 +1111,14 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
             Spacer(Modifier.height(8.dp))
 
             OutlinedButton(
-              onClick = { showSignOutDialog = true },
+              onClick = { navController.navigate("settings") },
               modifier = Modifier.fillMaxWidth(),
               shape = MaterialTheme.shapes.small,
               colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
             ) {
               Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
               Spacer(Modifier.width(8.dp))
-              Text("Sign Out of Account")
+              Text("Log Out & Account Switcher...")
             }
           }
         }

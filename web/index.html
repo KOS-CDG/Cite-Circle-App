@@ -62,8 +62,8 @@
           <span>Discussions</span>
         </a>
         <a class="nav-item" data-tab="profile">
-          <span>👤</span>
-          <span>Profile & Privacy</span>
+          <span>⚙️</span>
+          <span>Settings & Privacy</span>
         </a>
       </nav>
 
@@ -89,14 +89,20 @@
 
       <!-- View: Feed -->
       <section id="viewFeed">
-        <div class="section-header">
-          <h2 class="section-title">Academic Feed</h2>
-          <div class="filter-pills">
-            <button class="filter-pill active" data-field="all">All Disciplines</button>
-            <button class="filter-pill" data-field="AI & ML">AI & Machine Learning</button>
-            <button class="filter-pill" data-field="Quantum Computing">Quantum Computing</button>
-            <button class="filter-pill" data-field="Computational Biology">Biology</button>
-            <button class="filter-pill" data-field="Neuroscience">Neuroscience</button>
+        <!-- Feed Filter Bar -->
+        <div class="feed-filter-bar">
+          <div class="filter-pill active" data-field="all">All Disciplines</div>
+          <div class="filter-pill" data-field="AI & ML">AI & ML</div>
+          <div class="filter-pill" data-field="Quantum Computing">Quantum Computing</div>
+          <div class="filter-pill" data-field="Computational Biology">Computational Biology</div>
+          <div class="filter-pill" data-field="Neuroscience">Neuroscience</div>
+        </div>
+
+        <!-- Quick Post Trigger -->
+        <div class="post-card" style="margin-bottom: 1.25rem; display: flex; align-items: center; gap: 1rem;">
+          <div class="author-avatar" style="width: 40px; height: 40px;">MV</div>
+          <div class="quick-post-input" id="triggerQuickPublish" style="flex: 1; padding: 0.75rem 1rem; border-radius: var(--radius-full); background: var(--bg-input); border: 1px solid var(--border-subtle); color: var(--text-muted); cursor: pointer;">
+            Deposit preprint, share research insights, or cite a paper...
           </div>
         </div>
 
@@ -144,56 +150,183 @@
         </div>
       </section>
 
-      <!-- View: Profile & Privacy -->
+      <!-- View: Settings & Privacy (Facebook Accounts Center Architecture) -->
       <section id="viewProfile" style="display: none;">
         <div class="section-header">
-          <h2 class="section-title">Researcher Profile & Cloud Identity</h2>
+          <div>
+            <h2 class="section-title">Settings & Privacy</h2>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.2rem;">Manage your accounts, preferences, audience, and security credentials</p>
+          </div>
         </div>
-        <div class="post-card">
-          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
-            <div style="display: flex; align-items: center; gap: 1.25rem;">
-              <div class="author-avatar" id="profileAvatar" style="width: 64px; height: 64px; font-size: 1.5rem;">MV</div>
+
+        <!-- 1. Meta / Cite Circle Accounts Center Card -->
+        <div class="fb-settings-card">
+          <div class="fb-accounts-center-header">
+            <span>∞</span> Cite Circle Accounts Center
+          </div>
+          <h3 class="fb-accounts-center-title">Accounts Center</h3>
+          <p class="fb-accounts-center-desc">
+            Manage your connected academic identity, profile details, and account security across Cite Circle web & mobile applications.
+          </p>
+
+          <!-- Profile Preview Row -->
+          <div class="fb-profile-preview">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+              <div class="author-avatar" id="profileAvatar" style="width: 52px; height: 52px; font-size: 1.25rem;">MV</div>
               <div>
-                <h3 id="profileName" style="font-size: 1.25rem; font-weight: 700;">Dr. Morgan Vance</h3>
-                <p id="profileAffiliation" style="color: var(--text-secondary); font-size: 0.9rem;">Institute for Advanced Study • Computational Neuroscience & AI</p>
-                <p id="profileEmail" style="color: var(--text-muted); font-size: 0.8rem; font-family: var(--font-mono);">demo.researcher@cite.circle</p>
-                <p id="profileUid" style="color: var(--accent-emerald); font-size: 0.75rem; font-family: var(--font-mono); margin-top: 0.2rem;">Firebase UID: Synced</p>
+                <div id="profileName" style="font-weight: 700; font-size: 1.05rem; color: var(--text-primary);">Dr. Morgan Vance</div>
+                <div id="profileAffiliation" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.1rem;">Institute for Advanced Study • AI & Quantum Computing</div>
+                <div id="profileEmail" style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); margin-top: 0.1rem;">demo.researcher@cite.circle</div>
               </div>
             </div>
-            <button id="profileSignOutBtn" class="btn-icon" style="color: var(--accent-rose); font-weight: 600; padding: 0.5rem 1rem;">
-              Sign Out
-            </button>
+            <span style="font-size: 0.75rem; font-weight: 600; padding: 0.3rem 0.6rem; border-radius: var(--radius-full); background: rgba(37, 99, 235, 0.15); color: var(--accent-primary); border: 1px solid rgba(37, 99, 235, 0.3);" id="profileUid">
+              Firebase Synced
+            </span>
           </div>
 
-          <div style="display: flex; gap: 2rem; margin-top: 1rem; border-top: 1px solid var(--border-subtle); padding-top: 1rem;">
-            <div>
-              <div style="font-size: 1.25rem; font-weight: 700; color: var(--accent-primary);">18</div>
-              <div style="font-size: 0.75rem; color: var(--text-secondary);">Publications</div>
+          <!-- Accounts Center Action Rows -->
+          <div style="display: flex; flex-direction: column;">
+            <div class="fb-settings-item" id="openEditProfileBtn">
+              <div class="fb-settings-item-left">
+                <div class="fb-settings-item-icon">👤</div>
+                <div>
+                  <div class="fb-settings-item-title">Personal details</div>
+                  <div class="fb-settings-item-desc" id="profileDetailsDesc">Name, academic affiliation, and research field</div>
+                </div>
+              </div>
+              <div class="fb-settings-item-arrow">›</div>
             </div>
-            <div>
-              <div style="font-size: 1.25rem; font-weight: 700; color: var(--accent-emerald);">1,420</div>
-              <div style="font-size: 0.75rem; color: var(--text-secondary);">Citations</div>
+
+            <div class="fb-settings-divider"></div>
+
+            <div class="fb-settings-item" id="openChangePasswordBtn">
+              <div class="fb-settings-item-left">
+                <div class="fb-settings-item-icon">🔒</div>
+                <div>
+                  <div class="fb-settings-item-title">Password and security</div>
+                  <div class="fb-settings-item-desc">Change password, saved login credentials & security checkup</div>
+                </div>
+              </div>
+              <div class="fb-settings-item-arrow">›</div>
             </div>
-            <div>
-              <div style="font-size: 1.25rem; font-weight: 700; color: var(--accent-purple);">16</div>
-              <div style="font-size: 0.75rem; color: var(--text-secondary);">h-index</div>
+
+            <div class="fb-settings-divider"></div>
+
+            <div class="fb-settings-item" id="openPermissionsBtn">
+              <div class="fb-settings-item-left">
+                <div class="fb-settings-item-icon">🛡️</div>
+                <div>
+                  <div class="fb-settings-item-title">Your information and permissions</div>
+                  <div class="fb-settings-item-desc">Access academic records, download BibTeX vault & sandboxed permissions</div>
+                </div>
+              </div>
+              <div class="fb-settings-item-arrow">›</div>
             </div>
           </div>
         </div>
 
-        <!-- Privacy & Local Data Governance Card -->
-        <div class="post-card" style="margin-top: 1.5rem;">
-          <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 0.5rem;">Data Governance & Privacy Controls</h3>
-          <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.6;">
-            Cite Circle respects academic data sovereignty. All documents are stored in sandboxed local storage,
-            and network synchronization is secured through authenticated Firebase rules.
-          </p>
-          <div style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
-            <button id="clearWebCacheBtn" class="btn-icon" style="padding: 0.6rem 1rem; font-weight: 600; color: var(--accent-amber);">
-              🧹 Clear Local Cache (Retains Vault)
+        <!-- 2. Preferences Card -->
+        <div class="fb-settings-card">
+          <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.25rem;">Preferences</h3>
+          <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.75rem;">Customize your theme, bandwidth usage, and notification alerts.</p>
+
+          <div style="display: flex; flex-direction: column;">
+            <div class="fb-settings-item" id="settingsThemeRow">
+              <div class="fb-settings-item-left">
+                <div class="fb-settings-item-icon">🌓</div>
+                <div>
+                  <div class="fb-settings-item-title">Dark mode</div>
+                  <div class="fb-settings-item-desc" id="themeStatusText">Dark theme is currently active</div>
+                </div>
+              </div>
+              <button class="btn-icon" id="settingsThemeToggleBtn" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; font-weight: 600;">Toggle</button>
+            </div>
+
+            <div class="fb-settings-divider"></div>
+
+            <div class="fb-settings-item">
+              <div class="fb-settings-item-left">
+                <div class="fb-settings-item-icon">📶</div>
+                <div>
+                  <div class="fb-settings-item-title">Media & Data Saver</div>
+                  <div class="fb-settings-item-desc">Optimize PDF and figure streaming for mobile networks</div>
+                </div>
+              </div>
+              <input type="checkbox" id="dataSaverCheckbox" style="cursor: pointer; width: 18px; height: 18px;">
+            </div>
+
+            <div class="fb-settings-divider"></div>
+
+            <div class="fb-settings-item">
+              <div class="fb-settings-item-left">
+                <div class="fb-settings-item-icon">🔔</div>
+                <div>
+                  <div class="fb-settings-item-title">Citation & Review Alerts</div>
+                  <div class="fb-settings-item-desc">Receive notifications when peers cite or discuss your manuscripts</div>
+                </div>
+              </div>
+              <input type="checkbox" id="alertsCheckbox" checked style="cursor: pointer; width: 18px; height: 18px;">
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Audience and Visibility Card -->
+        <div class="fb-settings-card">
+          <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.25rem;">Audience and Visibility</h3>
+          <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.75rem;">Manage how your research is discovered and review privacy guarantees.</p>
+
+          <div style="display: flex; flex-direction: column;">
+            <div class="fb-settings-item" id="openPrivacyPolicyBtn">
+              <div class="fb-settings-item-left">
+                <div class="fb-settings-item-icon">📜</div>
+                <div>
+                  <div class="fb-settings-item-title">Privacy Policy & Sandboxed Storage</div>
+                  <div class="fb-settings-item-desc">Explore device sandboxing, encryption, and zero third-party telemetry</div>
+                </div>
+              </div>
+              <div class="fb-settings-item-arrow">›</div>
+            </div>
+
+            <div class="fb-settings-divider"></div>
+
+            <div class="fb-settings-item" id="openTermsBtn">
+              <div class="fb-settings-item-left">
+                <div class="fb-settings-item-icon">⚖️</div>
+                <div>
+                  <div class="fb-settings-item-title">Terms of Service & Academic Integrity</div>
+                  <div class="fb-settings-item-desc">Guidelines on preprints, citation ethics, and copyright</div>
+                </div>
+              </div>
+              <div class="fb-settings-item-arrow">›</div>
+            </div>
+
+            <div class="fb-settings-divider"></div>
+
+            <div class="fb-settings-item" id="openAccountControlBtn">
+              <div class="fb-settings-item-left">
+                <div class="fb-settings-item-icon" style="color: var(--accent-rose);">🗑️</div>
+                <div>
+                  <div class="fb-settings-item-title" style="color: var(--accent-rose);">Account ownership and control</div>
+                  <div class="fb-settings-item-desc">GDPR right to erasure, cache wipe, and profile deactivation</div>
+                </div>
+              </div>
+              <div class="fb-settings-item-arrow">›</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Login & Account Sessions (Facebook Style Dedicated Logout) -->
+        <div class="fb-settings-card">
+          <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.25rem;">Login</h3>
+          <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.75rem;">Switch between profiles or log out of your session on this device.</p>
+
+          <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <button class="btn-icon" id="openSwitchAccountBtn" style="width: 100%; padding: 0.75rem; font-weight: 600; justify-content: center; gap: 0.5rem;">
+              <span>🔄</span> Switch Accounts
             </button>
-            <button id="wipeAllDataBtn" class="btn-icon" style="padding: 0.6rem 1rem; font-weight: 600; color: var(--accent-rose);">
-              🗑️ GDPR Right to Erasure (Wipe All Data)
+
+            <button class="fb-logout-btn" id="openFacebookLogoutBtn">
+              <span>🚪</span> <span id="logoutBtnLabel">Log Out Dr. Morgan Vance</span>
             </button>
           </div>
         </div>
@@ -344,6 +477,219 @@
         <button id="submitPublishBtn" class="btn-publish-action" style="margin-top: 0.5rem;">
           Publish to Academic Feed
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Profile Modal (Personal Details) -->
+  <div class="modal-backdrop" id="editProfileModal" style="display: none;">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700;">Edit Personal Details</h3>
+        <button class="btn-icon" id="closeEditProfileModalBtn" style="border: none; font-size: 1.1rem;">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+          Update your public researcher identity across Cite Circle. Changes are synchronized to Firebase Auth and offline-cached.
+        </p>
+        <div>
+          <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem; color: var(--text-secondary);">FULL NAME</label>
+          <input type="text" id="editProfileNameInput" class="input-field" placeholder="e.g. Dr. Morgan Vance">
+        </div>
+        <div>
+          <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem; color: var(--text-secondary);">ACADEMIC AFFILIATION</label>
+          <input type="text" id="editProfileAffiliationInput" class="input-field" placeholder="e.g. Institute for Advanced Study">
+        </div>
+        <div>
+          <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem; color: var(--text-secondary);">PRIMARY RESEARCH FIELD</label>
+          <input type="text" id="editProfileFieldInput" class="input-field" placeholder="e.g. Computational Neuroscience & AI">
+        </div>
+
+        <div style="display: flex; gap: 0.75rem; margin-top: 0.5rem;">
+          <button id="saveProfileBtn" class="btn-publish-action" style="flex: 1; margin-top: 0;">
+            Save Changes
+          </button>
+          <button id="cancelEditProfileBtn" class="btn-icon" style="flex: 1; padding: 0.65rem; justify-content: center; font-weight: 600;">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Password Modal (Password and Security) -->
+  <div class="modal-backdrop" id="changePasswordModal" style="display: none;">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700;">Password and Security</h3>
+        <button class="btn-icon" id="closeChangePasswordModalBtn" style="border: none; font-size: 1.1rem;">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+          Your password must be at least 6 characters. Changing it will update your cloud credentials.
+        </p>
+        <div id="passwordErrorMsg" style="display: none; padding: 0.6rem; border-radius: var(--radius-sm); background: rgba(244, 63, 94, 0.15); border: 1px solid rgba(244, 63, 94, 0.3); color: var(--accent-rose); font-size: 0.8rem;"></div>
+
+        <div>
+          <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem; color: var(--text-secondary);">CURRENT PASSWORD</label>
+          <input type="password" id="currentPasswordInput" class="input-field" placeholder="Enter current password">
+        </div>
+        <div>
+          <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem; color: var(--text-secondary);">NEW PASSWORD</label>
+          <input type="password" id="newPasswordInput" class="input-field" placeholder="Minimum 6 characters">
+        </div>
+        <div>
+          <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem; color: var(--text-secondary);">RE-TYPE NEW PASSWORD</label>
+          <input type="password" id="confirmPasswordInput" class="input-field" placeholder="Re-enter new password">
+        </div>
+
+        <div style="display: flex; gap: 0.75rem; margin-top: 0.5rem;">
+          <button id="savePasswordBtn" class="btn-publish-action" style="flex: 1; margin-top: 0;">
+            Change Password
+          </button>
+          <button id="cancelChangePasswordBtn" class="btn-icon" style="flex: 1; padding: 0.65rem; justify-content: center; font-weight: 600;">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dedicated Facebook-Style Logout Confirmation Modal -->
+  <div class="modal-backdrop" id="facebookLogoutModal" style="display: none;">
+    <div class="modal-card" style="max-width: 440px; text-align: center;">
+      <div style="display: flex; justify-content: center; margin-bottom: 1rem;">
+        <div class="author-avatar" id="fbLogoutAvatar" style="width: 72px; height: 72px; font-size: 1.75rem; box-shadow: 0 0 16px rgba(37, 99, 235, 0.3);">MV</div>
+      </div>
+      <h3 id="fbLogoutHeading" style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.25rem;">Log out of Cite Circle?</h3>
+      <p id="fbLogoutSubtext" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+        Dr. Morgan Vance (demo.researcher@cite.circle)
+      </p>
+
+      <div style="background-color: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 0.85rem 1rem; text-align: left; margin-bottom: 1.25rem; display: flex; align-items: flex-start; gap: 0.75rem;">
+        <input type="checkbox" id="rememberLoginCheckbox" checked style="margin-top: 0.2rem; width: 18px; height: 18px; cursor: pointer;">
+        <div>
+          <label for="rememberLoginCheckbox" style="font-weight: 600; font-size: 0.875rem; color: var(--text-primary); cursor: pointer;">
+            Remember login info on this device
+          </label>
+          <p style="font-size: 0.775rem; color: var(--text-muted); margin-top: 0.15rem; line-height: 1.4;">
+            We'll save your credentials for this profile so you won't need to re-enter your password when signing back in.
+          </p>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+        <button id="confirmFacebookLogoutBtn" class="fb-logout-btn" style="padding: 0.75rem; font-size: 0.95rem;">
+          Log Out
+        </button>
+        <button id="cancelFacebookLogoutBtn" class="btn-icon" style="padding: 0.65rem; justify-content: center; font-weight: 600;">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Switch Account Modal -->
+  <div class="modal-backdrop" id="switchAccountModal" style="display: none;">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700;">Switch Accounts</h3>
+        <button class="btn-icon" id="closeSwitchAccountModalBtn" style="border: none; font-size: 1.1rem;">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+          Select a profile saved on this device to quickly switch without entering your password.
+        </p>
+        <div id="accountsListContainer" style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <!-- Dynamically populated profiles -->
+        </div>
+        <button id="addNewAccountFromSwitchBtn" class="btn-icon" style="width: 100%; padding: 0.75rem; font-weight: 600; justify-content: center; margin-top: 0.75rem; gap: 0.5rem; color: var(--accent-primary);">
+          <span>➕</span> Add Another Account
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Information and Permissions Modal -->
+  <div class="modal-backdrop" id="permissionsModal" style="display: none;">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700;">Your Information & Permissions</h3>
+        <button class="btn-icon" id="closePermissionsModalBtn" style="border: none; font-size: 1.1rem;">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="background-color: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1rem;">
+          <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--accent-primary); margin-bottom: 0.25rem;">Sandboxed Local Storage</h4>
+          <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5;">
+            Cite Circle stores papers, reading vault entries, and discussion cache inside isolated browser storage. No unauthorized file access or unrequested tracking cookies are permitted.
+          </p>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+          <button id="modalExportBibBtn" class="btn-icon" style="padding: 0.75rem; font-weight: 600; justify-content: flex-start; gap: 0.75rem;">
+            <span>📥</span> Download Full BibTeX Citation Archive
+          </button>
+          <button id="modalExportJsonBtn" class="btn-icon" style="padding: 0.75rem; font-weight: 600; justify-content: flex-start; gap: 0.75rem;">
+            <span>📦</span> Export Personal Research Vault (JSON)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Privacy Policy Modal -->
+  <div class="modal-backdrop" id="privacyPolicyModal" style="display: none;">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700;">Privacy Policy & Sandboxing</h3>
+        <button class="btn-icon" id="closePrivacyPolicyModalBtn" style="border: none; font-size: 1.1rem;">✕</button>
+      </div>
+      <div class="modal-body" style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;">
+        <h4 style="color: var(--text-primary); font-weight: 700; margin-bottom: 0.35rem;">1. Academic Data Sovereignty</h4>
+        <p style="margin-bottom: 0.75rem;">Cite Circle is engineered with an offline-first architecture. All research manuscripts and discussions are parsed in sandboxed memory without third-party ad pixels or tracking.</p>
+        <h4 style="color: var(--text-primary); font-weight: 700; margin-bottom: 0.35rem;">2. Cloud Authentication</h4>
+        <p style="margin-bottom: 0.75rem;">Authentication is conducted directly with Google Firebase Auth (Project: cite-circle-3857b) with strict HTTPS transport and encrypted identity tokens.</p>
+        <h4 style="color: var(--text-primary); font-weight: 700; margin-bottom: 0.35rem;">3. File Security Guard</h4>
+        <p>Preprint upload rejects ZIP, RAR, EXE, and executable scripts to defend scholarly networks against malicious payloads.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Terms Modal -->
+  <div class="modal-backdrop" id="termsModal" style="display: none;">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700;">Terms of Service & Ethics</h3>
+        <button class="btn-icon" id="closeTermsModalBtn" style="border: none; font-size: 1.1rem;">✕</button>
+      </div>
+      <div class="modal-body" style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;">
+        <h4 style="color: var(--text-primary); font-weight: 700; margin-bottom: 0.35rem;">Academic Integrity & Fair Attribution</h4>
+        <p style="margin-bottom: 0.75rem;">Authors retain full copyright of submitted manuscripts and preprints. Attribution follows standard DOI and BibTeX provenance rules.</p>
+        <h4 style="color: var(--text-primary); font-weight: 700; margin-bottom: 0.35rem;">Open Peer Review</h4>
+        <p>Scholarly discourse is encouraged to remain constructive, empirical, and compliant with international scientific norms.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Account Ownership & Control Modal -->
+  <div class="modal-backdrop" id="accountControlModal" style="display: none;">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--accent-rose);">Account Ownership & Control</h3>
+        <button class="btn-icon" id="closeAccountControlModalBtn" style="border: none; font-size: 1.1rem;">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; margin-bottom: 1rem;">
+          In compliance with GDPR Right to Erasure, you have complete sovereignty over your academic identity, downloaded cache, and credentials.
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <button id="modalClearCacheBtn" class="btn-icon" style="padding: 0.75rem; font-weight: 600; color: var(--accent-amber); justify-content: flex-start; gap: 0.5rem;">
+            <span>🧹</span> Clear Local Cache (Preserves Saved Vault)
+          </button>
+          <button id="modalWipeDataBtn" class="btn-icon" style="padding: 0.75rem; font-weight: 600; color: var(--accent-rose); justify-content: flex-start; gap: 0.5rem; border-color: rgba(244, 63, 94, 0.4);">
+            <span>🗑️</span> GDPR Complete Data Erasure (Wipe All Records)
+          </button>
+        </div>
       </div>
     </div>
   </div>

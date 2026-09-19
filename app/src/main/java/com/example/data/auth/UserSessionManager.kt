@@ -61,6 +61,7 @@ class UserSessionManager(
     private val keyUserAffiliation = stringPreferencesKey("user_affiliation")
     private val keyUserField = stringPreferencesKey("user_field")
     private val keyPrivacyAccepted = booleanPreferencesKey("privacy_policy_accepted")
+    private val keyRememberLogin = booleanPreferencesKey("remember_login_info")
 
     private val preferences: Flow<Preferences> = store.data.catch { cause ->
         if (cause is IOException) emit(emptyPreferences()) else throw cause
@@ -73,6 +74,7 @@ class UserSessionManager(
     val currentUserAffiliation: Flow<String> = preferences.map { it[keyUserAffiliation].orEmpty() }
     val currentUserField: Flow<String> = preferences.map { it[keyUserField].orEmpty() }
     val isPrivacyAccepted: Flow<Boolean> = preferences.map { it[keyPrivacyAccepted] ?: false }
+    val rememberLoginInfo: Flow<Boolean> = preferences.map { it[keyRememberLogin] ?: true }
 
     companion object {
         private const val MAX_LOGIN_ATTEMPTS = 5
@@ -345,7 +347,138 @@ class UserSessionManager(
         store.edit { it[keyPrivacyAccepted] = true }
     }
 
-    suspend fun signOut() {
+    suspend fun setRememberLoginInfo(remember: Boolean) {
+        store.edit { it[keyRememberLogin] = remember }
+    }
+
+    fun getAllSavedAccounts(): Flow<List<UserAccount>> = userDao.getAllUsers()
+
+    /**
+     * Updates personal and academic details in Room and Firebase Auth.
+     */
+    suspend fun updateProfile(
+        displayName: String,
+        affiliation: String,
+        researchField: String
+    ): AuthResult {
+        val cleanName = displayName.trim()
+        val cleanAffiliation = affiliation.trim()
+        val cleanField = researchField.trim()
+
+        if (cleanName.isBlank()) {
+            return AuthResult.Error("Name cannot be blank.")
+        }
+
+        val email = currentUserEmail.first()
+        if (email.isBlank()) {
+            return AuthResult.Error("No active user session found.")
+        }
+
+        // 1. Update Room local database
+        userDao.updateProfileInfo(email, cleanName, cleanAffiliation, cleanField)
+
+        // 2. Update DataStore session
+        store.edit {
+            it[keyUserName] = cleanName
+            it[keyUserAffiliation] = cleanAffiliation
+            it[keyUserField] = cleanField
+        }
+
+        // 3. Update Firebase Auth display name if online
+        try {
+            val auth = FirebaseAuth.getInstance()
+            val user = auth.currentUser
+            if (user != null) {
+                user.updateProfile(
+                    UserProfileChangeRequest.Builder()
+                        .setDisplayName(cleanName)
+                        .build()
+                ).awaitTask()
+            }
+        } catch (e: Exception) {
+            // Offline or uninitialized: local update succeeded
+        }
+
+        val updated = userDao.findUserByEmail(email)
+        return if (updated != null) AuthResult.Success(updated)
+        else AuthResult.Error("Failed to retrieve updated profile.")
+    }
+
+    /**
+     * Changes account password with validation and Firebase Auth synchronization.
+     */
+    suspend fun changePassword(oldPassword: String, newPassword: String): AuthResult {
+        val cleanOld = oldPassword.trim()
+        val cleanNew = newPassword.trim()
+
+        if (cleanOld.isBlank() || cleanNew.isBlank()) {
+            return AuthResult.Error("Please provide both current and new passwords.")
+        }
+        if (cleanNew.length < 6) {
+            return AuthResult.Error("New password must be at least 6 characters.")
+        }
+        if (cleanOld == cleanNew) {
+            return AuthResult.Error("New password must be different from current password.")
+        }
+
+        val email = currentUserEmail.first()
+        if (email.isBlank()) {
+            return AuthResult.Error("No active user session found.")
+        }
+
+        val localUser = userDao.findUserByEmail(email)
+            ?: return AuthResult.Error("User record not found.")
+
+        // Verify old password
+        val oldHash = hashPassword(cleanOld)
+        if (localUser.passwordHash != oldHash) {
+            return AuthResult.Error("Current password is incorrect.")
+        }
+
+        val newHash = hashPassword(cleanNew)
+        userDao.updatePasswordHash(email, newHash)
+
+        // Update on Firebase Auth if online
+        try {
+            val auth = FirebaseAuth.getInstance()
+            val user = auth.currentUser
+            if (user != null) {
+                user.updatePassword(cleanNew).awaitTask()
+            }
+        } catch (e: Exception) {
+            // Local update succeeded, cloud sync pending
+        }
+
+        return AuthResult.Success(localUser.copy(passwordHash = newHash))
+    }
+
+    /**
+     * Switches session to another saved local account.
+     */
+    suspend fun switchAccount(targetEmail: String): AuthResult {
+        val cleanEmail = targetEmail.trim().lowercase()
+        val targetUser = userDao.findUserByEmail(cleanEmail)
+            ?: return AuthResult.Error("Account $cleanEmail not found.")
+
+        userDao.deactivateAllUsers()
+        userDao.recordLogin(cleanEmail, System.currentTimeMillis())
+
+        saveSession(
+            uid = targetUser.id,
+            email = targetUser.email,
+            name = targetUser.displayName,
+            affiliation = targetUser.affiliation,
+            field = targetUser.researchField,
+            privacyAccepted = true
+        )
+
+        return AuthResult.Success(targetUser)
+    }
+
+    /**
+     * Facebook-style logout with optional credential retention on device.
+     */
+    suspend fun signOut(keepSavedOnDevice: Boolean = true) {
         try {
             FirebaseAuth.getInstance().signOut()
         } catch (e: Exception) {
@@ -354,8 +487,13 @@ class UserSessionManager(
 
         val email = currentUserEmail.first()
         if (email.isNotBlank()) {
-            userDao.deactivateUser(email)
+            if (keepSavedOnDevice) {
+                userDao.deactivateUser(email)
+            } else {
+                userDao.deleteUser(email)
+            }
         }
+
         store.edit {
             it[keyIsLoggedIn] = false
             it[keyUserUid] = ""
@@ -377,7 +515,7 @@ class UserSessionManager(
         if (email.isNotBlank()) {
             userDao.deleteUser(email)
         }
-        signOut()
+        signOut(keepSavedOnDevice = false)
     }
 
     private suspend fun saveSession(

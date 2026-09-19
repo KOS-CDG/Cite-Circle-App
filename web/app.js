@@ -6,12 +6,41 @@ import {
   createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  updateProfile
+  updateProfile,
+  updatePassword
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 
 // Initialize Firebase
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
+
+// Default initial profiles for multi-account switching
+const INITIAL_SAVED_ACCOUNTS = [
+  {
+    name: 'Dr. Morgan Vance',
+    email: 'demo.researcher@cite.circle',
+    affiliation: 'Institute for Advanced Study',
+    field: 'AI & Quantum Computing',
+    avatar: 'MV',
+    isActive: true
+  },
+  {
+    name: 'Prof. Marcus Chen',
+    email: 'prof.marcus.chen@oxford.ac.uk',
+    affiliation: 'Oxford Institute of Biomedical Engineering',
+    field: 'Computational Biology',
+    avatar: 'MC',
+    isActive: false
+  },
+  {
+    name: 'Dr. Elena Rostova',
+    email: 'elena.rostova@cern.ch',
+    affiliation: 'CERN & ETH Zürich',
+    field: 'Physics & Astronomy',
+    avatar: 'ER',
+    isActive: false
+  }
+];
 
 // State management
 const STATE = {
@@ -23,7 +52,12 @@ const STATE = {
   authMode: 'signin', // 'signin' or 'register'
   posts: [],
   vault: [],
-  chats: []
+  chats: [],
+  userProfile: JSON.parse(localStorage.getItem('citecircle_user_profile') || JSON.stringify(INITIAL_SAVED_ACCOUNTS[0])),
+  savedAccounts: JSON.parse(localStorage.getItem('citecircle_saved_accounts') || JSON.stringify(INITIAL_SAVED_ACCOUNTS)),
+  rememberLogin: localStorage.getItem('citecircle_remember_login') !== 'false',
+  dataSaver: localStorage.getItem('citecircle_data_saver') === 'true',
+  alertsEnabled: localStorage.getItem('citecircle_alerts_enabled') !== 'false'
 };
 
 // Initial Sample Research Data
@@ -398,13 +432,23 @@ function updateAuthStateUI(user) {
   const openAuthBtn = document.getElementById('openAuthModalBtn');
   const profileAvatar = document.getElementById('profileAvatar');
   const profileName = document.getElementById('profileName');
+  const profileAffiliation = document.getElementById('profileAffiliation');
   const profileEmail = document.getElementById('profileEmail');
   const profileUid = document.getElementById('profileUid');
-  const profileSignOutBtn = document.getElementById('profileSignOutBtn');
+  const profileDetailsDesc = document.getElementById('profileDetailsDesc');
+  const logoutBtnLabel = document.getElementById('logoutBtnLabel');
+  const fbLogoutAvatar = document.getElementById('fbLogoutAvatar');
+  const fbLogoutHeading = document.getElementById('fbLogoutHeading');
+  const fbLogoutSubtext = document.getElementById('fbLogoutSubtext');
+
+  const profile = STATE.userProfile;
+  const displayName = user ? (user.displayName || profile.name || user.email.split('@')[0]) : (profile.name || 'Dr. Morgan Vance');
+  const displayEmail = user ? user.email : (profile.email || 'demo.researcher@cite.circle');
+  const displayAffil = profile.affiliation || 'Institute for Advanced Study';
+  const displayField = profile.field || 'Computational Neuroscience & AI';
+  const initials = getInitials(displayName);
 
   if (user) {
-    const displayName = user.displayName || user.email.split('@')[0].replace('.', ' ');
-    const initials = getInitials(displayName);
     if (statusBadge) statusBadge.textContent = `Firebase: ${user.email}`;
     if (headerAvatar) {
       headerAvatar.textContent = initials;
@@ -412,23 +456,27 @@ function updateAuthStateUI(user) {
       headerAvatar.title = `${displayName} (${user.email})`;
     }
     if (openAuthBtn) openAuthBtn.style.display = 'none';
-
-    if (profileAvatar) profileAvatar.textContent = initials;
-    if (profileName) profileName.textContent = displayName;
-    if (profileEmail) profileEmail.textContent = user.email;
-    if (profileUid) profileUid.textContent = `Firebase UID: ${user.uid}`;
-    if (profileSignOutBtn) profileSignOutBtn.style.display = 'inline-block';
+    if (profileUid) profileUid.textContent = `Firebase UID: ${user.uid.slice(0, 12)}...`;
   } else {
     if (statusBadge) statusBadge.textContent = 'Guest / Offline';
-    if (headerAvatar) headerAvatar.style.display = 'none';
+    if (headerAvatar) {
+      headerAvatar.textContent = initials;
+      headerAvatar.style.display = 'flex';
+      headerAvatar.title = `${displayName} (Local Mode)`;
+    }
     if (openAuthBtn) openAuthBtn.style.display = 'inline-block';
-
-    if (profileAvatar) profileAvatar.textContent = '??';
-    if (profileName) profileName.textContent = 'Guest Researcher';
-    if (profileEmail) profileEmail.textContent = 'Not signed in';
-    if (profileUid) profileUid.textContent = 'Firebase UID: None (Local Mode)';
-    if (profileSignOutBtn) profileSignOutBtn.style.display = 'none';
+    if (profileUid) profileUid.textContent = 'Local Mode (Room/Web Cache)';
   }
+
+  if (profileAvatar) profileAvatar.textContent = initials;
+  if (profileName) profileName.textContent = displayName;
+  if (profileAffiliation) profileAffiliation.textContent = `${displayAffil} • ${displayField}`;
+  if (profileEmail) profileEmail.textContent = displayEmail;
+  if (profileDetailsDesc) profileDetailsDesc.textContent = `${displayName} • ${displayAffil}`;
+  if (logoutBtnLabel) logoutBtnLabel.textContent = `Log Out ${displayName}`;
+  if (fbLogoutAvatar) fbLogoutAvatar.textContent = initials;
+  if (fbLogoutHeading) fbLogoutHeading.textContent = `Log out of Cite Circle?`;
+  if (fbLogoutSubtext) fbLogoutSubtext.textContent = `${displayName} (${displayEmail})`;
 }
 
 // Tab Switching
@@ -675,10 +723,419 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (profileSignOutBtn) {
-    profileSignOutBtn.addEventListener('click', async () => {
-      await signOut(auth);
-      alert('Signed out of Cite Circle Firebase Auth.');
+  // --- Facebook / Meta Settings & Privacy Interactive Handlers ---
+
+  // 1. Edit Personal Details Modal
+  const editProfileModal = document.getElementById('editProfileModal');
+  const openEditProfileBtn = document.getElementById('openEditProfileBtn');
+  const closeEditProfileModalBtn = document.getElementById('closeEditProfileModalBtn');
+  const cancelEditProfileBtn = document.getElementById('cancelEditProfileBtn');
+  const saveProfileBtn = document.getElementById('saveProfileBtn');
+  const editProfileNameInput = document.getElementById('editProfileNameInput');
+  const editProfileAffiliationInput = document.getElementById('editProfileAffiliationInput');
+  const editProfileFieldInput = document.getElementById('editProfileFieldInput');
+
+  if (openEditProfileBtn && editProfileModal) {
+    openEditProfileBtn.addEventListener('click', () => {
+      const p = STATE.userProfile;
+      if (editProfileNameInput) editProfileNameInput.value = STATE.currentUser?.displayName || p.name || '';
+      if (editProfileAffiliationInput) editProfileAffiliationInput.value = p.affiliation || '';
+      if (editProfileFieldInput) editProfileFieldInput.value = p.field || '';
+      editProfileModal.style.display = 'flex';
+    });
+  }
+
+  const closeEditProfile = () => { if (editProfileModal) editProfileModal.style.display = 'none'; };
+  if (closeEditProfileModalBtn) closeEditProfileModalBtn.addEventListener('click', closeEditProfile);
+  if (cancelEditProfileBtn) cancelEditProfileBtn.addEventListener('click', closeEditProfile);
+
+  if (saveProfileBtn) {
+    saveProfileBtn.addEventListener('click', async () => {
+      const newName = editProfileNameInput?.value.trim();
+      const newAffil = editProfileAffiliationInput?.value.trim();
+      const newField = editProfileFieldInput?.value.trim();
+
+      if (!newName) {
+        alert('Please enter your full name.');
+        return;
+      }
+
+      saveProfileBtn.disabled = true;
+      saveProfileBtn.textContent = 'Saving...';
+
+      try {
+        if (auth.currentUser) {
+          await updateProfile(auth.currentUser, { displayName: newName });
+        }
+      } catch (err) {
+        console.warn('Firebase Auth updateProfile fallback to local store:', err);
+      }
+
+      STATE.userProfile = {
+        ...STATE.userProfile,
+        name: newName,
+        affiliation: newAffil || 'Academic Researcher',
+        field: newField || 'General Science',
+        avatar: getInitials(newName)
+      };
+      localStorage.setItem('citecircle_user_profile', JSON.stringify(STATE.userProfile));
+
+      // Update in saved accounts list if present
+      const currentEmail = auth.currentUser?.email || STATE.userProfile.email;
+      const acctIdx = STATE.savedAccounts.findIndex(a => a.email === currentEmail);
+      if (acctIdx >= 0) {
+        STATE.savedAccounts[acctIdx] = { ...STATE.savedAccounts[acctIdx], ...STATE.userProfile };
+        localStorage.setItem('citecircle_saved_accounts', JSON.stringify(STATE.savedAccounts));
+      }
+
+      updateAuthStateUI(auth.currentUser);
+      saveProfileBtn.disabled = false;
+      saveProfileBtn.textContent = 'Save Changes';
+      closeEditProfile();
+      alert('Personal details updated successfully!');
+    });
+  }
+
+  // 2. Change Password Modal
+  const changePasswordModal = document.getElementById('changePasswordModal');
+  const openChangePasswordBtn = document.getElementById('openChangePasswordBtn');
+  const closeChangePasswordModalBtn = document.getElementById('closeChangePasswordModalBtn');
+  const cancelChangePasswordBtn = document.getElementById('cancelChangePasswordBtn');
+  const savePasswordBtn = document.getElementById('savePasswordBtn');
+  const currentPasswordInput = document.getElementById('currentPasswordInput');
+  const newPasswordInput = document.getElementById('newPasswordInput');
+  const confirmPasswordInput = document.getElementById('confirmPasswordInput');
+  const passwordErrorMsg = document.getElementById('passwordErrorMsg');
+
+  if (openChangePasswordBtn && changePasswordModal) {
+    openChangePasswordBtn.addEventListener('click', () => {
+      if (passwordErrorMsg) passwordErrorMsg.style.display = 'none';
+      if (currentPasswordInput) currentPasswordInput.value = '';
+      if (newPasswordInput) newPasswordInput.value = '';
+      if (confirmPasswordInput) confirmPasswordInput.value = '';
+      changePasswordModal.style.display = 'flex';
+    });
+  }
+
+  const closeChangePassword = () => { if (changePasswordModal) changePasswordModal.style.display = 'none'; };
+  if (closeChangePasswordModalBtn) closeChangePasswordModalBtn.addEventListener('click', closeChangePassword);
+  if (cancelChangePasswordBtn) cancelChangePasswordBtn.addEventListener('click', closeChangePassword);
+
+  if (savePasswordBtn) {
+    savePasswordBtn.addEventListener('click', async () => {
+      const curPass = currentPasswordInput?.value.trim();
+      const newPass = newPasswordInput?.value.trim();
+      const confPass = confirmPasswordInput?.value.trim();
+
+      if (!newPass || newPass.length < 6) {
+        if (passwordErrorMsg) {
+          passwordErrorMsg.textContent = 'New password must be at least 6 characters long.';
+          passwordErrorMsg.style.display = 'block';
+        }
+        return;
+      }
+      if (newPass !== confPass) {
+        if (passwordErrorMsg) {
+          passwordErrorMsg.textContent = 'New passwords do not match. Please re-enter.';
+          passwordErrorMsg.style.display = 'block';
+        }
+        return;
+      }
+
+      savePasswordBtn.disabled = true;
+      savePasswordBtn.textContent = 'Updating...';
+
+      try {
+        if (auth.currentUser) {
+          await updatePassword(auth.currentUser, newPass);
+        }
+        closeChangePassword();
+        alert('Password updated securely! Next time you sign in, use your new credentials.');
+      } catch (err) {
+        if (passwordErrorMsg) {
+          passwordErrorMsg.textContent = err.message || 'Error updating password. You may need to sign in again first.';
+          passwordErrorMsg.style.display = 'block';
+        }
+      } finally {
+        savePasswordBtn.disabled = false;
+        savePasswordBtn.textContent = 'Change Password';
+      }
+    });
+  }
+
+  // 3. Dedicated Facebook Logout Flow
+  const facebookLogoutModal = document.getElementById('facebookLogoutModal');
+  const openFacebookLogoutBtn = document.getElementById('openFacebookLogoutBtn');
+  const cancelFacebookLogoutBtn = document.getElementById('cancelFacebookLogoutBtn');
+  const confirmFacebookLogoutBtn = document.getElementById('confirmFacebookLogoutBtn');
+  const rememberLoginCheckbox = document.getElementById('rememberLoginCheckbox');
+
+  if (openFacebookLogoutBtn && facebookLogoutModal) {
+    openFacebookLogoutBtn.addEventListener('click', () => {
+      if (rememberLoginCheckbox) rememberLoginCheckbox.checked = STATE.rememberLogin;
+      facebookLogoutModal.style.display = 'flex';
+    });
+  }
+
+  if (cancelFacebookLogoutBtn && facebookLogoutModal) {
+    cancelFacebookLogoutBtn.addEventListener('click', () => {
+      facebookLogoutModal.style.display = 'none';
+    });
+  }
+
+  if (confirmFacebookLogoutBtn) {
+    confirmFacebookLogoutBtn.addEventListener('click', async () => {
+      const keepSaved = rememberLoginCheckbox ? rememberLoginCheckbox.checked : true;
+      STATE.rememberLogin = keepSaved;
+      localStorage.setItem('citecircle_remember_login', String(keepSaved));
+
+      const activeEmail = auth.currentUser?.email || STATE.userProfile.email;
+
+      if (!keepSaved) {
+        // Facebook behavior: remove remembered profile from device
+        STATE.savedAccounts = STATE.savedAccounts.filter(a => a.email !== activeEmail);
+        localStorage.setItem('citecircle_saved_accounts', JSON.stringify(STATE.savedAccounts));
+      }
+
+      try {
+        await signOut(auth);
+      } catch (err) {
+        console.warn('Sign out:', err);
+      }
+
+      facebookLogoutModal.style.display = 'none';
+      STATE.currentUser = null;
+      updateAuthStateUI(null);
+      alert(keepSaved
+        ? 'Logged out. Your login credentials remain saved on this device for quick access.'
+        : 'Logged out. Your login info has been removed from this device.');
+    });
+  }
+
+  // 4. Switch Accounts Modal
+  const switchAccountModal = document.getElementById('switchAccountModal');
+  const openSwitchAccountBtn = document.getElementById('openSwitchAccountBtn');
+  const closeSwitchAccountModalBtn = document.getElementById('closeSwitchAccountModalBtn');
+  const accountsListContainer = document.getElementById('accountsListContainer');
+  const addNewAccountFromSwitchBtn = document.getElementById('addNewAccountFromSwitchBtn');
+
+  function renderSwitchAccountsList() {
+    if (!accountsListContainer) return;
+    const currentEmail = auth.currentUser?.email || STATE.userProfile.email;
+
+    accountsListContainer.innerHTML = STATE.savedAccounts.map(acct => {
+      const isCurrent = acct.email === currentEmail;
+      return `
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; border-radius: var(--radius-md); background: ${isCurrent ? 'var(--bg-card-hover)' : 'var(--bg-primary)'}; border: 1px solid ${isCurrent ? 'var(--accent-primary)' : 'var(--border-subtle)'};">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div class="author-avatar" style="width: 40px; height: 40px; font-size: 0.95rem;">${acct.avatar || getInitials(acct.name)}</div>
+            <div>
+              <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-primary);">${escapeHtml(acct.name)}</div>
+              <div style="font-size: 0.75rem; color: var(--text-secondary);">${escapeHtml(acct.affiliation)}</div>
+              <div style="font-size: 0.7rem; color: var(--text-muted); font-family: var(--font-mono);">${escapeHtml(acct.email)}</div>
+            </div>
+          </div>
+          <div>
+            ${isCurrent ? `
+              <span style="font-size: 0.75rem; font-weight: 700; color: var(--accent-emerald); padding: 0.25rem 0.5rem; background: rgba(16, 185, 129, 0.15); border-radius: var(--radius-full);">Active</span>
+            ` : `
+              <button class="btn-icon switch-to-acct-btn" data-email="${acct.email}" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; font-weight: 600; color: var(--accent-primary);">Switch</button>
+            `}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Attach switch clicks
+    accountsListContainer.querySelectorAll('.switch-to-acct-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const targetEmail = btn.getAttribute('data-email');
+        const target = STATE.savedAccounts.find(a => a.email === targetEmail);
+        if (target) {
+          STATE.userProfile = target;
+          localStorage.setItem('citecircle_user_profile', JSON.stringify(target));
+          if (target.email === 'demo.researcher@cite.circle') {
+            try {
+              await signInWithEmailAndPassword(auth, 'demo.researcher@cite.circle', 'citecircle2026');
+            } catch {
+              updateAuthStateUI(null);
+            }
+          } else {
+            updateAuthStateUI(null);
+          }
+          if (switchAccountModal) switchAccountModal.style.display = 'none';
+          alert(`Switched active profile to ${target.name}!`);
+        }
+      });
+    });
+  }
+
+  if (openSwitchAccountBtn && switchAccountModal) {
+    openSwitchAccountBtn.addEventListener('click', () => {
+      renderSwitchAccountsList();
+      switchAccountModal.style.display = 'flex';
+    });
+  }
+
+  if (closeSwitchAccountModalBtn && switchAccountModal) {
+    closeSwitchAccountModalBtn.addEventListener('click', () => {
+      switchAccountModal.style.display = 'none';
+    });
+  }
+
+  if (addNewAccountFromSwitchBtn) {
+    addNewAccountFromSwitchBtn.addEventListener('click', () => {
+      if (switchAccountModal) switchAccountModal.style.display = 'none';
+      showAuthModal('register');
+    });
+  }
+
+  // 5. Information and Permissions Modal
+  const permissionsModal = document.getElementById('permissionsModal');
+  const openPermissionsBtn = document.getElementById('openPermissionsBtn');
+  const closePermissionsModalBtn = document.getElementById('closePermissionsModalBtn');
+  const modalExportBibBtn = document.getElementById('modalExportBibBtn');
+  const modalExportJsonBtn = document.getElementById('modalExportJsonBtn');
+
+  if (openPermissionsBtn && permissionsModal) {
+    openPermissionsBtn.addEventListener('click', () => {
+      permissionsModal.style.display = 'flex';
+    });
+  }
+  if (closePermissionsModalBtn && permissionsModal) {
+    closePermissionsModalBtn.addEventListener('click', () => {
+      permissionsModal.style.display = 'none';
+    });
+  }
+
+  if (modalExportBibBtn) {
+    modalExportBibBtn.addEventListener('click', () => {
+      if (STATE.vault.length === 0) {
+        alert('Your research vault is currently empty.');
+        return;
+      }
+      const allBib = STATE.vault.map((p, i) => `@article{vault_${i + 1},\n  title = {${p.title}},\n  doi = {${p.doi}},\n  year = {2026}\n}`).join('\n\n');
+      navigator.clipboard?.writeText(allBib).then(() => {
+        alert(`Exported ${STATE.vault.length} BibTeX citations to clipboard!`);
+      });
+    });
+  }
+
+  if (modalExportJsonBtn) {
+    modalExportJsonBtn.addEventListener('click', () => {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+        profile: STATE.userProfile,
+        vault: STATE.vault,
+        timestamp: new Date().toISOString()
+      }, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `citecircle_vault_export_${Date.now()}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    });
+  }
+
+  // 6. Privacy Policy & Terms Modals
+  const privacyPolicyModal = document.getElementById('privacyPolicyModal');
+  const openPrivacyPolicyBtn = document.getElementById('openPrivacyPolicyBtn');
+  const closePrivacyPolicyModalBtn = document.getElementById('closePrivacyPolicyModalBtn');
+  if (openPrivacyPolicyBtn && privacyPolicyModal) {
+    openPrivacyPolicyBtn.addEventListener('click', () => { privacyPolicyModal.style.display = 'flex'; });
+  }
+  if (closePrivacyPolicyModalBtn && privacyPolicyModal) {
+    closePrivacyPolicyModalBtn.addEventListener('click', () => { privacyPolicyModal.style.display = 'none'; });
+  }
+
+  const termsModal = document.getElementById('termsModal');
+  const openTermsBtn = document.getElementById('openTermsBtn');
+  const closeTermsModalBtn = document.getElementById('closeTermsModalBtn');
+  if (openTermsBtn && termsModal) {
+    openTermsBtn.addEventListener('click', () => { termsModal.style.display = 'flex'; });
+  }
+  if (closeTermsModalBtn && termsModal) {
+    closeTermsModalBtn.addEventListener('click', () => { termsModal.style.display = 'none'; });
+  }
+
+  // 7. Account Ownership & Control Modal
+  const accountControlModal = document.getElementById('accountControlModal');
+  const openAccountControlBtn = document.getElementById('openAccountControlBtn');
+  const closeAccountControlModalBtn = document.getElementById('closeAccountControlModalBtn');
+  const modalClearCacheBtn = document.getElementById('modalClearCacheBtn');
+  const modalWipeDataBtn = document.getElementById('modalWipeDataBtn');
+
+  if (openAccountControlBtn && accountControlModal) {
+    openAccountControlBtn.addEventListener('click', () => { accountControlModal.style.display = 'flex'; });
+  }
+  if (closeAccountControlModalBtn && accountControlModal) {
+    closeAccountControlModalBtn.addEventListener('click', () => { accountControlModal.style.display = 'none'; });
+  }
+
+  if (modalClearCacheBtn) {
+    modalClearCacheBtn.addEventListener('click', () => {
+      STATE.posts = DEFAULT_POSTS;
+      savePosts();
+      renderPosts();
+      if (accountControlModal) accountControlModal.style.display = 'none';
+      alert('Local feed cache purged. Your saved reading vault remains protected.');
+    });
+  }
+
+  if (modalWipeDataBtn) {
+    modalWipeDataBtn.addEventListener('click', () => {
+      if (confirm('GDPR Erasure: Are you sure you want to permanently delete all local cache, accounts, reading lists, and session records?')) {
+        localStorage.clear();
+        STATE.posts = [];
+        STATE.vault = [];
+        STATE.chats = [];
+        STATE.savedAccounts = INITIAL_SAVED_ACCOUNTS.slice(0, 1);
+        STATE.userProfile = INITIAL_SAVED_ACCOUNTS[0];
+        renderPosts();
+        renderVault();
+        renderChats();
+        updateVaultBadge();
+        updateAuthStateUI(null);
+        if (accountControlModal) accountControlModal.style.display = 'none';
+        alert('All local data, sessions, and cache wiped permanently.');
+      }
+    });
+  }
+
+  // 8. Settings Preferences
+  const settingsThemeToggleBtn = document.getElementById('settingsThemeToggleBtn');
+  const themeStatusText = document.getElementById('themeStatusText');
+  const dataSaverCheckbox = document.getElementById('dataSaverCheckbox');
+  const alertsCheckbox = document.getElementById('alertsCheckbox');
+
+  if (themeStatusText) {
+    themeStatusText.textContent = `${STATE.theme.charAt(0).toUpperCase() + STATE.theme.slice(1)} theme is currently active`;
+  }
+
+  if (settingsThemeToggleBtn) {
+    settingsThemeToggleBtn.addEventListener('click', () => {
+      STATE.theme = STATE.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', STATE.theme);
+      localStorage.setItem('citecircle_theme', STATE.theme);
+      if (themeStatusText) {
+        themeStatusText.textContent = `${STATE.theme.charAt(0).toUpperCase() + STATE.theme.slice(1)} theme is currently active`;
+      }
+    });
+  }
+
+  if (dataSaverCheckbox) {
+    dataSaverCheckbox.checked = STATE.dataSaver;
+    dataSaverCheckbox.addEventListener('change', () => {
+      STATE.dataSaver = dataSaverCheckbox.checked;
+      localStorage.setItem('citecircle_data_saver', String(STATE.dataSaver));
+    });
+  }
+
+  if (alertsCheckbox) {
+    alertsCheckbox.checked = STATE.alertsEnabled;
+    alertsCheckbox.addEventListener('change', () => {
+      STATE.alertsEnabled = alertsCheckbox.checked;
+      localStorage.setItem('citecircle_alerts_enabled', String(STATE.alertsEnabled));
     });
   }
 
