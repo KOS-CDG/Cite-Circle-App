@@ -11,6 +11,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,6 +21,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -43,6 +45,8 @@ import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import com.example.data.AuthorIdentity
 import com.example.data.ProfileStats
 import com.example.data.SavedPaper
@@ -69,7 +73,8 @@ private fun isPushedRoute(route: String?): Boolean {
   return r == "compose" || r == "chat" || r == "notifications" || r == "messenger" ||
     r.startsWith("post/") || r.startsWith("quote/") || r.startsWith("share/") ||
     r.startsWith("edit/") || r.startsWith("image/") || r.startsWith("venue/") ||
-    r.startsWith("chat_thread/") || r.startsWith("pdf_viewer")
+    r.startsWith("chat_thread/") || r.startsWith("pdf_viewer") ||
+    r == "privacy_policy" || r == "onboarding_permissions"
 }
 
 class MainActivity : ComponentActivity() {
@@ -110,9 +115,11 @@ private val NavItems = listOf(
 @Composable
 fun FolioApp(viewModel: HomeViewModel) {
   val context = androidx.compose.ui.platform.LocalContext.current
+  val application = context.applicationContext as MyApplication
   val navController = rememberNavController()
   val authManager = remember { com.example.ui.auth.FirebaseAuthManager(context) }
-  val startDestination = remember { if (authManager.getCurrentUser() != null) "feed" else "auth" }
+  val isLocalLoggedIn = remember { kotlinx.coroutines.runBlocking { application.sessionManager.isLoggedIn.first() } }
+  val startDestination = remember { if (authManager.getCurrentUser() != null || isLocalLoggedIn) "feed" else "auth" }
 
   // Derived from the back stack rather than an addOnDestinationChangedListener call in the
   // composable body — that registered a fresh, never-removed listener on every recomposition.
@@ -121,6 +128,8 @@ fun FolioApp(viewModel: HomeViewModel) {
 
   // Screens that supply their own header and should not sit inside the app chrome.
   val chromeless = currentRoute == "auth" ||
+    currentRoute == "onboarding_permissions" ||
+    currentRoute == "privacy_policy" ||
     currentRoute == "compose" ||
     currentRoute.startsWith("share/") ||
     currentRoute.startsWith("post/") ||
@@ -178,11 +187,34 @@ fun FolioApp(viewModel: HomeViewModel) {
       }
     ) {
       composable("auth") {
-          com.example.ui.auth.AuthScreen(
-              onAuthSuccess = {
-                  navController.navigate("feed") { popUpTo("auth") { inclusive = true } }
-              }
-          )
+        com.example.ui.auth.AuthScreen(
+          onAuthSuccess = {
+            navController.navigate("feed") { popUpTo("auth") { inclusive = true } }
+          },
+          onNavigateToPermissions = {
+            navController.navigate("onboarding_permissions")
+          },
+          onNavigateToPrivacy = {
+            navController.navigate("privacy_policy")
+          }
+        )
+      }
+      composable("onboarding_permissions") {
+        com.example.ui.auth.PermissionsOnboardingScreen(
+          onFinished = {
+            navController.navigate("feed") { popUpTo("auth") { inclusive = true } }
+          }
+        )
+      }
+      composable("privacy_policy") {
+        com.example.ui.privacy.PrivacyPolicyScreen(
+          onBack = { navController.popBackStack() },
+          onAccountDeleted = {
+            navController.navigate("auth") {
+              popUpTo(0) { inclusive = true }
+            }
+          }
+        )
       }
       composable("feed") { HomeScreen(viewModel, navController) }
       composable("fields") { FieldsScreen(viewModel, navController) }
@@ -1005,6 +1037,89 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
       }
 
       item { CitationChart(feed.items) }
+
+      item {
+        val app = profileContext.applicationContext as MyApplication
+        val scope = rememberCoroutineScope()
+        var paperCount by remember { mutableIntStateOf(0) }
+        var showSignOutDialog by remember { mutableStateOf(false) }
+
+        LaunchedEffect(Unit) {
+          paperCount = app.repository.countAllPapers()
+        }
+
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+          shape = MaterialTheme.shapes.medium,
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        ) {
+          Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+              "Account & Privacy Governance",
+              style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+              color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+              "Local storage active • $paperCount cached papers in database",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(Modifier.height(14.dp))
+
+            OutlinedButton(
+              onClick = { navController.navigate("privacy_policy") },
+              modifier = Modifier.fillMaxWidth(),
+              shape = MaterialTheme.shapes.small
+            ) {
+              Icon(Icons.Outlined.Security, contentDescription = null, modifier = Modifier.size(18.dp))
+              Spacer(Modifier.width(8.dp))
+              Text("Permissions, Privacy Policy & Cache")
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedButton(
+              onClick = { showSignOutDialog = true },
+              modifier = Modifier.fillMaxWidth(),
+              shape = MaterialTheme.shapes.small,
+              colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+            ) {
+              Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+              Spacer(Modifier.width(8.dp))
+              Text("Sign Out of Account")
+            }
+          }
+        }
+
+        if (showSignOutDialog) {
+          AlertDialog(
+            onDismissRequest = { showSignOutDialog = false },
+            title = { Text("Sign Out?") },
+            text = { Text("You can sign back in anytime. Your bookmarked papers and settings remain stored on this device.") },
+            confirmButton = {
+              TextButton(
+                onClick = {
+                  showSignOutDialog = false
+                  scope.launch {
+                    app.sessionManager.signOut()
+                    navController.navigate("auth") {
+                      popUpTo(0) { inclusive = true }
+                    }
+                  }
+                }
+              ) {
+                Text("Sign Out", color = MaterialTheme.colorScheme.error)
+              }
+            },
+            dismissButton = {
+              TextButton(onClick = { showSignOutDialog = false }) { Text("Cancel") }
+            }
+          )
+        }
+      }
 
       item {
         Text(

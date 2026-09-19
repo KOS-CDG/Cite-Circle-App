@@ -12,6 +12,8 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.room.withTransaction
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.example.data.auth.UserAccount
+import com.example.data.auth.UserAccountDao
 import com.example.data.chat.ChatMessageDao
 import com.example.data.chat.ChatMessageEntity
 import com.example.data.chat.ConversationDao
@@ -149,6 +151,33 @@ interface SavedPaperDao {
 
     @Query("UPDATE saved_papers SET pdfLocalPath = :localPath WHERE id = :id")
     suspend fun updatePdfLocalPath(id: String, localPath: String)
+
+    /** Database Query Limiter: Retrieves papers with strict pagination limits to avoid UI and memory freezing. */
+    @Query("SELECT * FROM saved_papers ORDER BY publishedAt DESC LIMIT :limit OFFSET :offset")
+    fun getPagedPapers(limit: Int, offset: Int): Flow<List<SavedPaper>>
+
+    /** Database Query Limiter: Retrieves vault papers with strict pagination limits. */
+    @Query("SELECT * FROM saved_papers WHERE pdfLocalPath != '' OR pdfUrl != '' ORDER BY publishedAt DESC LIMIT :limit OFFSET :offset")
+    fun getPagedVaultPapers(limit: Int, offset: Int): Flow<List<SavedPaper>>
+
+    /** Returns total count of papers stored in local database. */
+    @Query("SELECT COUNT(*) FROM saved_papers")
+    suspend fun countAllPapers(): Int
+
+    /** Returns count of papers with local or remote document attachments. */
+    @Query("SELECT COUNT(*) FROM saved_papers WHERE pdfLocalPath != '' OR pdfUrl != ''")
+    suspend fun countVaultPapers(): Int
+
+    /**
+     * Database Cache Limiter: Automatically evicts old unbookmarked cached papers beyond [maxKeep]
+     * to prevent unbounded SQLite disk growth.
+     */
+    @Query("DELETE FROM saved_papers WHERE isBookmarked = 0 AND id NOT IN (SELECT id FROM saved_papers ORDER BY publishedAt DESC LIMIT :maxKeep)")
+    suspend fun cleanupExcessCache(maxKeep: Int = 200)
+
+    /** Clears all unbookmarked cache rows to free local storage. */
+    @Query("DELETE FROM saved_papers WHERE isBookmarked = 0")
+    suspend fun clearUnbookmarkedCache()
 }
 
 @Dao
@@ -181,9 +210,10 @@ interface CommentDao {
         SavedPaper::class,
         Comment::class,
         ConversationEntity::class,
-        ChatMessageEntity::class
+        ChatMessageEntity::class,
+        UserAccount::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -191,6 +221,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun commentDao(): CommentDao
     abstract fun conversationDao(): ConversationDao
     abstract fun chatMessageDao(): ChatMessageDao
+    abstract fun userAccountDao(): UserAccountDao
 
     companion object {
         /**
@@ -328,6 +359,30 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE `saved_papers` ADD COLUMN `openAccess` INTEGER NOT NULL DEFAULT 0")
             }
         }
+
+        fun migration4To5(): Migration = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `user_accounts` (
+                        `id` TEXT NOT NULL PRIMARY KEY,
+                        `email` TEXT NOT NULL,
+                        `displayName` TEXT NOT NULL,
+                        `passwordHash` TEXT NOT NULL,
+                        `affiliation` TEXT NOT NULL,
+                        `researchField` TEXT NOT NULL,
+                        `avatarUri` TEXT NOT NULL,
+                        `isActive` INTEGER NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        `lastLoginAt` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_user_accounts_email` ON `user_accounts` (`email`)"
+                )
+            }
+        }
     }
 }
 
@@ -348,6 +403,17 @@ class PaperRepository(private val database: AppDatabase) {
     val recentQuotes: Flow<List<SavedPaper>> = dao.getRecentQuotes()
     val recentComments: Flow<List<Comment>> = commentDao.recentComments()
     val venueCounts: Flow<List<VenueCount>> = dao.getVenueCounts()
+
+    fun pagedPapers(limit: Int = 50, offset: Int = 0): Flow<List<SavedPaper>> = dao.getPagedPapers(limit, offset)
+    fun pagedVaultPapers(limit: Int = 50, offset: Int = 0): Flow<List<SavedPaper>> = dao.getPagedVaultPapers(limit, offset)
+    suspend fun countAllPapers(): Int = dao.countAllPapers()
+    suspend fun countVaultPapers(): Int = dao.countVaultPapers()
+    suspend fun cleanupExcessCache(maxKeep: Int = 200) = dao.cleanupExcessCache(maxKeep)
+    suspend fun clearUnbookmarkedCache() = dao.clearUnbookmarkedCache()
+
+    val userAccounts: Flow<List<UserAccount>> = database.userAccountDao().getAllUsers()
+    val activeUser: Flow<UserAccount?> = database.userAccountDao().getActiveUser()
+    val userAccountDao: UserAccountDao = database.userAccountDao()
 
     fun paper(id: String): Flow<SavedPaper?> = dao.getPaper(id)
 

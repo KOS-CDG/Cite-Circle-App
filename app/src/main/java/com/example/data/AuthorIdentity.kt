@@ -28,14 +28,26 @@ data class AuthorIdentity(
          * missing display name must not stop someone from drafting a post.
          */
         fun current(context: Context): AuthorIdentity = try {
-            val user = FirebaseAuth.getInstance().currentUser
-            val name = user?.displayName?.takeIf { it.isNotBlank() }
-                ?: user?.email?.substringBefore('@')?.takeIf { it.isNotBlank() }
-            if (name == null) fallback(context) else AuthorIdentity(
-                name = name,
-                initials = initialsOf(name),
-                affiliation = fallback(context).affiliation
-            )
+            val app = context.applicationContext as? com.example.MyApplication
+            val localUser = app?.database?.userAccountDao()?.let { dao ->
+                kotlinx.coroutines.runBlocking { dao.getActiveUserOnce() }
+            }
+            if (localUser != null && localUser.displayName.isNotBlank()) {
+                AuthorIdentity(
+                    name = localUser.displayName,
+                    initials = initialsOf(localUser.displayName),
+                    affiliation = localUser.affiliation.ifBlank { fallback(context).affiliation }
+                )
+            } else {
+                val user = FirebaseAuth.getInstance().currentUser
+                val name = user?.displayName?.takeIf { it.isNotBlank() }
+                    ?: user?.email?.substringBefore('@')?.takeIf { it.isNotBlank() }
+                if (name == null) fallback(context) else AuthorIdentity(
+                    name = name,
+                    initials = initialsOf(name),
+                    affiliation = fallback(context).affiliation
+                )
+            }
         } catch (e: Exception) {
             fallback(context)
         }

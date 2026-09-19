@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.example.data.AppDatabase
 import com.example.data.PaperRepository
 import com.example.data.SettingsRepository
+import com.example.data.auth.UserSessionManager
 import com.example.data.chat.ChatRepository
 
 class MyApplication : Application() {
@@ -12,6 +13,7 @@ class MyApplication : Application() {
     lateinit var repository: PaperRepository
     lateinit var settings: SettingsRepository
     lateinit var chatRepository: ChatRepository
+    lateinit var sessionManager: UserSessionManager
 
     override fun onCreate() {
         super.onCreate()
@@ -19,11 +21,13 @@ class MyApplication : Application() {
             .addMigrations(
                 AppDatabase.migration1To2(System.currentTimeMillis()),
                 AppDatabase.migration2To3(),
-                AppDatabase.migration3To4()
+                AppDatabase.migration3To4(),
+                AppDatabase.migration4To5()
             )
             .build()
         repository = PaperRepository(database)
         settings = SettingsRepository(this)
         chatRepository = ChatRepository(database, this)
+        sessionManager = UserSessionManager(this, database)
     }
 }
