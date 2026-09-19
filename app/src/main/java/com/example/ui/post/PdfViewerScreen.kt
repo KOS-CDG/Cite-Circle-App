@@ -17,6 +17,8 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.DarkMode
@@ -41,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.example.data.PdfStore
+import com.example.data.security.DocumentFormat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -215,10 +218,30 @@ fun PdfViewerScreen(
                 }
 
                 activeLocalPath.isNotBlank() -> {
-                    PdfRendererContent(
-                        filePath = activeLocalPath,
-                        nightMode = nightMode
-                    )
+                    val format = PdfStore.getDocumentFormat(activeLocalPath)
+                    when {
+                        activeLocalPath.endsWith(".pdf", ignoreCase = true) -> {
+                            PdfRendererContent(
+                                filePath = activeLocalPath,
+                                nightMode = nightMode
+                            )
+                        }
+                        format == DocumentFormat.TXT ||
+                        format == DocumentFormat.MD ||
+                        format == DocumentFormat.TEX -> {
+                            TextManuscriptContent(
+                                filePath = activeLocalPath,
+                                nightMode = nightMode
+                            )
+                        }
+                        else -> {
+                            WordDocumentContent(
+                                filePath = activeLocalPath,
+                                paperTitle = paperTitle,
+                                format = format
+                            )
+                        }
+                    }
                 }
 
                 else -> {
@@ -454,19 +477,121 @@ private fun applyInvertFilter(source: Bitmap): Bitmap {
 private fun sharePdf(context: Context, localPath: String, title: String) {
     try {
         val file = File(localPath)
+        val format = DocumentFormat.fromExtension(file.extension)
+        val mime = format?.mimeType ?: "application/pdf"
         val uri: Uri = FileProvider.getUriForFile(
             context,
             "${context.packageName}.fileprovider",
             file
         )
         val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/pdf"
+            type = mime
             putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(Intent.EXTRA_SUBJECT, title)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(Intent.createChooser(intent, "Share Research Paper PDF"))
+        context.startActivity(Intent.createChooser(intent, "Share Research Manuscript"))
     } catch (e: Exception) {
-        Log.e("PdfViewer", "Error sharing PDF", e)
+        Log.e("PdfViewer", "Error sharing document", e)
+    }
+}
+
+@Composable
+private fun TextManuscriptContent(
+    filePath: String,
+    nightMode: Boolean
+) {
+    val content = remember(filePath) {
+        try {
+            File(filePath).readText().take(500_000)
+        } catch (e: Exception) {
+            "Unable to read manuscript text: ${e.message}"
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .background(
+                if (nightMode) Color(0xFF1E1E1E) else Color.White,
+                shape = MaterialTheme.shapes.small
+            )
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            text = content,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (nightMode) Color(0xFFECEFF1) else Color(0xFF1A1A1A)
+        )
+    }
+}
+
+@Composable
+private fun WordDocumentContent(
+    filePath: String,
+    paperTitle: String,
+    format: DocumentFormat
+) {
+    val context = LocalContext.current
+    val file = remember(filePath) { File(filePath) }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+    ) {
+        Icon(
+            Icons.Outlined.Description,
+            contentDescription = null,
+            modifier = Modifier.size(64.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            paperTitle.ifBlank { file.name },
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "${format.label} Manuscript • ${PdfStore.getFormattedSize(filePath)}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(24.dp))
+        Button(
+            onClick = {
+                try {
+                    val uri = FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        file
+                    )
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(uri, format.mimeType)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(Intent.createChooser(intent, "Open manuscript in..."))
+                } catch (e: Exception) {
+                    Log.e("PdfViewer", "Error launching external document viewer", e)
+                }
+            },
+            shape = MaterialTheme.shapes.extraLarge
+        ) {
+            Text("Open in Word / Office App")
+        }
+        Spacer(Modifier.height(12.dp))
+        OutlinedButton(
+            onClick = { sharePdf(context, filePath, paperTitle) },
+            shape = MaterialTheme.shapes.extraLarge
+        ) {
+            Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Share Manuscript")
+        }
     }
 }

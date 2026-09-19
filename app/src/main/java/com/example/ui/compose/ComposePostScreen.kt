@@ -40,7 +40,10 @@ import com.example.data.CitationStyle
 import com.example.data.ImageStore
 import com.example.data.PdfStore
 import com.example.data.SavedPaper
+import com.example.data.security.DocumentFormat
+import com.example.data.security.ValidationResult
 import com.example.network.AcademicPaperResolver
+import com.example.network.PaperUploadApiService
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.UUID
@@ -141,19 +144,39 @@ fun ComposePostScreen(
         }
     }
 
-    val pdfPicker = rememberLauncherForActivityResult(
+    val allowedDocumentMimeTypes = remember {
+        arrayOf(
+            "application/pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/msword",
+            "application/rtf",
+            "text/rtf",
+            "text/plain",
+            "text/markdown",
+            "application/x-tex"
+        )
+    }
+
+    val documentPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
             scope.launch {
                 val previous = pdfLocalPath
-                val stored = PdfStore.persist(context, uri)
-                if (stored == null) {
-                    viewModel.report("Unable to process selected PDF file")
-                } else {
-                    pdfLocalPath = stored
-                    if (previous.isNotBlank() && previous != originalPdf) {
-                        PdfStore.delete(context, previous)
+                val (stored, validation) = PdfStore.persistDocument(context, uri)
+                when (validation) {
+                    is ValidationResult.Success -> {
+                        if (stored != null) {
+                            pdfLocalPath = stored
+                            if (previous.isNotBlank() && previous != originalPdf) {
+                                PdfStore.delete(context, previous)
+                            }
+                        } else {
+                            viewModel.report("Unable to process selected document.")
+                        }
+                    }
+                    is ValidationResult.Error -> {
+                        viewModel.report(validation.message)
                     }
                 }
             }
@@ -280,25 +303,26 @@ fun ComposePostScreen(
         Spacer(Modifier.height(10.dp))
         if (pdfLocalPath.isBlank()) {
             OutlinedButton(
-                onClick = { pdfPicker.launch(arrayOf("application/pdf")) },
+                onClick = { documentPicker.launch(allowedDocumentMimeTypes) },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 shape = MaterialTheme.shapes.extraLarge,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
                 Icon(
-                    Icons.Outlined.PictureAsPdf,
+                    Icons.Outlined.Description,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
                     tint = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "Attach Research Paper PDF",
+                    "Attach Paper (PDF, Word, Text)",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
         } else {
+            val format = PdfStore.getDocumentFormat(pdfLocalPath)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -321,7 +345,7 @@ fun ComposePostScreen(
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(
-                            Icons.Outlined.PictureAsPdf,
+                            if (format == DocumentFormat.PDF) Icons.Outlined.PictureAsPdf else Icons.Outlined.Description,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(28.dp)
@@ -329,7 +353,7 @@ fun ComposePostScreen(
                         Spacer(Modifier.width(12.dp))
                         Column {
                             Text(
-                                "Research Paper PDF Attached",
+                                "Research Paper Attached (${format.label})",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -349,7 +373,7 @@ fun ComposePostScreen(
                     ) {
                         Icon(
                             Icons.Filled.Close,
-                            contentDescription = "Remove PDF",
+                            contentDescription = "Remove Paper",
                             modifier = Modifier.size(18.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -545,6 +569,19 @@ fun ComposePostScreen(
                             )
                         }
                     )
+                    // Trigger REST API cloud upload in background without blocking or freezing UI
+                    if (pdfLocalPath.isNotBlank()) {
+                        val paperFile = File(pdfLocalPath)
+                        if (paperFile.exists()) {
+                            scope.launch {
+                                PaperUploadApiService.uploadPaperDocument(
+                                    file = paperFile,
+                                    format = PdfStore.getDocumentFormat(pdfLocalPath),
+                                    title = draft.title.ifBlank { "Untitled Research Manuscript" }
+                                )
+                            }
+                        }
+                    }
                     // A replaced figure or PDF is only safe to delete once the change is committed.
                     if (existing != null && originalImage.isNotBlank() &&
                         originalImage != imagePath

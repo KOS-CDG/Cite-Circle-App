@@ -40,9 +40,11 @@ import com.example.R
 import com.example.data.CitationFormatter
 import com.example.data.CitationStyle
 import com.example.data.ExportFormat
+import com.example.data.PdfStore
 import com.example.data.SavedPaper
 import com.example.data.formatTimeAgo
 import com.example.data.isQuote
+import com.example.data.security.DocumentFormat
 import com.example.ui.share.ShareUtils
 import kotlinx.coroutines.launch
 import java.io.File
@@ -442,6 +444,13 @@ fun PaperPdfBadge(
     paper: SavedPaper,
     onReadPdf: () -> Unit
 ) {
+    val format = if (paper.pdfLocalPath.isNotBlank()) {
+        PdfStore.getDocumentFormat(paper.pdfLocalPath)
+    } else {
+        DocumentFormat.PDF
+    }
+    val isPdf = format == DocumentFormat.PDF
+
     Surface(
         onClick = onReadPdf,
         shape = MaterialTheme.shapes.small,
@@ -461,7 +470,7 @@ fun PaperPdfBadge(
                 modifier = Modifier.weight(1f)
             ) {
                 Icon(
-                    Icons.Outlined.PictureAsPdf,
+                    if (isPdf) Icons.Outlined.PictureAsPdf else Icons.Outlined.Description,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(22.dp)
@@ -469,21 +478,21 @@ fun PaperPdfBadge(
                 Spacer(Modifier.width(10.dp))
                 Column {
                     Text(
-                        "Full Research Paper Available",
+                        "Full Manuscript Available (${format.label})",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Text(
-                        if (paper.pdfLocalPath.isNotBlank()) "Downloaded in Vault • Tap to read"
+                        if (paper.pdfLocalPath.isNotBlank()) "Downloaded in Vault (${PdfStore.getFormattedSize(paper.pdfLocalPath)}) • Tap to read"
                         else if (paper.openAccess) "Open Access PDF • Tap to stream & read"
-                        else "Preprint PDF • Tap to read",
+                        else "Preprint Manuscript • Tap to read",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
                     )
                 }
             }
             Text(
-                "Read PDF",
+                if (isPdf) "Read PDF" else "Open ${format.label}",
                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier

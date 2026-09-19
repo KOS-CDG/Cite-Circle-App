@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -94,14 +95,15 @@ private data class NavItem(
   val route: String,
   @StringRes val label: Int,
   val selectedIcon: ImageVector,
-  val unselectedIcon: ImageVector
+  val unselectedIcon: ImageVector,
+  val isCenterAction: Boolean = false
 )
 
 private val NavItems = listOf(
   NavItem("feed", R.string.nav_home, Icons.Filled.Home, Icons.Outlined.Home),
   NavItem("fields", R.string.nav_discover, Icons.Filled.Explore, Icons.Outlined.Explore),
+  NavItem("compose", R.string.nav_post, Icons.Filled.AddBox, Icons.Outlined.AddBox, isCenterAction = true),
   NavItem("lists", R.string.nav_saved, Icons.Filled.Bookmark, Icons.Outlined.BookmarkBorder),
-  NavItem("opps", R.string.nav_jobs, Icons.Filled.Work, Icons.Outlined.WorkOutline),
   NavItem("profile", R.string.nav_profile, Icons.Filled.Person, Icons.Outlined.Person)
 )
 
@@ -148,17 +150,6 @@ fun FolioApp(viewModel: HomeViewModel) {
     modifier = Modifier.fillMaxSize(),
     containerColor = MaterialTheme.colorScheme.background,
     snackbarHost = { SnackbarHost(snackbarHostState) },
-    floatingActionButton = {
-      if (currentRoute == "feed") {
-        FloatingActionButton(
-          onClick = { navController.navigate("compose") },
-          containerColor = MaterialTheme.colorScheme.primary,
-          contentColor = MaterialTheme.colorScheme.onPrimary
-        ) {
-          Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.cd_new_entry))
-        }
-      }
-    },
     topBar = { if (!chromeless) AppTopBar(navController, viewModel) },
     bottomBar = { if (!chromeless) AppBottomBar(navController, currentRoute, viewModel) }
   ) { innerPadding ->
@@ -431,38 +422,76 @@ private fun AppBottomBar(
       NavItems.forEach { item ->
         val selected = currentRoute == item.route
         val label = stringResource(item.label)
-        NavigationBarItem(
-          icon = {
-            Icon(
-              if (selected) item.selectedIcon else item.unselectedIcon,
-              contentDescription = label
-            )
-          },
-          // 12sp, up from a 9sp label with negative tracking that fell below the
-          // minimum legible size.
-          label = { Text(label, style = MaterialTheme.typography.labelSmall) },
-          selected = selected,
-          onClick = {
-            // Re-tapping the tab you are already on scrolls that screen back to the top,
-            // as it does in both reference apps, rather than re-navigating to itself.
-            if (selected) {
-              viewModel.requestScrollToTop(item.route)
-            } else {
-              navController.navigate(item.route) {
-                popUpTo("feed") { saveState = true }
-                launchSingleTop = true
-                restoreState = true
+        if (item.isCenterAction) {
+          NavigationBarItem(
+            icon = {
+              Box(
+                modifier = Modifier
+                  .size(32.dp)
+                  .clip(RoundedCornerShape(8.dp))
+                  .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center
+              ) {
+                Icon(
+                  Icons.Filled.Add,
+                  contentDescription = label,
+                  tint = MaterialTheme.colorScheme.onPrimary,
+                  modifier = Modifier.size(20.dp)
+                )
               }
-            }
-          },
-          colors = NavigationBarItemDefaults.colors(
-            indicatorColor = MaterialTheme.colorScheme.surfaceVariant,
-            selectedIconColor = MaterialTheme.colorScheme.primary,
-            selectedTextColor = MaterialTheme.colorScheme.primary,
-            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            label = {
+              Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
+              )
+            },
+            selected = selected,
+            onClick = {
+              navController.navigate(item.route) {
+                launchSingleTop = true
+              }
+            },
+            colors = NavigationBarItemDefaults.colors(
+              indicatorColor = Color.Transparent
+            )
           )
-        )
+        } else {
+          NavigationBarItem(
+            icon = {
+              Icon(
+                if (selected) item.selectedIcon else item.unselectedIcon,
+                contentDescription = label
+              )
+            },
+            // 12sp, up from a 9sp label with negative tracking that fell below the
+            // minimum legible size.
+            label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+            selected = selected,
+            onClick = {
+              // Re-tapping the tab you are already on scrolls that screen back to the top,
+              // as it does in both reference apps, rather than re-navigating to itself.
+              if (selected) {
+                viewModel.requestScrollToTop(item.route)
+              } else {
+                navController.navigate(item.route) {
+                  popUpTo("feed") { saveState = true }
+                  launchSingleTop = true
+                  restoreState = true
+                }
+              }
+            },
+            colors = NavigationBarItemDefaults.colors(
+              indicatorColor = MaterialTheme.colorScheme.surfaceVariant,
+              selectedIconColor = MaterialTheme.colorScheme.primary,
+              selectedTextColor = MaterialTheme.colorScheme.primary,
+              unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+              unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+          )
+        }
       }
     }
   }

@@ -5,6 +5,7 @@
     <!-- Bottom navigation -->
     <string name="nav_home">Home</string>
     <string name="nav_discover">Discover</string>
+    <string name="nav_post">Post</string>
     <string name="nav_saved">Saved</string>
     <string name="nav_jobs">Jobs</string>
     <string name="nav_profile">Me</string>

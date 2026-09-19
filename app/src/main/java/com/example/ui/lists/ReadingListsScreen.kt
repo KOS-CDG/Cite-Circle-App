@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material3.*
@@ -33,6 +34,7 @@ import com.example.data.CitationStyle
 import com.example.data.PdfStore
 import com.example.data.SavedPaper
 import com.example.data.formatTimeAgo
+import com.example.data.security.DocumentFormat
 import com.example.ui.components.EmptyState
 import com.example.ui.components.ListRowSkeleton
 import com.example.ui.components.RefreshableBox
@@ -268,9 +270,12 @@ private fun SavedEntryCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val format = if (paper.pdfLocalPath.isNotBlank()) PdfStore.getDocumentFormat(paper.pdfLocalPath) else DocumentFormat.PDF
+                    val isPdf = format == DocumentFormat.PDF
+
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            Icons.Outlined.PictureAsPdf,
+                            if (isPdf) Icons.Outlined.PictureAsPdf else Icons.Outlined.Description,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(18.dp)
@@ -278,7 +283,7 @@ private fun SavedEntryCard(
                         Spacer(Modifier.width(6.dp))
                         Text(
                             if (paper.pdfLocalPath.isNotBlank()) {
-                                "Offline (${PdfStore.getFormattedSize(paper.pdfLocalPath)})"
+                                "${format.label} (${PdfStore.getFormattedSize(paper.pdfLocalPath)})"
                             } else {
                                 "Open Access Cloud PDF"
                             },
@@ -307,7 +312,10 @@ private fun SavedEntryCard(
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                             shape = MaterialTheme.shapes.extraLarge
                         ) {
-                            Text("Read PDF", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                            Text(
+                                if (isPdf) "Read PDF" else "Open ${format.label}",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                            )
                         }
                     }
                 }

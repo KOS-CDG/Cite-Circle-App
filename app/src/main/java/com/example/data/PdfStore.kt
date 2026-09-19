@@ -5,6 +5,9 @@ import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import com.example.data.security.DocumentFormat
+import com.example.data.security.DocumentUploadValidator
+import com.example.data.security.ValidationResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -15,10 +18,10 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /**
- * Manages research paper PDFs stored locally in the Paper Vault.
+ * Manages research paper documents (PDF, Word DOCX/DOC, RTF, and text manuscripts)
+ * stored securely in the Paper Vault.
  *
- * User-selected PDFs and downloaded open-access preprints are safely stored inside
- * app-private storage `context.filesDir/vault_pdfs/`.
+ * Enforces anti-malware verification and security restrictions via [DocumentUploadValidator].
  */
 object PdfStore {
 
@@ -43,29 +46,44 @@ object PdfStore {
         File(context.filesDir, DIR).apply { mkdirs() }
 
     /**
-     * Copies a user-picked PDF [source] Uri into app storage, returning its absolute path,
-     * or null if unreadable.
+     * Inspects, validates against malware/virus/zip rules, and persists a user-selected
+     * academic document (PDF, Word, RTF, or text manuscript) into app storage.
+     * Returns Pair of (savedFilePath, ValidationResult).
      */
-    suspend fun persist(context: Context, source: Uri): String? = withContext(Dispatchers.IO) {
+    suspend fun persistDocument(context: Context, source: Uri): Pair<String?, ValidationResult> = withContext(Dispatchers.IO) {
+        val validation = DocumentUploadValidator.validate(context, source)
+        if (validation is ValidationResult.Error) {
+            return@withContext Pair(null, validation)
+        }
+
+        val success = validation as ValidationResult.Success
         try {
-            val file = File(dir(context), "${UUID.randomUUID()}.pdf")
+            val extension = success.format.extension
+            val file = File(dir(context), "${UUID.randomUUID()}.$extension")
+
             context.contentResolver.openInputStream(source)?.use { input ->
                 FileOutputStream(file).use { output ->
                     input.copyTo(output)
                 }
-            } ?: return@withContext null
+            } ?: return@withContext Pair(null, ValidationResult.Error("Unable to read document stream."))
 
             if (file.length() <= 0L) {
                 file.delete()
-                return@withContext null
+                return@withContext Pair(null, ValidationResult.Error("Document file is empty."))
             }
 
-            file.absolutePath
+            Pair(file.absolutePath, validation)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to persist PDF from $source", e)
-            null
+            Log.e(TAG, "Failed to persist document from $source", e)
+            Pair(null, ValidationResult.Error("Failed to save document: ${e.localizedMessage ?: "I/O error"}"))
         }
     }
+
+    /**
+     * Backward-compatible helper that validates and saves a document, returning the path or null.
+     */
+    suspend fun persist(context: Context, source: Uri): String? =
+        persistDocument(context, source).first
 
     /**
      * Downloads an open-access PDF from [pdfUrl] into the Paper Vault, returning its local path.
@@ -102,7 +120,7 @@ object PdfStore {
     }
 
     /**
-     * Deletes a local PDF if it resides inside app-private files directory.
+     * Deletes a local document if it resides inside app-private files directory.
      */
     fun delete(context: Context, path: String) {
         if (path.isBlank()) return
@@ -112,9 +130,22 @@ object PdfStore {
                 file.delete()
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to delete PDF at $path", e)
+            Log.w(TAG, "Failed to delete document at $path", e)
         }
     }
+
+    /**
+     * Returns the detected format for a local file path (PDF, DOCX, DOC, RTF, TXT, etc.).
+     */
+    fun getDocumentFormat(path: String): DocumentFormat {
+        val ext = path.substringAfterLast('.', "pdf").lowercase()
+        return DocumentFormat.fromExtension(ext) ?: DocumentFormat.PDF
+    }
+
+    /**
+     * Returns a human-friendly format badge label (e.g. "PDF", "Word (DOCX)", "Text").
+     */
+    fun getFormatLabel(path: String): String = getDocumentFormat(path).label
 
     /**
      * Calculates the number of pages in a local PDF without loading page bitmaps into memory.
@@ -123,6 +154,7 @@ object PdfStore {
         if (path.isBlank()) return 0
         val file = File(path)
         if (!file.exists() || !file.canRead()) return 0
+        if (!path.endsWith(".pdf", ignoreCase = true)) return 1
         return try {
             ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
                 PdfRenderer(pfd).use { renderer ->
