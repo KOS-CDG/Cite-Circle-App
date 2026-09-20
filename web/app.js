@@ -1,18 +1,9 @@
-import { firebaseConfig } from './firebase-config.js';
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
-import {
-  getAuth,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  updateProfile,
-  updatePassword
-} from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+import { supabaseConfig } from './supabase-config.js';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Initialize Firebase
-const firebaseApp = initializeApp(firebaseConfig);
-const auth = getAuth(firebaseApp);
+// Initialize Supabase Client
+export const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
+
 
 // Default initial profiles for multi-account switching
 const INITIAL_SAVED_ACCOUNTS = [
@@ -424,8 +415,8 @@ function escapeHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// Sync Firebase Auth state with UI
-function updateAuthStateUI(user) {
+// Sync Supabase Auth state with UI
+async function updateAuthStateUI(user) {
   STATE.currentUser = user;
   const statusBadge = document.getElementById('cloudStatusText');
   const headerAvatar = document.getElementById('userHeaderAvatar');
@@ -441,31 +432,53 @@ function updateAuthStateUI(user) {
   const fbLogoutHeading = document.getElementById('fbLogoutHeading');
   const fbLogoutSubtext = document.getElementById('fbLogoutSubtext');
 
-  const profile = STATE.userProfile;
-  const displayName = user ? (user.displayName || profile.name || user.email.split('@')[0]) : (profile.name || 'Dr. Morgan Vance');
-  const displayEmail = user ? user.email : (profile.email || 'demo.researcher@cite.circle');
-  const displayAffil = profile.affiliation || 'Institute for Advanced Study';
-  const displayField = profile.field || 'Computational Neuroscience & AI';
-  const initials = getInitials(displayName);
+  let profile = STATE.userProfile;
+  let displayName = profile.name || 'Dr. Morgan Vance';
+  let displayEmail = profile.email || 'demo.researcher@cite.circle';
+  let displayAffil = profile.affiliation || 'Institute for Advanced Study';
+  let displayField = profile.field || 'Computational Neuroscience & AI';
 
   if (user) {
-    if (statusBadge) statusBadge.textContent = `Firebase: ${user.email}`;
-    if (headerAvatar) {
-      headerAvatar.textContent = initials;
-      headerAvatar.style.display = 'flex';
-      headerAvatar.title = `${displayName} (${user.email})`;
+    displayEmail = user.email;
+    displayName = user.user_metadata?.full_name || user.user_metadata?.username || user.email.split('@')[0];
+
+    // Attempt to load live profile row from public.profiles
+    try {
+      const { data: dbProfile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      if (dbProfile && !error) {
+        if (dbProfile.full_name) displayName = dbProfile.full_name;
+        if (dbProfile.bio) displayAffil = dbProfile.bio;
+        STATE.userProfile = {
+          ...STATE.userProfile,
+          name: displayName,
+          email: user.email,
+          affiliation: displayAffil,
+          avatar: getInitials(displayName)
+        };
+      }
+    } catch (err) {
+      console.warn('Could not load profile from Supabase:', err);
     }
+
+    if (statusBadge) statusBadge.textContent = `Supabase: ${user.email}`;
     if (openAuthBtn) openAuthBtn.style.display = 'none';
-    if (profileUid) profileUid.textContent = `Firebase UID: ${user.uid.slice(0, 12)}...`;
+    if (profileUid) profileUid.textContent = `Supabase UID: ${user.id.slice(0, 12)}...`;
   } else {
     if (statusBadge) statusBadge.textContent = 'Guest / Offline';
-    if (headerAvatar) {
-      headerAvatar.textContent = initials;
-      headerAvatar.style.display = 'flex';
-      headerAvatar.title = `${displayName} (Local Mode)`;
-    }
     if (openAuthBtn) openAuthBtn.style.display = 'inline-block';
     if (profileUid) profileUid.textContent = 'Local Mode (Room/Web Cache)';
+  }
+
+  const initials = getInitials(displayName);
+
+  if (headerAvatar) {
+    headerAvatar.textContent = initials;
+    headerAvatar.style.display = 'flex';
+    headerAvatar.title = user ? `${displayName} (${user.email})` : `${displayName} (Local Mode)`;
   }
 
   if (profileAvatar) profileAvatar.textContent = initials;
@@ -585,10 +598,11 @@ document.addEventListener('DOMContentLoaded', () => {
   renderExplore();
   renderVault();
 
-  // Listen to live Firebase Auth state changes
-  onAuthStateChanged(auth, (user) => {
-    updateAuthStateUI(user);
+  // Listen to live Supabase Auth state changes
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    await updateAuthStateUI(session?.user || null);
   });
+
 
   // Navigation tabs
   document.querySelectorAll('.nav-item').forEach(item => {
@@ -670,7 +684,11 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         authDemoSignInBtn.disabled = true;
         authDemoSignInBtn.textContent = 'Signing in as Demo Researcher...';
-        await signInWithEmailAndPassword(auth, 'demo.researcher@cite.circle', 'citecircle2026');
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: 'demo.researcher@cite.circle',
+          password: 'citecircle2026'
+        });
+        if (error) throw error;
         authModal.style.display = 'none';
       } catch (err) {
         if (authErrorMsg) {
@@ -703,12 +721,22 @@ document.addEventListener('DOMContentLoaded', () => {
         authSubmitBtn.textContent = 'Processing...';
 
         if (STATE.authMode === 'signin') {
-          await signInWithEmailAndPassword(auth, email, password);
+          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+          if (error) throw error;
         } else {
-          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-          if (name && userCredential.user) {
-            await updateProfile(userCredential.user, { displayName: name });
-          }
+          const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                full_name: name || email.split('@')[0],
+                username: name ? name.toLowerCase().replace(/[^a-z0-9]/g, '_') : email.split('@')[0]
+              }
+            }
+          });
+          if (error) throw error;
+          // Auto sign-in in case email confirmation is auto-completed
+          await supabase.auth.signInWithPassword({ email, password }).catch(() => {});
         }
         authModal.style.display = 'none';
       } catch (err) {
@@ -764,11 +792,14 @@ document.addEventListener('DOMContentLoaded', () => {
       saveProfileBtn.textContent = 'Saving...';
 
       try {
-        if (auth.currentUser) {
-          await updateProfile(auth.currentUser, { displayName: newName });
+        if (STATE.currentUser) {
+          await supabase.from('profiles').update({
+            full_name: newName,
+            bio: `${newAffil || 'Academic Researcher'} • ${newField || 'General Science'}`
+          }).eq('id', STATE.currentUser.id);
         }
       } catch (err) {
-        console.warn('Firebase Auth updateProfile fallback to local store:', err);
+        console.warn('Supabase profile update fallback to local store:', err);
       }
 
       STATE.userProfile = {
@@ -781,14 +812,14 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.setItem('citecircle_user_profile', JSON.stringify(STATE.userProfile));
 
       // Update in saved accounts list if present
-      const currentEmail = auth.currentUser?.email || STATE.userProfile.email;
+      const currentEmail = STATE.currentUser?.email || STATE.userProfile.email;
       const acctIdx = STATE.savedAccounts.findIndex(a => a.email === currentEmail);
       if (acctIdx >= 0) {
         STATE.savedAccounts[acctIdx] = { ...STATE.savedAccounts[acctIdx], ...STATE.userProfile };
         localStorage.setItem('citecircle_saved_accounts', JSON.stringify(STATE.savedAccounts));
       }
 
-      updateAuthStateUI(auth.currentUser);
+      updateAuthStateUI(STATE.currentUser);
       saveProfileBtn.disabled = false;
       saveProfileBtn.textContent = 'Save Changes';
       closeEditProfile();
@@ -846,8 +877,9 @@ document.addEventListener('DOMContentLoaded', () => {
       savePasswordBtn.textContent = 'Updating...';
 
       try {
-        if (auth.currentUser) {
-          await updatePassword(auth.currentUser, newPass);
+        if (STATE.currentUser) {
+          const { error } = await supabase.auth.updateUser({ password: newPass });
+          if (error) throw error;
         }
         closeChangePassword();
         alert('Password updated securely! Next time you sign in, use your new credentials.');
@@ -889,7 +921,7 @@ document.addEventListener('DOMContentLoaded', () => {
       STATE.rememberLogin = keepSaved;
       localStorage.setItem('citecircle_remember_login', String(keepSaved));
 
-      const activeEmail = auth.currentUser?.email || STATE.userProfile.email;
+      const activeEmail = STATE.currentUser?.email || STATE.userProfile.email;
 
       if (!keepSaved) {
         // Facebook behavior: remove remembered profile from device
@@ -898,14 +930,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       try {
-        await signOut(auth);
+        await supabase.auth.signOut();
       } catch (err) {
         console.warn('Sign out:', err);
       }
 
       facebookLogoutModal.style.display = 'none';
       STATE.currentUser = null;
-      updateAuthStateUI(null);
+      await updateAuthStateUI(null);
       alert(keepSaved
         ? 'Logged out. Your login credentials remain saved on this device for quick access.'
         : 'Logged out. Your login info has been removed from this device.');
@@ -921,7 +953,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderSwitchAccountsList() {
     if (!accountsListContainer) return;
-    const currentEmail = auth.currentUser?.email || STATE.userProfile.email;
+    const currentEmail = STATE.currentUser?.email || STATE.userProfile.email;
 
     accountsListContainer.innerHTML = STATE.savedAccounts.map(acct => {
       const isCurrent = acct.email === currentEmail;
@@ -956,12 +988,15 @@ document.addEventListener('DOMContentLoaded', () => {
           localStorage.setItem('citecircle_user_profile', JSON.stringify(target));
           if (target.email === 'demo.researcher@cite.circle') {
             try {
-              await signInWithEmailAndPassword(auth, 'demo.researcher@cite.circle', 'citecircle2026');
+              await supabase.auth.signInWithPassword({
+                email: 'demo.researcher@cite.circle',
+                password: 'citecircle2026'
+              });
             } catch {
-              updateAuthStateUI(null);
+              await updateAuthStateUI(null);
             }
           } else {
-            updateAuthStateUI(null);
+            await updateAuthStateUI(null);
           }
           if (switchAccountModal) switchAccountModal.style.display = 'none';
           alert(`Switched active profile to ${target.name}!`);
