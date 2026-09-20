@@ -6,6 +6,9 @@
   <title>Cite Circle — Academic Research Network</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://esm.sh">
+  <link rel="preconnect" href="https://cxxtrtglmxfuyihxwiza.supabase.co">
+  <link rel="preconnect" href="https://pub-66f1f2125beb4a028b0dd68e07a78c8a.r2.dev">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -26,15 +29,15 @@
     </div>
 
     <div class="header-actions">
-      <div class="cloud-status-badge" id="cloudStatusBadge" title="Supabase Project: cxxtrtglmxfuyihxwiza">
+      <div class="cloud-status-badge" id="cloudStatusBadge" title="Supabase Cloud: cxxtrtglmxfuyihxwiza">
         <div class="cloud-status-dot" style="background-color: #3ecf8e; box-shadow: 0 0 8px rgba(62, 207, 142, 0.6);"></div>
-        <span id="cloudStatusText">Supabase Connected</span>
+        <span id="cloudStatusText">Connecting...</span>
       </div>
       <button class="btn-icon" id="themeToggleBtn" title="Toggle Theme">🌓</button>
-      <button class="btn-publish-action" id="openAuthModalBtn" style="display: none; margin-top: 0; padding: 0.4rem 0.85rem; font-size: 0.85rem;">
+      <button class="btn-publish-action" id="openAuthModalBtn" style="display: inline-block; margin-top: 0; padding: 0.4rem 0.85rem; font-size: 0.85rem;">
         Sign In
       </button>
-      <div class="author-avatar" id="userHeaderAvatar" style="width: 34px; height: 34px; font-size: 0.85rem; cursor: pointer;" title="Active Profile">MV</div>
+      <div class="author-avatar" id="userHeaderAvatar" style="width: 34px; height: 34px; font-size: 0.85rem; cursor: pointer; display: none;" title="Active Profile">👤</div>
     </div>
   </header>
 
@@ -172,15 +175,15 @@
           <!-- Profile Preview Row -->
           <div class="fb-profile-preview">
             <div style="display: flex; align-items: center; gap: 1rem;">
-              <div class="author-avatar" id="profileAvatar" style="width: 52px; height: 52px; font-size: 1.25rem;">MV</div>
+              <div class="author-avatar" id="profileAvatar" style="width: 52px; height: 52px; font-size: 1.25rem;">👤</div>
               <div>
-                <div id="profileName" style="font-weight: 700; font-size: 1.05rem; color: var(--text-primary);">Dr. Morgan Vance</div>
-                <div id="profileAffiliation" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.1rem;">Institute for Advanced Study • AI & Quantum Computing</div>
-                <div id="profileEmail" style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); margin-top: 0.1rem;">demo.researcher@cite.circle</div>
+                <div id="profileName" style="font-weight: 700; font-size: 1.05rem; color: var(--text-primary);">Researcher Profile</div>
+                <div id="profileAffiliation" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.1rem;">Academic Institution • Research Field</div>
+                <div id="profileEmail" style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); margin-top: 0.1rem;">Sign in to sync your profile</div>
               </div>
             </div>
             <span style="font-size: 0.75rem; font-weight: 600; padding: 0.3rem 0.6rem; border-radius: var(--radius-full); background: rgba(37, 99, 235, 0.15); color: var(--accent-primary); border: 1px solid rgba(37, 99, 235, 0.3);" id="profileUid">
-              Firebase Synced
+              Cloud Ready
             </span>
           </div>
 
@@ -326,7 +329,7 @@
             </button>
 
             <button class="fb-logout-btn" id="openFacebookLogoutBtn">
-              <span>🚪</span> <span id="logoutBtnLabel">Log Out Dr. Morgan Vance</span>
+              <span>🚪</span> <span id="logoutBtnLabel">Log Out</span>
             </button>
           </div>
         </div>
@@ -609,11 +612,11 @@
   <div class="modal-backdrop" id="facebookLogoutModal" style="display: none;">
     <div class="modal-card" style="max-width: 440px; text-align: center;">
       <div style="display: flex; justify-content: center; margin-bottom: 1rem;">
-        <div class="author-avatar" id="fbLogoutAvatar" style="width: 72px; height: 72px; font-size: 1.75rem; box-shadow: 0 0 16px rgba(37, 99, 235, 0.3);">MV</div>
+        <div class="author-avatar" id="fbLogoutAvatar" style="width: 72px; height: 72px; font-size: 1.75rem; box-shadow: 0 0 16px rgba(37, 99, 235, 0.3);">👤</div>
       </div>
       <h3 id="fbLogoutHeading" style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.25rem;">Log out of Cite Circle?</h3>
       <p id="fbLogoutSubtext" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
-        Dr. Morgan Vance (demo.researcher@cite.circle)
+        Active Researcher Session
       </p>
 
       <div style="background-color: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 0.85rem 1rem; text-align: left; margin-bottom: 1.25rem; display: flex; align-items: flex-start; gap: 0.75rem;">

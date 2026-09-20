@@ -6,33 +6,8 @@ import { uploadFileToR2, r2Config } from './r2-config.js';
 export const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
 
 
-// Default initial profiles for multi-account switching
-const INITIAL_SAVED_ACCOUNTS = [
-  {
-    name: 'Dr. Morgan Vance',
-    email: 'demo.researcher@cite.circle',
-    affiliation: 'Institute for Advanced Study',
-    field: 'AI & Quantum Computing',
-    avatar: 'MV',
-    isActive: true
-  },
-  {
-    name: 'Prof. Marcus Chen',
-    email: 'prof.marcus.chen@oxford.ac.uk',
-    affiliation: 'Oxford Institute of Biomedical Engineering',
-    field: 'Computational Biology',
-    avatar: 'MC',
-    isActive: false
-  },
-  {
-    name: 'Dr. Elena Rostova',
-    email: 'elena.rostova@cern.ch',
-    affiliation: 'CERN & ETH Zürich',
-    field: 'Physics & Astronomy',
-    avatar: 'ER',
-    isActive: false
-  }
-];
+// Clean initial profiles for multi-account switching
+const INITIAL_SAVED_ACCOUNTS = [];
 
 // State management
 const STATE = {
@@ -45,87 +20,21 @@ const STATE = {
   posts: [],
   vault: [],
   chats: [],
-  userProfile: JSON.parse(localStorage.getItem('citecircle_user_profile') || JSON.stringify(INITIAL_SAVED_ACCOUNTS[0])),
-  savedAccounts: JSON.parse(localStorage.getItem('citecircle_saved_accounts') || JSON.stringify(INITIAL_SAVED_ACCOUNTS)),
+  userProfile: JSON.parse(localStorage.getItem('citecircle_user_profile') || JSON.stringify({
+    name: 'Guest Researcher',
+    email: '',
+    affiliation: 'Academic Community',
+    field: 'All Fields',
+    avatar: '👤'
+  })),
+  savedAccounts: JSON.parse(localStorage.getItem('citecircle_saved_accounts') || '[]'),
   rememberLogin: localStorage.getItem('citecircle_remember_login') !== 'false',
   dataSaver: localStorage.getItem('citecircle_data_saver') === 'true',
   alertsEnabled: localStorage.getItem('citecircle_alerts_enabled') !== 'false'
 };
 
-// Initial Sample Research Data
-const DEFAULT_POSTS = [
-  {
-    id: 'post-1',
-    author: {
-      id: 'OycnFiKmG3SnS9ob4xk7qDlYoRh1',
-      name: 'Dr. Morgan Vance',
-      institution: 'Institute for Advanced Study',
-      avatar: 'MV'
-    },
-    timestamp: '2 hours ago',
-    content: 'Thrilled to share our latest preprint on Transformer architectures tailored for sub-nanosecond quantum state tomography. Open-source benchmarks and mathematical proofs attached below!',
-    paper: {
-      title: 'Sub-Nanosecond Quantum State Estimation via Attention Transformers',
-      field: 'Quantum Computing',
-      format: 'pdf',
-      size: '2.4 MB',
-      doi: '10.1103/PhysRevA.2026.041829',
-      abstract: 'We introduce a hardware-accelerated attention mechanism capable of reconstructing multi-qubit density matrices within 850 picoseconds, mitigating decoherence bottlenecks.'
-    },
-    endorsements: 42,
-    isEndorsed: false,
-    commentsCount: 8
-  },
-  {
-    id: 'post-2',
-    author: {
-      id: 'prof-marcus-chen',
-      name: 'Prof. Marcus Chen',
-      institution: 'Oxford Institute of Biomedical Engineering',
-      avatar: 'MC'
-    },
-    timestamp: '5 hours ago',
-    content: 'Uploaded full clinical trial manuscript evaluating CRISPR-Cas14 targeting in sickle-cell hematopoietic stem cells. Peer review comments are welcomed.',
-    paper: {
-      title: 'In Vivo Base Editing of Sickle Beta-Globin via Compact Cas14 Effectors',
-      field: 'Computational Biology',
-      format: 'docx',
-      size: '5.8 MB',
-      doi: '10.1038/s41587-026-0219-4',
-      abstract: 'Targeted adenine base editors packaged into lipid nanoparticles achieved >80% HbF reactivation in non-human primate models with zero detectable off-target indels.'
-    },
-    endorsements: 119,
-    isEndorsed: false,
-    commentsCount: 23
-  },
-  {
-    id: 'post-3',
-    author: {
-      id: 'dr-elena-rostova',
-      name: 'Dr. Elena Rostova',
-      institution: 'CERN & ETH Zürich',
-      avatar: 'ER'
-    },
-    timestamp: 'Yesterday',
-    content: 'Source LaTeX equations and differential cross-section models for high-luminosity LHC run 4 are now compiled. LaTeX source available for reproducible computation.',
-    paper: {
-      title: 'Effective Field Theory of Higgs-Dilaton Mixing at HL-LHC Run 4',
-      field: 'Physics & Astronomy',
-      format: 'latex',
-      size: '890 KB',
-      doi: 'arXiv:2603.11894',
-      abstract: 'A global fit of dimension-6 and dimension-8 operators reveals constraints on composite Higgs resonance scales up to 4.2 TeV.'
-    },
-    endorsements: 67,
-    isEndorsed: false,
-    commentsCount: 14
-  }
-];
-
-const DEFAULT_CHATS = [
-  { sender: 'Dr. Morgan Vance', text: 'Has anyone benchmarked the inference latency of the new 4-bit quantized attention model on edge TPUs?', time: '10:15 AM', isMe: true },
-  { sender: 'Dr. Elena Rostova', text: 'Yes! We measured ~1.8ms per token on the Coral Dual Edge. Memory footprint stays under 180MB.', time: '10:18 AM', isMe: false }
-];
+const DEFAULT_POSTS = [];
+const DEFAULT_CHATS = [];
 
 const RESEARCH_FIELDS = [
   { name: 'AI & Machine Learning', icon: '🧠', papers: 342, citations: '12.4k' },
@@ -143,11 +52,10 @@ function initStore() {
     try {
       STATE.posts = JSON.parse(storedPosts);
     } catch {
-      STATE.posts = DEFAULT_POSTS;
+      STATE.posts = [];
     }
   } else {
-    STATE.posts = DEFAULT_POSTS;
-    savePosts();
+    STATE.posts = [];
   }
 
   const storedVault = localStorage.getItem('citecircle_vault');
@@ -158,8 +66,7 @@ function initStore() {
       STATE.vault = [];
     }
   } else {
-    STATE.vault = [STATE.posts[0].paper];
-    saveVault();
+    STATE.vault = [];
   }
 
   const storedChats = localStorage.getItem('citecircle_chats');
@@ -167,15 +74,16 @@ function initStore() {
     try {
       STATE.chats = JSON.parse(storedChats);
     } catch {
-      STATE.chats = DEFAULT_CHATS;
+      STATE.chats = [];
     }
   } else {
-    STATE.chats = DEFAULT_CHATS;
-    saveChats();
+    STATE.chats = [];
   }
 
   enforceCacheLimiter();
 }
+
+
 
 function enforceCacheLimiter() {
   const MAX_KEEP = 200;
@@ -260,7 +168,7 @@ function formatBytes(bytes) {
 }
 
 function getInitials(name) {
-  if (!name) return '??';
+  if (!name || name === 'Guest Researcher') return '👤';
   const parts = name.trim().split(' ').filter(p => p.length > 0);
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
@@ -357,11 +265,13 @@ export async function syncPostsFromSupabase() {
         };
       });
 
-      const liveIds = new Set(livePosts.map(p => p.id));
-      const remainingLocal = STATE.posts.filter(p => !liveIds.has(p.id) && String(p.id).startsWith('post-'));
-
-      STATE.posts = [...livePosts, ...remainingLocal];
+      STATE.posts = livePosts;
+      savePosts();
       enforceCacheLimiter();
+      renderPosts();
+    } else {
+      STATE.posts = [];
+      savePosts();
       renderPosts();
     }
   } catch (err) {
@@ -619,14 +529,16 @@ async function updateAuthStateUI(user) {
   const fbLogoutSubtext = document.getElementById('fbLogoutSubtext');
 
   let profile = STATE.userProfile;
-  let displayName = profile.name || 'Dr. Morgan Vance';
-  let displayEmail = profile.email || 'demo.researcher@cite.circle';
-  let displayAffil = profile.affiliation || 'Institute for Advanced Study';
-  let displayField = profile.field || 'Computational Neuroscience & AI';
+  let displayName = '';
+  let displayEmail = '';
+  let displayAffil = '';
+  let displayField = '';
 
   if (user) {
     displayEmail = user.email;
     displayName = user.user_metadata?.full_name || user.user_metadata?.username || user.email.split('@')[0];
+    displayAffil = 'Cite Circle Verified Researcher';
+    displayField = 'Academic Research';
 
     // Attempt to load live profile row from public.profiles
     try {
@@ -639,10 +551,10 @@ async function updateAuthStateUI(user) {
         if (dbProfile.full_name) displayName = dbProfile.full_name;
         if (dbProfile.bio) displayAffil = dbProfile.bio;
         STATE.userProfile = {
-          ...STATE.userProfile,
           name: displayName,
           email: user.email,
           affiliation: displayAffil,
+          field: displayField,
           avatar: getInitials(displayName)
         };
       }
@@ -652,30 +564,35 @@ async function updateAuthStateUI(user) {
 
     if (statusBadge) statusBadge.textContent = `Supabase: ${user.email}`;
     if (openAuthBtn) openAuthBtn.style.display = 'none';
-    if (profileUid) profileUid.textContent = `Supabase UID: ${user.id.slice(0, 12)}...`;
+    if (headerAvatar) headerAvatar.style.display = 'flex';
+    if (profileUid) profileUid.textContent = `UID: ${user.id.slice(0, 8)}...`;
   } else {
-    if (statusBadge) statusBadge.textContent = 'Guest / Offline';
+    displayName = 'Guest Researcher';
+    displayEmail = 'Not signed in';
+    displayAffil = 'Academic Community';
+    displayField = 'Public Access';
+    if (statusBadge) statusBadge.textContent = 'Guest Mode';
     if (openAuthBtn) openAuthBtn.style.display = 'inline-block';
-    if (profileUid) profileUid.textContent = 'Local Mode (Room/Web Cache)';
+    if (headerAvatar) headerAvatar.style.display = 'none';
+    if (profileUid) profileUid.textContent = 'Guest Session';
   }
 
   const initials = getInitials(displayName);
 
   if (headerAvatar) {
     headerAvatar.textContent = initials;
-    headerAvatar.style.display = 'flex';
-    headerAvatar.title = user ? `${displayName} (${user.email})` : `${displayName} (Local Mode)`;
+    headerAvatar.title = user ? `${displayName} (${user.email})` : 'Guest Mode';
   }
 
   if (profileAvatar) profileAvatar.textContent = initials;
   if (profileName) profileName.textContent = displayName;
-  if (profileAffiliation) profileAffiliation.textContent = `${displayAffil} • ${displayField}`;
+  if (profileAffiliation) profileAffiliation.textContent = displayField ? `${displayAffil} • ${displayField}` : displayAffil;
   if (profileEmail) profileEmail.textContent = displayEmail;
   if (profileDetailsDesc) profileDetailsDesc.textContent = `${displayName} • ${displayAffil}`;
-  if (logoutBtnLabel) logoutBtnLabel.textContent = `Log Out ${displayName}`;
+  if (logoutBtnLabel) logoutBtnLabel.textContent = user ? `Log Out (${displayName})` : 'Sign In';
   if (fbLogoutAvatar) fbLogoutAvatar.textContent = initials;
-  if (fbLogoutHeading) fbLogoutHeading.textContent = `Log out of Cite Circle?`;
-  if (fbLogoutSubtext) fbLogoutSubtext.textContent = `${displayName} (${displayEmail})`;
+  if (fbLogoutHeading) fbLogoutHeading.textContent = user ? `Log out of Cite Circle?` : 'Sign In to Cite Circle';
+  if (fbLogoutSubtext) fbLogoutSubtext.textContent = user ? `${displayName} (${displayEmail})` : 'Access your academic profile, publications and peer reviews';
 }
 
 // Tab Switching
@@ -1268,6 +1185,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!accountsListContainer) return;
     const currentEmail = STATE.currentUser?.email || STATE.userProfile.email;
 
+    if (!STATE.savedAccounts || STATE.savedAccounts.length === 0) {
+      accountsListContainer.innerHTML = `
+        <div style="text-align: center; padding: 2.5rem 1rem; color: var(--text-secondary);">
+          <div style="font-size: 2rem; margin-bottom: 0.5rem;">👥</div>
+          <div style="font-weight: 600; color: var(--text-primary);">No other accounts on this device</div>
+          <div style="font-size: 0.8rem; margin-top: 0.25rem;">Sign in or create another account to switch between research identities.</div>
+        </div>
+      `;
+      return;
+    }
+
     accountsListContainer.innerHTML = STATE.savedAccounts.map(acct => {
       const isCurrent = acct.email === currentEmail;
       return `
@@ -1710,47 +1638,52 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Search input
+  // Debounced search for maximum typing responsiveness
   const globalSearchInput = document.getElementById('globalSearchInput');
   if (globalSearchInput) {
+    let searchTimer = null;
     globalSearchInput.addEventListener('input', (e) => {
-      const query = e.target.value.toLowerCase().trim();
-      if (!query) {
-        renderPosts();
-        return;
-      }
-      const container = document.getElementById('postsList');
-      if (!container) return;
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        const query = e.target.value.toLowerCase().trim();
+        if (!query) {
+          renderPosts();
+          return;
+        }
+        const container = document.getElementById('postsList');
+        if (!container) return;
 
-      const results = STATE.posts.filter(p => {
-        const titleMatch = p.paper && p.paper.title.toLowerCase().includes(query);
-        const authorMatch = p.author.name.toLowerCase().includes(query);
-        const doiMatch = p.paper && p.paper.doi.toLowerCase().includes(query);
-        const contentMatch = p.content.toLowerCase().includes(query);
-        return titleMatch || authorMatch || doiMatch || contentMatch;
-      });
+        const results = STATE.posts.filter(p => {
+          const titleMatch = p.paper && p.paper.title.toLowerCase().includes(query);
+          const authorMatch = p.author.name.toLowerCase().includes(query);
+          const doiMatch = p.paper && p.paper.doi.toLowerCase().includes(query);
+          const contentMatch = p.content.toLowerCase().includes(query);
+          return titleMatch || authorMatch || doiMatch || contentMatch;
+        });
 
-      container.innerHTML = results.length > 0 ? results.map(post => `
-        <article class="post-card">
-          <div class="post-author-row">
-            <div class="author-info">
-              <div class="author-avatar">${post.author.avatar}</div>
-              <div>
-                <div class="author-name">${post.author.name}</div>
-                <div class="author-institution">${post.author.institution}</div>
+        container.innerHTML = results.length > 0 ? results.map(post => `
+          <article class="post-card">
+            <div class="post-author-row">
+              <div class="author-info">
+                <div class="author-avatar">${post.author.avatar}</div>
+                <div>
+                  <div class="author-name">${post.author.name}</div>
+                  <div class="author-institution">${post.author.institution}</div>
+                </div>
               </div>
+              <div class="post-timestamp">${post.timestamp}</div>
             </div>
-            <div class="post-timestamp">${post.timestamp}</div>
-          </div>
-          <div class="post-content">${escapeHtml(post.content)}</div>
-          ${post.paper ? `
-            <div class="paper-attachment">
-              <div class="paper-title">${escapeHtml(post.paper.title)}</div>
-              <div class="paper-abstract">${escapeHtml(post.paper.abstract)}</div>
-              <div class="paper-doi">${escapeHtml(post.paper.doi)}</div>
-            </div>
-          ` : ''}
-        </article>
-      `).join('') : '<div style="padding: 2rem; text-align: center; color: var(--text-secondary);">No matching papers found.</div>';
+            <div class="post-content">${escapeHtml(post.content)}</div>
+            ${post.paper ? `
+              <div class="paper-attachment">
+                <div class="paper-title">${escapeHtml(post.paper.title)}</div>
+                <div class="paper-abstract">${escapeHtml(post.paper.abstract)}</div>
+                <div class="paper-doi">${escapeHtml(post.paper.doi)}</div>
+              </div>
+            ` : ''}
+          </article>
+        `).join('') : '<div style="padding: 2rem; text-align: center; color: var(--text-secondary);">No matching papers found.</div>';
+      }, 120);
     });
   }
 
