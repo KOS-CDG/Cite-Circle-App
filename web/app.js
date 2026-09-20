@@ -481,6 +481,11 @@ function renderPosts() {
             <span>${isSaved ? 'In Vault' : 'Save to Vault'}</span>
           </button>
 
+          <button class="post-action-btn" onclick="window.citeCircleApp.openCommentsModal('${post.id}')">
+            <span>💬</span>
+            <span>${post.commentsCount || 0} Reviews</span>
+          </button>
+
           <button class="post-action-btn" onclick="window.citeCircleApp.citePaper('${post.id}')">
             <span>📎</span>
             <span>Cite</span>
@@ -542,6 +547,37 @@ function renderVault() {
       </div>
     </div>
   `).join('');
+}
+
+export const LOUNGE_CONVERSATION_ID = '00000000-0000-0000-0000-000000000001';
+
+export async function syncChatsFromSupabase() {
+  try {
+    const { data: messages, error } = await supabase
+      .from('messages')
+      .select('id, sender_id, content, created_at, sender:profiles!messages_sender_id_fkey(full_name, username)')
+      .eq('conversation_id', LOUNGE_CONVERSATION_ID)
+      .order('created_at', { ascending: true })
+      .limit(50);
+
+    if (!error && messages && messages.length > 0) {
+      STATE.chats = messages.map(m => {
+        const isMe = STATE.currentUser ? m.sender_id === STATE.currentUser.id : false;
+        const senderName = m.sender?.full_name || m.sender?.username || 'Researcher';
+        return {
+          id: m.id,
+          sender: isMe ? 'You' : senderName,
+          text: m.content,
+          time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          isMe
+        };
+      });
+      saveChats();
+      renderChats();
+    }
+  } catch (err) {
+    console.warn('Could not sync chats from Supabase:', err);
+  }
 }
 
 function renderChats() {
@@ -738,6 +774,56 @@ window.citeCircleApp = {
     }
   },
 
+  async openCommentsModal(postId) {
+    const post = STATE.posts.find(p => p.id === postId);
+    if (!post) return;
+
+    if (!STATE.currentUser) {
+      alert('Please sign in to view and deposit peer review comments.');
+      return;
+    }
+
+    let existingComments = [];
+    if (String(postId).includes('-') && String(postId).length > 20) {
+      try {
+        const { data, error } = await supabase
+          .from('comments')
+          .select('id, content, created_at, user:profiles!comments_user_id_fkey(full_name, username)')
+          .eq('post_id', postId)
+          .order('created_at', { ascending: true });
+        if (!error && data) existingComments = data;
+      } catch (err) {
+        console.warn('Error fetching peer reviews:', err);
+      }
+    }
+
+    const reviewsHeader = existingComments.length > 0
+      ? `Peer Reviews for "${post.paper?.title || 'Manuscript'}" (${existingComments.length}):\n\n` +
+        existingComments.map(c => `• ${c.user?.full_name || c.user?.username || 'Peer'}: "${c.content}"`).join('\n') +
+        `\n\nSubmit your peer review comment below:`
+      : `No reviews yet for "${post.paper?.title || 'this manuscript'}".\n\nBe the first to submit a peer review comment:`;
+
+    const userComment = prompt(reviewsHeader);
+    if (!userComment || !userComment.trim()) return;
+
+    if (String(postId).includes('-') && String(postId).length > 20) {
+      try {
+        await supabase.from('comments').insert({
+          post_id: postId,
+          user_id: STATE.currentUser.id,
+          content: userComment.trim()
+        });
+      } catch (insertErr) {
+        console.warn('Could not persist comment to Supabase:', insertErr);
+      }
+    }
+
+    post.commentsCount = (post.commentsCount || 0) + 1;
+    savePosts();
+    renderPosts();
+    alert('Peer review commentary recorded!');
+  },
+
   removeFromVault(idx) {
     STATE.vault.splice(idx, 1);
     saveVault();
@@ -810,6 +896,24 @@ document.addEventListener('DOMContentLoaded', () => {
       .subscribe();
   } catch (rtErr) {
     console.warn('Realtime channel subscription error:', rtErr);
+  }
+
+  // Hydrate chats from Academic Lounge and subscribe to live messages
+  syncChatsFromSupabase();
+  try {
+    supabase
+      .channel('public:messages:lounge')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `conversation_id=eq.${LOUNGE_CONVERSATION_ID}`
+      }, () => {
+        syncChatsFromSupabase();
+      })
+      .subscribe();
+  } catch (rtChatErr) {
+    console.warn('Realtime chat subscription error:', rtChatErr);
   }
 
 
@@ -1477,12 +1581,12 @@ document.addEventListener('DOMContentLoaded', () => {
       let r2UploadedFile = null;
 
       if (STATE.selectedFile?.file) {
-        submitPublishBtn.textContent = 'Uploading to Cloudflare R2...';
+        submitPublishBtn.textContent = 'Uploading Manuscript to CDN...';
         try {
-          r2UploadedFile = await uploadFileToR2(STATE.selectedFile.file, 'manuscripts');
-          console.log('Uploaded to Cloudflare R2:', r2UploadedFile);
+          r2UploadedFile = await uploadFileToR2(STATE.selectedFile.file, 'manuscripts', supabase);
+          console.log('Manuscript uploaded:', r2UploadedFile);
         } catch (uploadErr) {
-          console.error('Cloudflare R2 Upload error:', uploadErr);
+          console.error('Manuscript upload error:', uploadErr);
           alert('Upload note: ' + uploadErr.message);
         }
       }
@@ -1571,12 +1675,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const chatInput = document.getElementById('chatInput');
   const sendChatBtn = document.getElementById('sendChatBtn');
   if (sendChatBtn && chatInput) {
-    const send = () => {
+    const send = async () => {
       const text = chatInput.value.trim();
       if (!text) return;
       const sender = STATE.currentUser?.displayName || (STATE.currentUser ? STATE.currentUser.email.split('@')[0] : 'Dr. Morgan Vance');
       STATE.chats.push({
-        sender: sender,
+        sender: 'You',
         text: text,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         isMe: true
@@ -1584,6 +1688,19 @@ document.addEventListener('DOMContentLoaded', () => {
       chatInput.value = '';
       saveChats();
       renderChats();
+
+      // Persist to Supabase messages table if authenticated
+      if (STATE.currentUser) {
+        try {
+          await supabase.from('messages').insert({
+            conversation_id: LOUNGE_CONVERSATION_ID,
+            sender_id: STATE.currentUser.id,
+            content: text
+          });
+        } catch (dbErr) {
+          console.warn('Could not persist chat message to Supabase:', dbErr);
+        }
+      }
     };
 
     sendChatBtn.addEventListener('click', send);
