@@ -266,6 +266,147 @@ function getInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+function formatTimeAgo(date) {
+  if (!date || isNaN(date.getTime())) return 'Recently';
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+// Live Supabase Post & Vault Hydration
+export async function syncPostsFromSupabase() {
+  try {
+    const { data: dbPosts, error } = await supabase
+      .from('posts')
+      .select(`
+        id,
+        user_id,
+        content,
+        media_urls,
+        metadata,
+        likes_count,
+        comments_count,
+        created_at,
+        author:profiles!posts_user_id_fkey (
+          id,
+          username,
+          full_name,
+          avatar_url
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.warn('Could not sync posts from Supabase:', error.message);
+      return;
+    }
+
+    if (dbPosts && dbPosts.length > 0) {
+      let userLikedPostIds = new Set();
+      if (STATE.currentUser) {
+        try {
+          const { data: likes } = await supabase
+            .from('post_likes')
+            .select('post_id')
+            .eq('user_id', STATE.currentUser.id);
+          if (likes) {
+            userLikedPostIds = new Set(likes.map(l => l.post_id));
+          }
+        } catch (e) {
+          console.warn('Could not fetch user likes:', e);
+        }
+      }
+
+      const livePosts = dbPosts.map(p => {
+        const authorName = p.author?.full_name || p.author?.username || 'Verified Researcher';
+        const meta = p.metadata || {};
+        const firstMedia = (p.media_urls && p.media_urls.length > 0) ? p.media_urls[0] : null;
+
+        const lines = p.content ? p.content.split('\n\n') : [''];
+        const title = meta.title || lines[0] || 'Research Manuscript';
+        const abstract = meta.abstract || (lines.length > 1 ? lines.slice(1).join('\n\n') : p.content);
+
+        return {
+          id: p.id,
+          author: {
+            id: p.user_id,
+            name: authorName,
+            institution: 'Cite Circle Academic Network',
+            avatar: getInitials(authorName)
+          },
+          timestamp: formatTimeAgo(new Date(p.created_at)),
+          content: p.content,
+          paper: {
+            title: title,
+            field: meta.field || 'AI & Machine Learning',
+            format: meta.format || (firstMedia?.endsWith('.docx') ? 'docx' : (firstMedia?.endsWith('.tex') ? 'latex' : 'pdf')),
+            size: meta.size || '1.4 MB',
+            doi: meta.doi || `10.48550/arXiv.2609.${p.id.slice(0, 5)}`,
+            abstract: abstract,
+            url: firstMedia
+          },
+          endorsements: p.likes_count || 0,
+          isEndorsed: userLikedPostIds.has(p.id),
+          commentsCount: p.comments_count || 0
+        };
+      });
+
+      const liveIds = new Set(livePosts.map(p => p.id));
+      const remainingLocal = STATE.posts.filter(p => !liveIds.has(p.id) && String(p.id).startsWith('post-'));
+
+      STATE.posts = [...livePosts, ...remainingLocal];
+      enforceCacheLimiter();
+      renderPosts();
+    }
+  } catch (err) {
+    console.warn('Network error syncing posts:', err);
+  }
+}
+
+export async function syncVaultFromSupabase() {
+  if (!STATE.currentUser) return;
+  try {
+    const { data: savedData, error } = await supabase
+      .from('saved_posts')
+      .select('post_id, created_at, post:posts(*)')
+      .eq('user_id', STATE.currentUser.id);
+
+    if (!error && savedData && savedData.length > 0) {
+      const serverVault = savedData.map(item => {
+        const p = item.post;
+        if (!p) return null;
+        const meta = p.metadata || {};
+        const firstMedia = (p.media_urls && p.media_urls.length > 0) ? p.media_urls[0] : null;
+        return {
+          title: meta.title || p.content.split('\n')[0],
+          field: meta.field || 'AI & Machine Learning',
+          format: meta.format || (firstMedia?.endsWith('.docx') ? 'docx' : (firstMedia?.endsWith('.tex') ? 'latex' : 'pdf')),
+          size: meta.size || '1.4 MB',
+          doi: meta.doi || `10.48550/arXiv.2609.${p.id.slice(0, 5)}`,
+          abstract: meta.abstract || p.content,
+          url: firstMedia
+        };
+      }).filter(Boolean);
+
+      if (serverVault.length > 0) {
+        const existingTitles = new Set(serverVault.map(v => v.title));
+        const localOnly = STATE.vault.filter(v => !existingTitles.has(v.title));
+        STATE.vault = [...serverVault, ...localOnly];
+        saveVault();
+        renderVault();
+      }
+    }
+  } catch (err) {
+    console.warn('Could not sync vault from Supabase:', err);
+  }
+}
+
 // Render Functions
 function renderPosts() {
   const container = document.getElementById('postsList');
@@ -533,21 +674,42 @@ function setTab(tabName) {
 
 // Global actions exposed to window
 window.citeCircleApp = {
-  toggleEndorse(postId) {
+  async toggleEndorse(postId) {
     const post = STATE.posts.find(p => p.id === postId);
-    if (post) {
-      post.isEndorsed = !post.isEndorsed;
-      post.endorsements += post.isEndorsed ? 1 : -1;
-      savePosts();
-      renderPosts();
+    if (!post) return;
+
+    post.isEndorsed = !post.isEndorsed;
+    post.endorsements += post.isEndorsed ? 1 : -1;
+    savePosts();
+    renderPosts();
+
+    // Persist to Supabase post_likes if authenticated
+    if (STATE.currentUser && String(postId).includes('-') && String(postId).length > 20) {
+      try {
+        if (post.isEndorsed) {
+          await supabase.from('post_likes').insert({
+            post_id: postId,
+            user_id: STATE.currentUser.id
+          });
+        } else {
+          await supabase.from('post_likes').delete().match({
+            post_id: postId,
+            user_id: STATE.currentUser.id
+          });
+        }
+      } catch (err) {
+        console.warn('Could not sync endorsement to Supabase:', err);
+      }
     }
   },
 
-  toggleSaveVault(postId) {
+  async toggleSaveVault(postId) {
     const post = STATE.posts.find(p => p.id === postId);
     if (!post || !post.paper) return;
 
     const existingIdx = STATE.vault.findIndex(p => p.title === post.paper.title);
+    const willSave = existingIdx < 0;
+
     if (existingIdx >= 0) {
       STATE.vault.splice(existingIdx, 1);
     } else {
@@ -555,6 +717,25 @@ window.citeCircleApp = {
     }
     saveVault();
     renderPosts();
+
+    // Persist to Supabase saved_posts if authenticated
+    if (STATE.currentUser && String(postId).includes('-') && String(postId).length > 20) {
+      try {
+        if (willSave) {
+          await supabase.from('saved_posts').insert({
+            post_id: postId,
+            user_id: STATE.currentUser.id
+          });
+        } else {
+          await supabase.from('saved_posts').delete().match({
+            post_id: postId,
+            user_id: STATE.currentUser.id
+          });
+        }
+      } catch (err) {
+        console.warn('Could not sync vault bookmark to Supabase:', err);
+      }
+    }
   },
 
   removeFromVault(idx) {
@@ -607,10 +788,29 @@ document.addEventListener('DOMContentLoaded', () => {
   renderExplore();
   renderVault();
 
+  // Hydrate feed with live manuscripts from Supabase
+  syncPostsFromSupabase();
+
   // Listen to live Supabase Auth state changes
   supabase.auth.onAuthStateChange(async (event, session) => {
     await updateAuthStateUI(session?.user || null);
+    if (session?.user) {
+      await syncPostsFromSupabase();
+      await syncVaultFromSupabase();
+    }
   });
+
+  // Subscribe to Realtime post updates for live feed broadcasts
+  try {
+    supabase
+      .channel('public:posts:feed')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
+        syncPostsFromSupabase();
+      })
+      .subscribe();
+  } catch (rtErr) {
+    console.warn('Realtime channel subscription error:', rtErr);
+  }
 
 
   // Navigation tabs
@@ -1295,12 +1495,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // If signed in, persist to Supabase posts table
       let dbPostId = null;
+      const paperFormat = STATE.selectedFile ? STATE.selectedFile.format : 'pdf';
+      const paperSize = STATE.selectedFile ? (STATE.selectedFile.sizeFormatted || STATE.selectedFile.size) : (r2UploadedFile ? `${Math.round(r2UploadedFile.size / 1024)} KB` : '1.2 MB');
+      const paperDoi = `10.48550/arXiv.${Math.floor(2600 + Math.random() * 99)}.${Math.floor(10000 + Math.random() * 90000)}`;
+
       if (STATE.currentUser) {
         try {
           const { data: dbPost, error: dbErr } = await supabase.from('posts').insert({
             user_id: STATE.currentUser.id,
             content: `${title}\n\n${abstract || ''}`,
             media_urls: mediaUrls,
+            metadata: {
+              title: title,
+              field: field,
+              format: paperFormat,
+              size: paperSize,
+              doi: paperDoi,
+              abstract: abstract || ''
+            },
             privacy: 'public'
           }).select().single();
 
@@ -1325,9 +1537,9 @@ document.addEventListener('DOMContentLoaded', () => {
         paper: {
           title: title,
           field: field,
-          format: STATE.selectedFile ? STATE.selectedFile.format : 'pdf',
-          size: STATE.selectedFile ? STATE.selectedFile.size : (r2UploadedFile ? `${Math.round(r2UploadedFile.size / 1024)} KB` : '1.2 MB'),
-          doi: `10.48550/arXiv.${Math.floor(2600 + Math.random() * 99)}.${Math.floor(10000 + Math.random() * 90000)}`,
+          format: paperFormat,
+          size: paperSize,
+          doi: paperDoi,
           abstract: abstract || 'Full manuscript archived and verified with anti-malware safeguards.',
           url: r2UploadedFile?.publicUrl || null
         },
