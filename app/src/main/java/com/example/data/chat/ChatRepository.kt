@@ -4,6 +4,8 @@ import android.content.Context
 import com.example.data.AppDatabase
 import com.example.data.AuthorIdentity
 import com.example.data.SavedPaper
+import com.example.network.SupabaseClient
+import com.example.network.SupabaseConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -14,6 +16,7 @@ import java.util.UUID
 
 /**
  * Single source of truth for peer-to-peer and group academic discussions.
+ * Synchronized with Supabase Academic Lounge chat.
  */
 class ChatRepository(
     private val database: AppDatabase,
@@ -39,6 +42,25 @@ class ChatRepository(
                     seedDefaultConversations()
                 }
             }
+            syncLoungeMessages()
+        }
+    }
+
+    suspend fun syncLoungeMessages(currentUserId: String = "") {
+        scope.launch {
+            val result = SupabaseClient.getLoungeMessages(currentUserId)
+            if (result.isSuccess) {
+                val cloudMessages = result.getOrThrow()
+                if (cloudMessages.isNotEmpty()) {
+                    messageDao.insertMessages(cloudMessages)
+                    val last = cloudMessages.last()
+                    conversationDao.updateLastMessage(
+                        id = SupabaseConfig.ACADEMIC_LOUNGE_CONVERSATION_ID,
+                        message = "${last.senderName}: ${last.text}",
+                        timestamp = last.timestamp
+                    )
+                }
+            }
         }
     }
 
@@ -47,7 +69,9 @@ class ChatRepository(
         text: String,
         quotedPaperId: String = "",
         quotedPaperTitle: String = "",
-        quotedCitation: String = ""
+        quotedCitation: String = "",
+        userId: String = "",
+        accessToken: String = ""
     ) {
         val trimmed = text.trim()
         if (trimmed.isEmpty() && quotedPaperId.isEmpty()) return
@@ -75,12 +99,20 @@ class ChatRepository(
             timestamp = now
         )
 
-        // Generate intelligent academic peer response for demonstration
-        val conversation = conversationDao.findConversation(conversationId)
-        if (conversation != null) {
+        // If chatting in the Academic Lounge, sync to Supabase Cloud
+        if (conversationId == SupabaseConfig.ACADEMIC_LOUNGE_CONVERSATION_ID && userId.isNotBlank()) {
             scope.launch {
-                delay(1200)
-                simulatePeerReply(conversation, trimmed, quotedPaperTitle)
+                val token = accessToken.ifBlank { SupabaseConfig.ANON_KEY }
+                SupabaseClient.sendLoungeMessage(userId, trimmed, token)
+            }
+        } else if (conversationId != SupabaseConfig.ACADEMIC_LOUNGE_CONVERSATION_ID) {
+            // Local peer response for personal notes
+            val conversation = conversationDao.findConversation(conversationId)
+            if (conversation != null) {
+                scope.launch {
+                    delay(1200)
+                    simulatePeerReply(conversation, trimmed, quotedPaperTitle)
+                }
             }
         }
     }
@@ -94,13 +126,13 @@ class ChatRepository(
             paperTitle.isNotBlank() ->
                 "Thanks for sharing “$paperTitle”! I will add this to our reading circle right away."
             userMessage.contains("proof", ignoreCase = true) || userMessage.contains("section", ignoreCase = true) ->
-                "I reviewed the tensor calculations and the proof is airtight. Let's submit to arXiv tomorrow!"
+                "I reviewed the calculations and the proof is airtight. Looking forward to the preprint!"
             userMessage.contains("cite", ignoreCase = true) || userMessage.contains("paper", ignoreCase = true) ->
-                "Great analysis! We should compare this with the latest preprint findings from Princeton."
+                "Great analysis! We should compare this with the latest preprint findings."
             userMessage.contains("hi", ignoreCase = true) || userMessage.contains("hello", ignoreCase = true) ->
-                "Hello! How is the revision on your preprint coming along?"
+                "Hello! How is the revision on your research coming along?"
             else ->
-                "Got your update! Working through the empirical methodology and citations now."
+                "Got your update! Reviewing the empirical methodology and citations now."
         }
 
         val replyTimestamp = System.currentTimeMillis()
@@ -115,7 +147,11 @@ class ChatRepository(
         )
 
         messageDao.insertMessage(reply)
-        conversationDao.updateLastMessage(conversation.id, replyText, replyTimestamp)
+        conversationDao.updateLastMessage(
+            id = conversation.id,
+            message = replyText,
+            timestamp = replyTimestamp
+        )
     }
 
     suspend fun markAsRead(conversationId: String) {
@@ -123,10 +159,10 @@ class ChatRepository(
     }
 
     suspend fun startOrGetConversationForPaper(paper: SavedPaper): String {
-        val existing = conversationDao.findConversation("conv_${paper.id}")
+        val convId = "conv_${paper.id}"
+        val existing = conversationDao.findConversation(convId)
         if (existing != null) return existing.id
 
-        val convId = "conv_${paper.id}"
         val newConv = ConversationEntity(
             id = convId,
             participantName = paper.authorName,
@@ -166,81 +202,24 @@ class ChatRepository(
         return convId
     }
 
+    suspend fun createOrGetConversation(
+        name: String,
+        initials: String,
+        affiliation: String
+    ): String = startOrGetConversationWithAuthor(name, initials, affiliation)
+
     private suspend fun seedDefaultConversations() {
         val now = System.currentTimeMillis()
-        val c1 = ConversationEntity(
-            id = "c_elena",
-            participantName = "Dr. Elena Rostova",
-            participantInitials = "EL",
-            participantAffiliation = "Oxford University",
-            lastMessage = "Brilliant. I'm submitting the camera-ready version to the preprint server now.",
-            lastMessageTimestamp = now - 1000 * 60 * 12,
-            unreadCount = 1,
-            isOnline = true,
-            attachedPaperId = "1",
-            attachedPaperTitle = "Semantic Structures in Large Language Models"
-        )
-        val c2 = ConversationEntity(
-            id = "c_marcus",
-            participantName = "Marcus Vance",
-            participantInitials = "MV",
-            participantAffiliation = "Princeton Institute",
-            lastMessage = "Did you check the eigenvalues of the perturbed Hamiltonian matrix?",
-            lastMessageTimestamp = now - 1000 * 60 * 65,
+        val lounge = ConversationEntity(
+            id = SupabaseConfig.ACADEMIC_LOUNGE_CONVERSATION_ID,
+            participantName = "Academic Lounge",
+            participantInitials = "AL",
+            participantAffiliation = "Cite Circle Global Forum",
+            lastMessage = "Welcome to the Academic Lounge. Connect and discuss preprint discoveries with researchers worldwide.",
+            lastMessageTimestamp = now,
             unreadCount = 0,
             isOnline = true
         )
-        val c3 = ConversationEntity(
-            id = "c_sophia",
-            participantName = "Prof. Sophia Lin",
-            participantInitials = "SL",
-            participantAffiliation = "Broad Institute",
-            lastMessage = "Cryo-EM reconstructions arrived at 1.8Å resolution! Take a look at Figure 3.",
-            lastMessageTimestamp = now - 1000 * 60 * 60 * 5,
-            unreadCount = 0,
-            isOnline = false
-        )
-        val c4 = ConversationEntity(
-            id = "c_maya",
-            participantName = "Dr. Maya Kapoor",
-            participantInitials = "MK",
-            participantAffiliation = "Stanford AI Lab",
-            lastMessage = "Sent the BibTeX reference for the reasoning benchmark paper.",
-            lastMessageTimestamp = now - 1000 * 60 * 60 * 24,
-            unreadCount = 0,
-            isOnline = false
-        )
-
-        conversationDao.insertConversations(listOf(c1, c2, c3, c4))
-
-        // Seed initial message exchange for Elena
-        val m1 = ChatMessageEntity(
-            id = "m1",
-            conversationId = "c_elena",
-            senderName = "Dr. Elena Rostova",
-            senderInitials = "EL",
-            text = "Hi! Did you have a chance to look at the revised proof for Section 3?",
-            timestamp = now - 1000 * 60 * 25,
-            isOutgoing = false
-        )
-        val m2 = ChatMessageEntity(
-            id = "m2",
-            conversationId = "c_elena",
-            senderName = "You",
-            senderInitials = "ME",
-            text = "Yes, reviewed it this morning. The tensor decomposition is airtight now!",
-            timestamp = now - 1000 * 60 * 18,
-            isOutgoing = true
-        )
-        val m3 = ChatMessageEntity(
-            id = "m3",
-            conversationId = "c_elena",
-            senderName = "Dr. Elena Rostova",
-            senderInitials = "EL",
-            text = "Brilliant. I'm submitting the camera-ready version to the preprint server now.",
-            timestamp = now - 1000 * 60 * 12,
-            isOutgoing = false
-        )
-        messageDao.insertMessages(listOf(m1, m2, m3))
+        conversationDao.insertConversation(lounge)
     }
 }

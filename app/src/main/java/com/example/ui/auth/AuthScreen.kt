@@ -296,15 +296,15 @@ fun AuthScreen(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Fast-Track 1-Tap Demo Researcher Login
+                // Fast-Track 1-Tap Guest Scholar Access
                 OutlinedButton(
                     onClick = {
                         isLoading = true
                         scope.launch {
-                            val result = sessionManager.loginAsDemoResearcher()
+                            val result = sessionManager.loginAsGuest()
                             isLoading = false
                             if (result is com.example.data.auth.AuthResult.Success) {
-                                Toast.makeText(context, "Signed in as Demo Researcher (${result.user.displayName})", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Welcome, ${result.user.displayName}", Toast.LENGTH_SHORT).show()
                                 onAuthSuccess()
                             }
                         }
@@ -316,7 +316,7 @@ fun AuthScreen(
                     Icon(Icons.Outlined.Science, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "One-Tap Demo Researcher Access",
+                        "Explore as Guest Scholar",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.primary
                     )

@@ -9,31 +9,18 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.data.AppDatabase
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
-import com.google.firebase.auth.FirebaseAuthInvalidUserException
-import com.google.firebase.auth.FirebaseAuthUserCollisionException
-import com.google.firebase.auth.UserProfileChangeRequest
+import com.example.network.SupabaseClient
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.IOException
 import java.security.MessageDigest
 import java.util.UUID
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 private val Context.sessionDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "user_session"
 )
-
-private suspend fun <T> com.google.android.gms.tasks.Task<T>.awaitTask(): T =
-    suspendCancellableCoroutine { cont ->
-        addOnSuccessListener { result -> cont.resume(result) }
-        addOnFailureListener { exception -> cont.resumeWithException(exception) }
-    }
 
 sealed class AuthResult {
     data class Success(val user: UserAccount) : AuthResult()
@@ -42,8 +29,8 @@ sealed class AuthResult {
 }
 
 /**
- * Manages user authentication with Firebase Auth cloud synchronization,
- * Room v5 local offline database persistence, security rate limiting,
+ * Manages user authentication with Supabase Cloud synchronization,
+ * Room local offline database persistence, security rate limiting,
  * and privacy consent state across the application.
  */
 class UserSessionManager(
@@ -60,6 +47,8 @@ class UserSessionManager(
     private val keyUserName = stringPreferencesKey("user_name")
     private val keyUserAffiliation = stringPreferencesKey("user_affiliation")
     private val keyUserField = stringPreferencesKey("user_field")
+    private val keyAccessToken = stringPreferencesKey("supabase_access_token")
+    private val keyRefreshToken = stringPreferencesKey("supabase_refresh_token")
     private val keyPrivacyAccepted = booleanPreferencesKey("privacy_policy_accepted")
     private val keyRememberLogin = booleanPreferencesKey("remember_login_info")
 
@@ -73,6 +62,7 @@ class UserSessionManager(
     val currentUserName: Flow<String> = preferences.map { it[keyUserName].orEmpty() }
     val currentUserAffiliation: Flow<String> = preferences.map { it[keyUserAffiliation].orEmpty() }
     val currentUserField: Flow<String> = preferences.map { it[keyUserField].orEmpty() }
+    val currentAccessToken: Flow<String> = preferences.map { it[keyAccessToken].orEmpty() }
     val isPrivacyAccepted: Flow<Boolean> = preferences.map { it[keyPrivacyAccepted] ?: false }
     val rememberLoginInfo: Flow<Boolean> = preferences.map { it[keyRememberLogin] ?: true }
 
@@ -122,7 +112,7 @@ class UserSessionManager(
     }
 
     /**
-     * Signs in using Firebase Authentication with automatic offline fallback to local Room SQLite.
+     * Signs in using Supabase Authentication with automatic offline fallback to local Room SQLite.
      */
     suspend fun login(email: String, password: String): AuthResult {
         val cleanEmail = email.trim().lowercase()
@@ -136,31 +126,22 @@ class UserSessionManager(
             return AuthResult.RateLimited(getCooldownRemainingSeconds())
         }
 
-        // 1. Attempt Firebase Auth Cloud Sign-In
-        var firebaseUid: String? = null
-        var firebaseDisplayName: String? = null
+        // 1. Attempt Supabase Cloud Sign-In
+        var remoteUid: String? = null
+        var remoteDisplayName: String? = null
+        var accessToken = ""
+        var refreshToken = ""
 
-        try {
-            val auth = FirebaseAuth.getInstance()
-            val result = auth.signInWithEmailAndPassword(cleanEmail, cleanPass).awaitTask()
-            firebaseUid = result.user?.uid
-            firebaseDisplayName = result.user?.displayName
-        } catch (e: FirebaseAuthInvalidUserException) {
-            recordFailedAttempt()
-            val remaining = getRemainingAttempts()
-            return AuthResult.Error(
-                if (remaining > 0) "Account not found on Firebase. ($remaining attempts remaining)"
-                else "Account not found. Login rate limit exceeded, please wait 60 seconds."
-            )
-        } catch (e: FirebaseAuthInvalidCredentialsException) {
-            recordFailedAttempt()
-            val remaining = getRemainingAttempts()
-            return AuthResult.Error(
-                if (remaining > 0) "Incorrect password for this academic account. ($remaining attempts remaining)"
-                else "Incorrect password. Rate limit reached, please wait 60 seconds."
-            )
-        } catch (e: Exception) {
-            // Network unavailable or Firebase uninitialized: fall back to local Room database verification
+        val remoteResult = SupabaseClient.signIn(cleanEmail, cleanPass)
+        if (remoteResult.isSuccess) {
+            val authResp = remoteResult.getOrThrow()
+            remoteUid = authResp.user.id
+            remoteDisplayName = authResp.user.fullName.ifBlank {
+                cleanEmail.substringBefore('@').replace('.', ' ')
+                    .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+            }
+            accessToken = authResp.accessToken
+            refreshToken = authResp.refreshToken
         }
 
         // 2. Synchronize with Local Room Database
@@ -168,19 +149,28 @@ class UserSessionManager(
         val inputHash = hashPassword(cleanPass)
 
         if (user != null) {
-            // If offline, check local password hash
-            if (firebaseUid == null && user.passwordHash != inputHash) {
-                recordFailedAttempt()
-                val remaining = getRemainingAttempts()
-                return AuthResult.Error("Incorrect password for offline account. ($remaining attempts remaining)")
+            // If offline and cloud failed, verify password hash locally
+            if (remoteUid == null) {
+                if (user.passwordHash != inputHash) {
+                    recordFailedAttempt()
+                    val remaining = getRemainingAttempts()
+                    return AuthResult.Error("Incorrect password for offline account. ($remaining attempts remaining)")
+                }
+            } else {
+                // Update local record with latest verified info
+                user = user.copy(
+                    id = remoteUid,
+                    displayName = remoteDisplayName ?: user.displayName,
+                    lastLoginAt = System.currentTimeMillis()
+                )
+                userDao.insertUser(user)
             }
         } else {
-            // New device login with valid Firebase Auth credentials: seed local Room user
-            if (firebaseUid != null) {
+            if (remoteUid != null) {
                 user = UserAccount(
-                    id = firebaseUid,
+                    id = remoteUid,
                     email = cleanEmail,
-                    displayName = firebaseDisplayName ?: cleanEmail.substringBefore('@').replace('.', ' ').capitalize(),
+                    displayName = remoteDisplayName ?: cleanEmail.substringBefore('@'),
                     passwordHash = inputHash,
                     affiliation = "Academic Institution",
                     researchField = "All Disciplines",
@@ -191,7 +181,9 @@ class UserSessionManager(
                 userDao.insertUser(user)
             } else {
                 recordFailedAttempt()
-                return AuthResult.Error("Account not found in local database or offline cache.")
+                val remaining = getRemainingAttempts()
+                val errorMsg = remoteResult.exceptionOrNull()?.message ?: "Invalid academic credentials"
+                return AuthResult.Error("$errorMsg ($remaining attempts remaining)")
             }
         }
 
@@ -200,18 +192,20 @@ class UserSessionManager(
         userDao.recordLogin(cleanEmail, System.currentTimeMillis())
 
         saveSession(
-            uid = firebaseUid ?: user.id,
+            uid = remoteUid ?: user.id,
             email = user.email,
             name = user.displayName,
             affiliation = user.affiliation,
-            field = user.researchField
+            field = user.researchField,
+            accessToken = accessToken,
+            refreshToken = refreshToken
         )
 
         return AuthResult.Success(user)
     }
 
     /**
-     * Registers a new account on Firebase Auth and synchronizes with local Room v5 database.
+     * Registers a new account on Supabase Auth and synchronizes with local Room database.
      */
     suspend fun register(
         name: String,
@@ -238,27 +232,34 @@ class UserSessionManager(
             return AuthResult.Error("You must agree to the Terms of Service and Privacy Policy to create an account.")
         }
 
-        // 1. Attempt Cloud Registration via Firebase Auth
+        // 1. Attempt Cloud Registration via Supabase Auth
+        val username = cleanEmail.substringBefore('@').replace(Regex("[^a-zA-Z0-9_]"), "_")
         var assignedUid: String = UUID.randomUUID().toString()
-        try {
-            val auth = FirebaseAuth.getInstance()
-            val authResult = auth.createUserWithEmailAndPassword(cleanEmail, cleanPass).awaitTask()
-            val firebaseUser = authResult.user
-            if (firebaseUser != null) {
-                assignedUid = firebaseUser.uid
-                val profileUpdates = UserProfileChangeRequest.Builder()
-                    .setDisplayName(cleanName)
-                    .build()
-                firebaseUser.updateProfile(profileUpdates).awaitTask()
+        var accessToken = ""
+        var refreshToken = ""
+
+        val signupResult = SupabaseClient.signUp(
+            email = cleanEmail,
+            password = cleanPass,
+            fullName = cleanName,
+            username = username
+        )
+
+        if (signupResult.isSuccess) {
+            val authResp = signupResult.getOrThrow()
+            assignedUid = authResp.user.id
+            accessToken = authResp.accessToken
+            refreshToken = authResp.refreshToken
+        } else {
+            val error = signupResult.exceptionOrNull()?.message ?: "Sign up failed"
+            if (error.contains("already registered", ignoreCase = true) || error.contains("user already exists", ignoreCase = true)) {
+                return AuthResult.Error("An account with this email address already exists. Please log in.")
             }
-        } catch (e: FirebaseAuthUserCollisionException) {
-            return AuthResult.Error("An account with this email address already exists on Firebase. Please log in.")
-        } catch (e: Exception) {
-            // Offline or fallback mode: proceed with local Room storage
+            // Fall back gracefully if offline
         }
 
         val existingLocal = userDao.findUserByEmail(cleanEmail)
-        if (existingLocal != null) {
+        if (existingLocal != null && signupResult.isFailure) {
             return AuthResult.Error("An account with this email already exists locally. Please log in.")
         }
 
@@ -283,6 +284,8 @@ class UserSessionManager(
             name = newUser.displayName,
             affiliation = newUser.affiliation,
             field = newUser.researchField,
+            accessToken = accessToken,
+            refreshToken = refreshToken,
             privacyAccepted = true
         )
 
@@ -290,58 +293,42 @@ class UserSessionManager(
     }
 
     /**
-     * One-tap instant demo login as an Academic Researcher synced with Firebase Auth.
+     * Instant clean Guest Researcher access with neutral profile.
      */
-    suspend fun loginAsDemoResearcher(): AuthResult {
-        val demoEmail = "demo.researcher@cite.circle"
-        val demoPass = "citecircle2026"
-        val demoName = "Dr. Morgan Vance"
+    suspend fun loginAsGuest(): AuthResult {
+        val guestEmail = "guest.researcher@citecircle.app"
+        val guestName = "Guest Researcher"
+        val guestUid = "guest-" + UUID.randomUUID().toString().take(8)
 
-        var assignedUid: String = "demo-researcher-uid"
-        try {
-            val auth = FirebaseAuth.getInstance()
-            val authResult = try {
-                auth.signInWithEmailAndPassword(demoEmail, demoPass).awaitTask()
-            } catch (e: Exception) {
-                auth.createUserWithEmailAndPassword(demoEmail, demoPass).awaitTask()
-            }
-            assignedUid = authResult.user?.uid ?: assignedUid
-        } catch (e: Exception) {
-            // Offline fallback
-        }
-
-        var demo = userDao.findUserByEmail(demoEmail)
-        if (demo == null) {
-            demo = UserAccount(
-                id = assignedUid,
-                email = demoEmail,
-                displayName = demoName,
-                passwordHash = hashPassword(demoPass),
-                affiliation = "Institute for Advanced Study",
-                researchField = "Computational Neuroscience & AI",
-                isActive = true,
-                createdAt = System.currentTimeMillis(),
-                lastLoginAt = System.currentTimeMillis()
-            )
-            userDao.insertUser(demo)
-        } else {
-            userDao.recordLogin(demoEmail, System.currentTimeMillis())
-        }
+        val guestUser = UserAccount(
+            id = guestUid,
+            email = guestEmail,
+            displayName = guestName,
+            passwordHash = "",
+            affiliation = "Visiting Researcher",
+            researchField = "Academic Research",
+            isActive = true,
+            createdAt = System.currentTimeMillis(),
+            lastLoginAt = System.currentTimeMillis()
+        )
 
         userDao.deactivateAllUsers()
-        userDao.recordLogin(demoEmail, System.currentTimeMillis())
+        userDao.insertUser(guestUser)
 
         saveSession(
-            uid = assignedUid,
-            email = demo.email,
-            name = demo.displayName,
-            affiliation = demo.affiliation,
-            field = demo.researchField,
+            uid = guestUid,
+            email = guestUser.email,
+            name = guestUser.displayName,
+            affiliation = guestUser.affiliation,
+            field = guestUser.researchField,
             privacyAccepted = true
         )
 
-        return AuthResult.Success(demo)
+        return AuthResult.Success(guestUser)
     }
+
+    /** Backward compatibility alias for UI */
+    suspend fun loginAsDemoResearcher(): AuthResult = loginAsGuest()
 
     suspend fun acceptPrivacyPolicy() {
         store.edit { it[keyPrivacyAccepted] = true }
@@ -354,7 +341,7 @@ class UserSessionManager(
     fun getAllSavedAccounts(): Flow<List<UserAccount>> = userDao.getAllUsers()
 
     /**
-     * Updates personal and academic details in Room and Firebase Auth.
+     * Updates personal and academic details in Room and local state.
      */
     suspend fun updateProfile(
         displayName: String,
@@ -384,28 +371,13 @@ class UserSessionManager(
             it[keyUserField] = cleanField
         }
 
-        // 3. Update Firebase Auth display name if online
-        try {
-            val auth = FirebaseAuth.getInstance()
-            val user = auth.currentUser
-            if (user != null) {
-                user.updateProfile(
-                    UserProfileChangeRequest.Builder()
-                        .setDisplayName(cleanName)
-                        .build()
-                ).awaitTask()
-            }
-        } catch (e: Exception) {
-            // Offline or uninitialized: local update succeeded
-        }
-
         val updated = userDao.findUserByEmail(email)
         return if (updated != null) AuthResult.Success(updated)
         else AuthResult.Error("Failed to retrieve updated profile.")
     }
 
     /**
-     * Changes account password with validation and Firebase Auth synchronization.
+     * Changes account password with validation and local database synchronization.
      */
     suspend fun changePassword(oldPassword: String, newPassword: String): AuthResult {
         val cleanOld = oldPassword.trim()
@@ -438,17 +410,6 @@ class UserSessionManager(
         val newHash = hashPassword(cleanNew)
         userDao.updatePasswordHash(email, newHash)
 
-        // Update on Firebase Auth if online
-        try {
-            val auth = FirebaseAuth.getInstance()
-            val user = auth.currentUser
-            if (user != null) {
-                user.updatePassword(cleanNew).awaitTask()
-            }
-        } catch (e: Exception) {
-            // Local update succeeded, cloud sync pending
-        }
-
         return AuthResult.Success(localUser.copy(passwordHash = newHash))
     }
 
@@ -476,15 +437,9 @@ class UserSessionManager(
     }
 
     /**
-     * Facebook-style logout with optional credential retention on device.
+     * Logout with optional credential retention on device.
      */
     suspend fun signOut(keepSavedOnDevice: Boolean = true) {
-        try {
-            FirebaseAuth.getInstance().signOut()
-        } catch (e: Exception) {
-            // Ignore if Firebase uninitialized
-        }
-
         val email = currentUserEmail.first()
         if (email.isNotBlank()) {
             if (keepSavedOnDevice) {
@@ -501,16 +456,12 @@ class UserSessionManager(
             it[keyUserName] = ""
             it[keyUserAffiliation] = ""
             it[keyUserField] = ""
+            it[keyAccessToken] = ""
+            it[keyRefreshToken] = ""
         }
     }
 
     suspend fun deleteAccount() {
-        try {
-            FirebaseAuth.getInstance().currentUser?.delete()?.awaitTask()
-        } catch (e: Exception) {
-            // Ignore if offline
-        }
-
         val email = currentUserEmail.first()
         if (email.isNotBlank()) {
             userDao.deleteUser(email)
@@ -524,6 +475,8 @@ class UserSessionManager(
         name: String,
         affiliation: String,
         field: String,
+        accessToken: String = "",
+        refreshToken: String = "",
         privacyAccepted: Boolean? = null
     ) {
         store.edit {
@@ -533,6 +486,12 @@ class UserSessionManager(
             it[keyUserName] = name
             it[keyUserAffiliation] = affiliation
             it[keyUserField] = field
+            if (accessToken.isNotBlank()) {
+                it[keyAccessToken] = accessToken
+            }
+            if (refreshToken.isNotBlank()) {
+                it[keyRefreshToken] = refreshToken
+            }
             if (privacyAccepted != null) {
                 it[keyPrivacyAccepted] = privacyAccepted
             }

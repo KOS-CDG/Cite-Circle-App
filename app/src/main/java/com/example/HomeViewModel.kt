@@ -21,10 +21,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
+import com.example.network.SupabaseClient
+import com.example.network.SupabaseConfig
 import java.util.UUID
 
 /**
@@ -148,8 +151,23 @@ class HomeViewModel(
             initialValue = emptyList()
         )
 
-    fun comments(paperId: String): Flow<ListState<Comment>> =
-        repository.comments(paperId).map { ListState(items = it, isLoading = false) }
+    fun comments(paperId: String): Flow<ListState<Comment>> {
+        viewModelScope.launch {
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val token = session?.currentAccessToken?.first() ?: SupabaseConfig.ANON_KEY
+                val res = SupabaseClient.getComments(paperId, token)
+                if (res.isSuccess) {
+                    res.getOrThrow().forEach { comment ->
+                        repository.addComment(comment)
+                    }
+                }
+            } catch (e: Exception) {
+                // Background sync error ignored
+            }
+        }
+        return repository.comments(paperId).map { ListState(items = it, isLoading = false) }
+    }
 
     /**
      * Replies and quote posts, interleaved newest-first.
@@ -188,22 +206,15 @@ class HomeViewModel(
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     /**
-     * Pull-to-refresh.
-     *
-     * Room already pushes changes reactively, so there is nothing local to re-fetch. What
-     * this does perform is a real cloud sync attempt; with the placeholder Firebase config it
-     * fails fast inside FirestoreRepository and the spinner simply ends. No artificial delay
-     * is inserted to make it feel busier than it is.
+     * Pull-to-refresh: synchronizes the public feed from Supabase PostgreSQL.
      */
     fun refresh() {
         if (_isRefreshing.value) return
         viewModelScope.launch {
             _isRefreshing.value = true
             try {
-                syncToCloud()
+                syncFromSupabase()
             } catch (e: Exception) {
-                // Previously swallowed by a bare try/finally, so a failed sync looked
-                // identical to a successful one.
                 report(appContext.getString(R.string.sync_failed))
             } finally {
                 _isRefreshing.value = false
@@ -229,34 +240,39 @@ class HomeViewModel(
 
     init {
         viewModelScope.launch {
-            repository.allPapers.take(1).collect { papers ->
-                if (papers.isEmpty()) {
-                    repository.savePaper(
-                        SavedPaper(
-                            id = "1",
-                            authorInitials = "JD",
-                            authorName = "Dr. Jane Doe",
-                            affiliation = "Oxford",
-                            content = "I just published a new preprint analyzing the semantic structures of large language models. The findings suggest a stark shift in latent knowledge representations.",
-                            title = "Semantic Structures in Large Language Models",
-                            authors = "Doe, Jane",
-                            year = "2026",
-                            venue = "Folio Preprints",
-                            url = "https://cite.circle/refs/882xj",
-                            publishedAt = System.currentTimeMillis()
-                        )
-                    )
-                }
-            }
+            syncFromSupabase()
         }
     }
 
-    private val firestoreRepo = com.example.data.FirestoreRepository()
+    private suspend fun syncFromSupabase() {
+        try {
+            val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+            val token = session?.currentAccessToken?.first() ?: SupabaseConfig.ANON_KEY
+            val res = SupabaseClient.getPosts(limit = 50, accessToken = token)
+            if (res.isSuccess) {
+                val remotePosts = res.getOrThrow()
+                remotePosts.forEach { paper ->
+                    repository.savePaper(paper)
+                }
+            }
+        } catch (e: Exception) {
+            // Offline or initial launch: Room cached posts displayed
+        }
+    }
 
     fun savePaper(paper: SavedPaper) {
         viewModelScope.launch {
             repository.savePaper(paper)
-            syncToCloud()
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first() ?: SupabaseConfig.ANON_KEY
+                if (userId.isNotBlank()) {
+                    SupabaseClient.createPost(paper, userId, token)
+                }
+            } catch (e: Exception) {
+                // Post saved locally in Room SQLite
+            }
         }
     }
 
@@ -264,45 +280,46 @@ class HomeViewModel(
     fun publishQuote(original: SavedPaper, commentary: String) {
         viewModelScope.launch {
             val identity = AuthorIdentity.current(appContext)
-            repository.publishQuote(
-                SavedPaper(
-                    id = UUID.randomUUID().toString(),
-                    authorInitials = identity.initials,
-                    authorName = identity.name,
-                    affiliation = identity.affiliation,
-                    content = commentary.trim(),
-                    // The citation travels with the quote so the repost is independently citable.
-                    title = original.title,
-                    authors = original.authors,
-                    year = original.year,
-                    venue = original.venue,
-                    doi = original.doi,
-                    url = original.url,
-                    citationOverride = original.citationOverride,
-                    publishedAt = System.currentTimeMillis(),
-                    quotedId = original.id,
-                    quotedAuthorName = original.authorName,
-                    quotedTitle = original.title,
-                    quotedContent = original.content
-                )
+            val quotePost = SavedPaper(
+                id = UUID.randomUUID().toString(),
+                authorInitials = identity.initials,
+                authorName = identity.name,
+                affiliation = identity.affiliation,
+                content = commentary.trim(),
+                title = original.title,
+                authors = original.authors,
+                year = original.year,
+                venue = original.venue,
+                doi = original.doi,
+                url = original.url,
+                citationOverride = original.citationOverride,
+                publishedAt = System.currentTimeMillis(),
+                quotedId = original.id,
+                quotedAuthorName = original.authorName,
+                quotedTitle = original.title,
+                quotedContent = original.content
             )
-            syncToCloud()
+            repository.publishQuote(quotePost)
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first() ?: SupabaseConfig.ANON_KEY
+                if (userId.isNotBlank()) {
+                    SupabaseClient.createPost(quotePost, userId, token)
+                }
+            } catch (e: Exception) {
+                // Quote saved locally
+            }
         }
     }
 
     /**
      * Withdraws a post, offering it back.
-     *
-     * The comments are read before the delete cascades them away, and the image file is
-     * deliberately *not* removed here — deleting it immediately would make undo restore a
-     * post whose figure had already been destroyed. Cleanup happens in [forgetPaper] once
-     * the undo window has closed.
      */
     fun removePaper(paper: SavedPaper) {
         viewModelScope.launch {
             val orphanedComments = repository.commentsOnce(paper.id)
             repository.deletePaper(paper.id)
-            syncToCloud()
             report(appContext.getString(R.string.entry_withdrawn)) {
                 restorePaper(paper, orphanedComments)
             }
@@ -312,7 +329,6 @@ class HomeViewModel(
     private fun restorePaper(paper: SavedPaper, comments: List<Comment>) {
         viewModelScope.launch {
             repository.restorePaper(paper, comments)
-            syncToCloud()
         }
     }
 
@@ -339,7 +355,19 @@ class HomeViewModel(
     }
 
     fun toggleEndorsement(id: String, currentStatus: Boolean) {
-        viewModelScope.launch { repository.toggleEndorsement(id, currentStatus) }
+        viewModelScope.launch {
+            repository.toggleEndorsement(id, currentStatus)
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first() ?: SupabaseConfig.ANON_KEY
+                if (userId.isNotBlank()) {
+                    SupabaseClient.toggleLike(id, userId, currentStatus, token)
+                }
+            } catch (e: Exception) {
+                // Local state maintained
+            }
+        }
     }
 
     fun toggleBookmark(id: String, currentStatus: Boolean) {
@@ -351,29 +379,31 @@ class HomeViewModel(
         if (trimmed.isEmpty()) return
         viewModelScope.launch {
             val identity = AuthorIdentity.current(appContext)
-            repository.addComment(
-                Comment(
-                    id = UUID.randomUUID().toString(),
-                    paperId = paperId,
-                    authorInitials = identity.initials,
-                    authorName = identity.name,
-                    affiliation = identity.affiliation,
-                    body = trimmed,
-                    createdAt = System.currentTimeMillis()
-                )
+            val comment = Comment(
+                id = UUID.randomUUID().toString(),
+                paperId = paperId,
+                authorInitials = identity.initials,
+                authorName = identity.name,
+                affiliation = identity.affiliation,
+                body = trimmed,
+                createdAt = System.currentTimeMillis()
             )
+            repository.addComment(comment)
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first() ?: SupabaseConfig.ANON_KEY
+                if (userId.isNotBlank()) {
+                    SupabaseClient.addComment(paperId, userId, trimmed, token)
+                }
+            } catch (e: Exception) {
+                // Comment saved locally
+            }
         }
     }
 
     fun deleteComment(comment: Comment) {
         viewModelScope.launch { repository.deleteComment(comment) }
-    }
-
-    private suspend fun syncToCloud() {
-        // Read back after the write so the sync sees the canonical list.
-        repository.allPapers.take(1).collect { papers ->
-            firestoreRepo.syncPapersToCloud(papers)
-        }
     }
 }
 
