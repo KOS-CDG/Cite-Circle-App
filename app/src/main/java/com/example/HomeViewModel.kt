@@ -119,6 +119,33 @@ class HomeViewModel(
         _scrollToTop.tryEmit(route)
     }
 
+    private val _appUpdateInfo = MutableStateFlow<SupabaseClient.AppUpdateInfo?>(null)
+    val appUpdateInfo: StateFlow<SupabaseClient.AppUpdateInfo?> = _appUpdateInfo.asStateFlow()
+
+    fun dismissUpdateDialog() {
+        _appUpdateInfo.value = null
+    }
+
+    fun checkForUpdates(currentVersionCode: Int = 1) {
+        viewModelScope.launch {
+            try {
+                val res = SupabaseClient.checkForAppUpdate(currentVersionCode)
+                if (res.isSuccess) {
+                    val info = res.getOrNull()
+                    if (info?.updateAvailable == true) {
+                        _appUpdateInfo.value = info
+                    }
+                }
+            } catch (e: Exception) {
+                // Ignore silent failure if offline
+            }
+        }
+    }
+
+    init {
+        checkForUpdates(currentVersionCode = 1)
+    }
+
     val feed: StateFlow<ListState<SavedPaper>> = repository.allPapers
         .map { ListState(items = it, isLoading = false) }
         .stateIn(

@@ -932,6 +932,26 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function validatePasswordSecurity(password) {
+    if (!password || password.length < 8) {
+      return { valid: false, message: 'Password must be at least 8 characters long.' };
+    }
+    const commonWeak = [
+      'password', '12345678', '123456789', 'qwerty123', 'admin123', 'welcome123',
+      'password1', 'pass1234', '11111111', '00000000', 'testing123', 'letmein123',
+      'citecircle', 'researcher'
+    ];
+    if (commonWeak.includes(password.toLowerCase())) {
+      return { valid: false, message: 'This password is too common and easily guessed. Please choose a stronger password.' };
+    }
+    const hasLetter = /[a-zA-Z]/.test(password);
+    const hasDigitOrSpecial = /[\d!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`]/.test(password);
+    if (!hasLetter || !hasDigitOrSpecial) {
+      return { valid: false, message: 'Password must include both letters and numbers/symbols.' };
+    }
+    return { valid: true };
+  }
+
   if (authSubmitBtn) {
     authSubmitBtn.addEventListener('click', async () => {
       const email = document.getElementById('authEmailInput')?.value.trim();
@@ -944,6 +964,17 @@ document.addEventListener('DOMContentLoaded', () => {
           authErrorMsg.style.display = 'block';
         }
         return;
+      }
+
+      if (STATE.authMode === 'signup') {
+        const check = validatePasswordSecurity(password);
+        if (!check.valid) {
+          if (authErrorMsg) {
+            authErrorMsg.textContent = check.message;
+            authErrorMsg.style.display = 'block';
+          }
+          return;
+        }
       }
 
       try {
@@ -1088,9 +1119,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const newPass = newPasswordInput?.value.trim();
       const confPass = confirmPasswordInput?.value.trim();
 
-      if (!newPass || newPass.length < 6) {
+      const check = validatePasswordSecurity(newPass);
+      if (!check.valid) {
         if (passwordErrorMsg) {
-          passwordErrorMsg.textContent = 'New password must be at least 6 characters long.';
+          passwordErrorMsg.textContent = check.message;
           passwordErrorMsg.style.display = 'block';
         }
         return;
@@ -1729,4 +1761,43 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // Check for In-App Updates via Supabase Edge Function
+  async function checkForInAppUpdates() {
+    try {
+      const res = await fetch('https://cxxtrtglmxfuyihxwiza.supabase.co/functions/v1/cite-server?action=check_update&code=1');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.update_available) {
+          const banner = document.getElementById('inAppUpdateBanner');
+          const versionTag = document.getElementById('updateVersionTag');
+          const notesText = document.getElementById('updateNotesText');
+          if (banner) {
+            if (versionTag) versionTag.textContent = `v${data.latest_version_name}`;
+            if (notesText && data.release_notes) notesText.textContent = data.release_notes;
+            banner.style.display = 'block';
+          }
+        }
+      }
+    } catch (e) {
+      // Offline or Edge function silent fallback
+    }
+  }
+
+  const dismissUpdateBannerBtn = document.getElementById('dismissUpdateBannerBtn');
+  if (dismissUpdateBannerBtn) {
+    dismissUpdateBannerBtn.addEventListener('click', () => {
+      const banner = document.getElementById('inAppUpdateBanner');
+      if (banner) banner.style.display = 'none';
+    });
+  }
+
+  const applyUpdateBtn = document.getElementById('applyUpdateBtn');
+  if (applyUpdateBtn) {
+    applyUpdateBtn.addEventListener('click', () => {
+      window.location.reload();
+    });
+  }
+
+  checkForInAppUpdates();
 });

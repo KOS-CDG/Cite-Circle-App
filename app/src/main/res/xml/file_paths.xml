@@ -7,4 +7,7 @@
 <paths>
     <cache-path name="shared" path="shared/" />
     <files-path name="vault_pdfs" path="vault_pdfs/" />
+    <cache-path name="updates" path="updates/" />
+    <external-files-path name="updates_ext" path="updates/" />
+    <external-files-path name="downloads_ext" path="Download/" />
 </paths>

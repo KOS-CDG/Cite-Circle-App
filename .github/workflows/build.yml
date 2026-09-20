@@ -73,6 +73,9 @@ jobs:
       - name: Run Backend CI & Network Rules Suite
         run: node test/backend-ci.test.js
 
+      - name: Run Supabase, Cloudflare R2 & Edge Integration Tests
+        run: node test/supabase-integration.test.mjs
+
   # -------------------------------------------------------------
   # Job 3: Live Cloud Hosting & Connectivity Verification
   # -------------------------------------------------------------
@@ -101,3 +104,54 @@ jobs:
             echo "Failed to reach live secondary domain"
             exit 1
           fi
+
+      - name: Verify Supabase Serverless Edge API (cite-server)
+        run: |
+          echo "Pinging Supabase Edge Function cite-server..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://cxxtrtglmxfuyihxwiza.supabase.co/functions/v1/cite-server)
+          echo "Edge Function HTTP Status: $STATUS"
+          if [ "$STATUS" -ne 200 ]; then
+            echo "Failed to reach Supabase cite-server Edge Function"
+            exit 1
+          fi
+
+      - name: Verify Live APK Public Download Endpoint
+        run: |
+          echo "Checking APK download URL..."
+          STATUS=$(curl -s -I -o /dev/null -w "%{http_code}" https://cxxtrtglmxfuyihxwiza.supabase.co/storage/v1/object/public/app-releases/CiteCircle-latest.apk)
+          echo "APK Storage HTTP Status: $STATUS"
+          if [ "$STATUS" -ne 200 ]; then
+            echo "Failed to reach live APK download URL"
+            exit 1
+          fi
+
+  # -------------------------------------------------------------
+  # Job 4: Deploy Web App to GitHub Pages
+  # -------------------------------------------------------------
+  deploy-pages:
+    name: Deploy Web App to GitHub Pages
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs: [backend-ci, cloud-health]
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'web'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

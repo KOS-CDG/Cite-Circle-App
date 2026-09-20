@@ -544,4 +544,52 @@ object SupabaseClient {
             Result.failure(e)
         }
     }
+
+    data class AppUpdateInfo(
+        val updateAvailable: Boolean,
+        val latestVersionName: String,
+        val latestVersionCode: Int,
+        val mandatory: Boolean,
+        val releaseNotes: String,
+        val downloadUrl: String,
+        val fileSizeMb: Double
+    )
+
+    suspend fun checkForAppUpdate(currentVersionCode: Int = 1): Result<AppUpdateInfo?> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${SupabaseConfig.URL}/functions/v1/cite-server?action=check_update&code=$currentVersionCode"
+            val request = Request.Builder()
+                .url(url)
+                .header("apikey", SupabaseConfig.ANON_KEY)
+                .get()
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) {
+                return@withContext Result.failure(IOException("Server error ${response.code}"))
+            }
+
+            val body = response.body?.string() ?: return@withContext Result.success(null)
+            val json = JSONObject(body)
+
+            if (!json.optBoolean("success", false)) {
+                return@withContext Result.success(null)
+            }
+
+            val info = AppUpdateInfo(
+                updateAvailable = json.optBoolean("update_available", false),
+                latestVersionName = json.optString("latest_version_name", "1.0"),
+                latestVersionCode = json.optInt("latest_version_code", 1),
+                mandatory = json.optBoolean("mandatory", false),
+                releaseNotes = json.optString("release_notes", "Performance and stability improvements."),
+                downloadUrl = json.optString("download_url", ""),
+                fileSizeMb = json.optDouble("file_size_mb", 0.0)
+            )
+
+            Result.success(info)
+        } catch (e: Exception) {
+            Log.e(TAG, "checkForAppUpdate error", e)
+            Result.failure(e)
+        }
+    }
 }

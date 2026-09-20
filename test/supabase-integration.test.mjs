@@ -297,6 +297,33 @@ await test('15. Cloudflare R2: Public CDN delivers asset with HTTP 200', async (
   assert.ok(text.includes('Welcome to Cite Circle Media'));
 });
 
+// 16. Supabase Edge Functions: Serverless API health check & citation engine
+await test('16. Supabase Edge Functions: Serverless cite-server responds with HTTP 200', async () => {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/cite-server`);
+  assert.strictEqual(res.status, 200);
+  const data = await res.json();
+  assert.strictEqual(data.status, 'online');
+  assert.strictEqual(data.service, 'Cite Circle Serverless Edge API');
+
+  // Test citation formatting capability
+  const citeRes = await fetch(`${SUPABASE_URL}/functions/v1/cite-server`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'format_citation',
+      title: 'Attention Is All You Need',
+      author: 'Vaswani et al.',
+      year: 2017,
+      journal: 'NeurIPS',
+      format: 'apa'
+    })
+  });
+  assert.strictEqual(citeRes.status, 200);
+  const citeData = await citeRes.json();
+  assert.strictEqual(citeData.success, true);
+  assert.ok(citeData.citation.includes('Vaswani et al.'));
+});
+
 console.log('\n------------------------------------------------------');
 console.log(`Summary: ${passed} passed, ${failed} failed.`);
 console.log('------------------------------------------------------\n');
@@ -304,6 +331,6 @@ console.log('------------------------------------------------------\n');
 if (failed > 0) {
   process.exit(1);
 } else {
-  console.log('>>> ALL 15 DATABASE & STORAGE CHECKS PASSED PERFECTLY! <<<\n');
+  console.log('>>> ALL 16 BACKEND, EDGE FUNCTION & STORAGE CHECKS PASSED PERFECTLY! <<<\n');
   process.exit(0);
 }

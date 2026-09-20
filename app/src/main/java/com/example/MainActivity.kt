@@ -179,6 +179,20 @@ fun FolioApp(viewModel: HomeViewModel) {
     }
   }
 
+  val appUpdateInfo by viewModel.appUpdateInfo.collectAsStateWithLifecycle()
+  appUpdateInfo?.let { info ->
+    com.example.ui.update.InAppUpdateDialog(
+      updateInfo = info,
+      onUpdateClick = {
+        viewModel.dismissUpdateDialog()
+        com.example.network.AppUpdateManager.startDownloadAndInstall(context, info)
+      },
+      onDismiss = {
+        viewModel.dismissUpdateDialog()
+      }
+    )
+  }
+
   Scaffold(
     modifier = Modifier.fillMaxSize(),
     containerColor = MaterialTheme.colorScheme.background,
