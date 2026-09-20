@@ -56,6 +56,16 @@ class ChatViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val apiKey = BuildConfig.GEMINI_API_KEY
+                if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY" || apiKey == "your_actual_key_here") {
+                    _messages.update { list ->
+                        list.dropLast(1) + ChatMessage(
+                            text = "⚠️ Gemini API key not configured.\n\nPlease add GEMINI_API_KEY=your_key to your .env file and rebuild the app. You can get a free key at https://aistudio.google.com/",
+                            isUser = false,
+                            isError = true
+                        )
+                    }
+                    return@launch
+                }
                 
                 val tools = if (useSearchGrounding) {
                     listOf(Tool(googleSearch = JsonObject(emptyMap())))
