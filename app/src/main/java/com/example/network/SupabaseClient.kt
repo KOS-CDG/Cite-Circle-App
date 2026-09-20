@@ -592,4 +592,101 @@ object SupabaseClient {
             Result.failure(e)
         }
     }
+
+    data class NotificationItemDto(
+        val id: String,
+        val recipientId: String,
+        val actorId: String,
+        val actorName: String,
+        val actorUsername: String,
+        val actorAvatarUrl: String?,
+        val type: String,
+        val postId: String?,
+        val postTitle: String?,
+        val isRead: Boolean,
+        val createdAt: Long
+    )
+
+    suspend fun getNotifications(
+        recipientId: String,
+        accessToken: String
+    ): Result<List<NotificationItemDto>> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${SupabaseConfig.URL}/rest/v1/notifications?select=*,actor:profiles!notifications_actor_id_fkey(*),post:posts!notifications_post_id_fkey(id,content,metadata)&recipient_id=eq.$recipientId&order=created_at.desc&limit=50"
+            val request = Request.Builder()
+                .url(url)
+                .header("apikey", SupabaseConfig.ANON_KEY)
+                .header("Authorization", "Bearer $accessToken")
+                .get()
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            val body = response.body?.string() ?: ""
+
+            if (!response.isSuccessful) {
+                return@withContext Result.failure(IOException("Failed to get notifications: ${response.code} $body"))
+            }
+
+            val array = JSONArray(body)
+            val list = mutableListOf<NotificationItemDto>()
+
+            for (i in 0 until array.length()) {
+                val row = array.getJSONObject(i)
+                val actorObj = row.optJSONObject("actor")
+                val postObj = row.optJSONObject("post")
+                val postMeta = postObj?.optJSONObject("metadata")
+
+                val actorName = actorObj?.optString("full_name", "")?.takeIf { it.isNotBlank() }
+                    ?: actorObj?.optString("username", "Researcher") ?: "Researcher"
+                val postTitle = postMeta?.optString("title", "")?.takeIf { it.isNotBlank() }
+                    ?: postObj?.optString("content", "")?.take(60) ?: "Research Paper"
+
+                list.add(
+                    NotificationItemDto(
+                        id = row.getString("id"),
+                        recipientId = row.getString("recipient_id"),
+                        actorId = row.getString("actor_id"),
+                        actorName = actorName,
+                        actorUsername = actorObj?.optString("username", "") ?: "",
+                        actorAvatarUrl = actorObj?.optString("avatar_url")?.takeIf { it.isNotBlank() },
+                        type = row.optString("type", "like"),
+                        postId = row.optString("post_id").takeIf { it.isNotBlank() },
+                        postTitle = postTitle,
+                        isRead = row.optBoolean("is_read", false),
+                        createdAt = parseIsoTimestamp(row.optString("created_at", ""))
+                    )
+                )
+            }
+
+            Result.success(list)
+        } catch (e: Exception) {
+            Log.e(TAG, "getNotifications error", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun markNotificationsAsRead(
+        recipientId: String,
+        accessToken: String
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${SupabaseConfig.URL}/rest/v1/notifications?recipient_id=eq.$recipientId&is_read=eq.false"
+            val updateBody = JSONObject().apply {
+                put("is_read", true)
+            }
+            val request = Request.Builder()
+                .url(url)
+                .header("apikey", SupabaseConfig.ANON_KEY)
+                .header("Authorization", "Bearer $accessToken")
+                .header("Content-Type", "application/json")
+                .patch(updateBody.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            Result.success(response.isSuccessful)
+        } catch (e: Exception) {
+            Log.e(TAG, "markNotificationsAsRead error", e)
+            Result.failure(e)
+        }
+    }
 }

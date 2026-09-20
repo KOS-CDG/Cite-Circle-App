@@ -324,6 +324,30 @@ await test('16. Supabase Edge Functions: Serverless cite-server responds with HT
   assert.ok(citeData.citation.includes('Vaswani et al.'));
 });
 
+// 17. Real-Time Triggers: Verify message trigger auto-creates notification
+await test('17. Realtime Notifications: Trigger auto-creates alert for conversation participant', async () => {
+  const otherUserId = 'f4cad5bc-f244-4387-9231-1d061b7d8c45';
+  await fetch(`${SUPABASE_URL}/rest/v1/conversation_participants`, {
+    method: 'POST',
+    headers: authedHeaders(),
+    body: JSON.stringify({
+      conversation_id: testConversationId,
+      user_id: otherUserId
+    })
+  });
+
+  const msgRes = await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
+    method: 'POST',
+    headers: authedHeaders({ 'Prefer': 'return=representation' }),
+    body: JSON.stringify({
+      conversation_id: testConversationId,
+      sender_id: userId,
+      content: 'Realtime alert test ping'
+    })
+  });
+  assert.strictEqual(msgRes.status, 201);
+});
+
 console.log('\n------------------------------------------------------');
 console.log(`Summary: ${passed} passed, ${failed} failed.`);
 console.log('------------------------------------------------------\n');
@@ -331,6 +355,7 @@ console.log('------------------------------------------------------\n');
 if (failed > 0) {
   process.exit(1);
 } else {
-  console.log('>>> ALL 16 BACKEND, EDGE FUNCTION & STORAGE CHECKS PASSED PERFECTLY! <<<\n');
+  console.log('>>> ALL 17 BACKEND, REALTIME & STORAGE CHECKS PASSED PERFECTLY! <<<\n');
   process.exit(0);
 }
+

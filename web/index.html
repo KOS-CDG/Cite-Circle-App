@@ -34,6 +34,25 @@
         <span id="cloudStatusText">Connecting...</span>
       </div>
       <button class="btn-icon" id="themeToggleBtn" title="Toggle Theme">🌓</button>
+      
+      <!-- Real-Time Activity Notification Bell -->
+      <div style="position: relative;">
+        <button class="btn-icon" id="notifBellBtn" title="Activity Notifications" style="position: relative; font-size: 1.05rem;">
+          🔔
+          <span id="notifBadgeCounter" style="display: none; position: absolute; top: -3px; right: -3px; background: #ef4444; color: #fff; font-size: 0.65rem; font-weight: 700; padding: 1px 5px; border-radius: 999px; line-height: 1.2; box-shadow: 0 0 6px rgba(239, 68, 68, 0.7);">0</span>
+        </button>
+        <!-- Notification Dropdown Panel -->
+        <div id="notifDropdownPanel" style="display: none; position: absolute; right: 0; top: calc(100% + 8px); width: 320px; background: rgba(15, 23, 42, 0.96); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px; box-shadow: 0 16px 36px rgba(0,0,0,0.6); backdrop-filter: blur(16px); z-index: 99999; overflow: hidden;">
+          <div style="padding: 10px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-weight: 700; font-size: 0.85rem; color: #f8fafc;">Live Activity Alerts</span>
+            <button id="markAllReadBtn" style="background: none; border: none; color: #3b82f6; font-size: 0.75rem; cursor: pointer; font-weight: 600;">Clear</button>
+          </div>
+          <div id="notifListContainer" style="max-height: 280px; overflow-y: auto;">
+            <div id="emptyNotifPlaceholder" style="padding: 24px; text-align: center; color: #94a3b8; font-size: 0.8rem;">No unread activity alerts</div>
+          </div>
+        </div>
+      </div>
+
       <button class="btn-publish-action" id="openAuthModalBtn" style="display: inline-block; margin-top: 0; padding: 0.4rem 0.85rem; font-size: 0.85rem;">
         Sign In
       </button>
@@ -771,6 +790,9 @@
       </a>
     </div>
   </div>
+
+  <!-- Floating Realtime Alert Toast Container -->
+  <div id="realtimeToastContainer" style="position: fixed; top: 74px; right: 24px; z-index: 999999; display: flex; flex-direction: column; gap: 10px; pointer-events: none;"></div>
 
   <!-- Main JavaScript App Entry -->
   <script type="module" src="app.js"></script>

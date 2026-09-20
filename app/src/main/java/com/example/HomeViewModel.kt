@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import com.example.network.SupabaseClient
 import com.example.network.SupabaseConfig
+import com.example.network.SupabaseRealtimeManager
+import android.util.Log
 import java.util.UUID
 
 /**
@@ -73,6 +75,27 @@ sealed interface ActivityItem {
     data class Cited(val quote: SavedPaper) : ActivityItem {
         override val timestamp: Long get() = quote.publishedAt
         override val targetPaperId: String get() = quote.id
+    }
+
+    data class Endorsed(
+        val actorName: String,
+        val actorUsername: String,
+        val paperId: String,
+        val paperTitle: String,
+        val createdAt: Long = System.currentTimeMillis()
+    ) : ActivityItem {
+        override val timestamp: Long get() = createdAt
+        override val targetPaperId: String get() = paperId
+    }
+
+    data class Messaged(
+        val senderName: String,
+        val conversationId: String,
+        val preview: String,
+        val createdAt: Long = System.currentTimeMillis()
+    ) : ActivityItem {
+        override val timestamp: Long get() = createdAt
+        override val targetPaperId: String get() = conversationId
     }
 }
 
@@ -202,15 +225,23 @@ class HomeViewModel(
      * Titles are resolved against the library rather than joined in SQL, because a reply on a
      * post that has since been withdrawn should still render — it just loses its title.
      */
+    private val _remoteNotifications = MutableStateFlow<List<ActivityItem>>(emptyList())
+    private val realtimeManager = SupabaseRealtimeManager(viewModelScope)
+
+    /**
+     * Replies, quote posts, and real-time endorsements/messages interleaved newest-first.
+     */
     val activity: StateFlow<ListState<ActivityItem>> = combine(
         repository.recentComments,
         repository.recentQuotes,
-        repository.allPapers
-    ) { comments, quotes, papers ->
+        repository.allPapers,
+        _remoteNotifications
+    ) { comments, quotes, papers, remotes ->
         val titles = papers.associate { it.id to it.title.ifBlank { it.content } }
-        val items = comments.map { ActivityItem.Replied(it, titles[it.paperId].orEmpty()) } +
+        val localItems = comments.map { ActivityItem.Replied(it, titles[it.paperId].orEmpty()) } +
             quotes.map { ActivityItem.Cited(it) }
-        ListState(items = items.sortedByDescending { it.timestamp }, isLoading = false)
+        val combined = (localItems + remotes).distinctBy { "${it.timestamp}_${it.targetPaperId}" }
+        ListState(items = combined.sortedByDescending { it.timestamp }, isLoading = false)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -252,7 +283,17 @@ class HomeViewModel(
     /** Marks every activity entry up to [timestamp] as seen, clearing the unread badge. */
     fun markActivitySeen(timestamp: Long) {
         if (timestamp <= 0L) return
-        viewModelScope.launch { settings.markActivitySeen(timestamp) }
+        viewModelScope.launch {
+            settings.markActivitySeen(timestamp)
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first() ?: SupabaseConfig.ANON_KEY
+                if (userId.isNotBlank()) {
+                    SupabaseClient.markNotificationsAsRead(userId, token)
+                }
+            } catch (ignored: Exception) {}
+        }
     }
 
     /** Count of activity entries newer than the last one the user looked at. */
@@ -268,6 +309,65 @@ class HomeViewModel(
     init {
         viewModelScope.launch {
             syncFromSupabase()
+            setupRealtimeNotifications()
+            checkForUpdates()
+        }
+    }
+
+    private suspend fun setupRealtimeNotifications() {
+        try {
+            val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+            val userId = session?.currentUserUid?.first().orEmpty()
+            val token = session?.currentAccessToken?.first() ?: SupabaseConfig.ANON_KEY
+
+            if (userId.isNotBlank()) {
+                fetchRemoteNotifications(userId, token)
+                realtimeManager.connect(userId)
+
+                viewModelScope.launch {
+                    realtimeManager.notifications.collect { notif ->
+                        fetchRemoteNotifications(userId, token)
+                        val alertText = when (notif.type) {
+                            "like" -> "🌟 Someone endorsed your research paper!"
+                            "comment" -> "💬 New peer-review comment on your manuscript!"
+                            "message" -> "✉️ New direct message received"
+                            else -> "🔔 New activity on your research"
+                        }
+                        _messages.emit(UserMessage(text = alertText))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("HomeViewModel", "setupRealtimeNotifications error", e)
+        }
+    }
+
+    private suspend fun fetchRemoteNotifications(userId: String, token: String) {
+        try {
+            val res = SupabaseClient.getNotifications(userId, token)
+            if (res.isSuccess) {
+                val dtoList = res.getOrThrow()
+                val mapped = dtoList.map { dto ->
+                    when (dto.type) {
+                        "message" -> ActivityItem.Messaged(
+                            senderName = dto.actorName,
+                            conversationId = dto.postId.orEmpty(),
+                            preview = "New direct message from ${dto.actorName}",
+                            createdAt = dto.createdAt
+                        )
+                        else -> ActivityItem.Endorsed(
+                            actorName = dto.actorName,
+                            actorUsername = dto.actorUsername,
+                            paperId = dto.postId.orEmpty(),
+                            paperTitle = dto.postTitle ?: "Research Paper",
+                            createdAt = dto.createdAt
+                        )
+                    }
+                }
+                _remoteNotifications.value = mapped
+            }
+        } catch (e: Exception) {
+            Log.e("HomeViewModel", "fetchRemoteNotifications error", e)
         }
     }
 
@@ -431,6 +531,11 @@ class HomeViewModel(
 
     fun deleteComment(comment: Comment) {
         viewModelScope.launch { repository.deleteComment(comment) }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        realtimeManager.disconnect()
     }
 }
 

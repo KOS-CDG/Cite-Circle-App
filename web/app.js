@@ -1800,4 +1800,185 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   checkForInAppUpdates();
+
+  // ==========================================
+  // REAL-TIME ACTIVITY NOTIFICATIONS & BADGES
+  // ==========================================
+  let unreadNotifs = 0;
+  const notifBadgeCounter = document.getElementById('notifBadgeCounter');
+  const notifBellBtn = document.getElementById('notifBellBtn');
+  const notifDropdownPanel = document.getElementById('notifDropdownPanel');
+  const notifListContainer = document.getElementById('notifListContainer');
+  const markAllReadBtn = document.getElementById('markAllReadBtn');
+  const emptyNotifPlaceholder = document.getElementById('emptyNotifPlaceholder');
+  const toastContainer = document.getElementById('realtimeToastContainer');
+
+  function updateNotifBadgeDisplay() {
+    if (!notifBadgeCounter) return;
+    if (unreadNotifs > 0) {
+      notifBadgeCounter.textContent = unreadNotifs > 99 ? '99+' : unreadNotifs;
+      notifBadgeCounter.style.display = 'inline-block';
+    } else {
+      notifBadgeCounter.style.display = 'none';
+    }
+  }
+
+  if (notifBellBtn && notifDropdownPanel) {
+    notifBellBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isVisible = notifDropdownPanel.style.display === 'block';
+      notifDropdownPanel.style.display = isVisible ? 'none' : 'block';
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!notifDropdownPanel.contains(e.target) && e.target !== notifBellBtn) {
+        notifDropdownPanel.style.display = 'none';
+      }
+    });
+  }
+
+  if (markAllReadBtn) {
+    markAllReadBtn.addEventListener('click', () => {
+      unreadNotifs = 0;
+      updateNotifBadgeDisplay();
+      if (notifListContainer) {
+        notifListContainer.innerHTML = '<div style="padding: 24px; text-align: center; color: #94a3b8; font-size: 0.8rem;">All notifications cleared</div>';
+      }
+    });
+  }
+
+  function showRealtimeToast(icon, title, body) {
+    if (!toastContainer) return;
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+      min-width: 280px;
+      max-width: 380px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(59, 130, 246, 0.5);
+      border-radius: 12px;
+      padding: 12px 16px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      pointer-events: auto;
+      animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: opacity 0.3s, transform 0.3s;
+    `;
+
+    toast.innerHTML = `
+      <div style="font-size: 1.3rem; line-height: 1;">${icon}</div>
+      <div style="flex: 1;">
+        <div style="font-weight: 700; font-size: 0.85rem; color: #fff; margin-bottom: 2px;">${title}</div>
+        <div style="font-size: 0.78rem; color: #cbd5e1; line-height: 1.3;">${body}</div>
+      </div>
+      <button style="background: none; border: none; color: #94a3b8; font-size: 0.9rem; cursor: pointer; padding: 0;">✕</button>
+    `;
+
+    const closeBtn = toast.querySelector('button');
+    closeBtn.addEventListener('click', () => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(-10px)';
+      setTimeout(() => toast.remove(), 300);
+    });
+
+    toastContainer.appendChild(toast);
+
+    setTimeout(() => {
+      if (toast.parentElement) {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-10px)';
+        setTimeout(() => toast.remove(), 300);
+      }
+    }, 5000);
+  }
+
+  function addNotificationItem(icon, title, body, time) {
+    if (emptyNotifPlaceholder && emptyNotifPlaceholder.parentElement) {
+      emptyNotifPlaceholder.remove();
+    }
+
+    unreadNotifs++;
+    updateNotifBadgeDisplay();
+
+    if (!notifListContainer) return;
+    const item = document.createElement('div');
+    item.style.cssText = `
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      background: rgba(59, 130, 246, 0.08);
+      cursor: pointer;
+      transition: background 0.2s;
+    `;
+    item.onmouseenter = () => item.style.background = 'rgba(59, 130, 246, 0.15)';
+    item.onmouseleave = () => item.style.background = 'rgba(59, 130, 246, 0.08)';
+
+    item.innerHTML = `
+      <div style="font-size: 1.1rem; line-height: 1;">${icon}</div>
+      <div style="flex: 1;">
+        <div style="font-size: 0.8rem; font-weight: 600; color: #f8fafc;">${title}</div>
+        <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">${body}</div>
+        <div style="font-size: 0.68rem; color: #64748b; margin-top: 4px;">${time}</div>
+      </div>
+    `;
+
+    notifListContainer.prepend(item);
+  }
+
+  function initRealtimeNotifications() {
+    try {
+      supabase
+        .channel('realtime:public:notifications')
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications'
+        }, async (payload) => {
+          const record = payload.new;
+          if (!record) return;
+
+          let actorName = 'A fellow researcher';
+          try {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('full_name, username')
+              .eq('id', record.actor_id)
+              .single();
+            if (profile) {
+              actorName = profile.full_name || profile.username || actorName;
+            }
+          } catch (e) {}
+
+          let icon = '🔔';
+          let title = 'Activity Notification';
+          let body = 'New scholarly activity on your research.';
+          if (record.type === 'like') {
+            icon = '🌟';
+            title = 'Paper Endorsed';
+            body = `${actorName} endorsed your research manuscript!`;
+          } else if (record.type === 'comment') {
+            icon = '💬';
+            title = 'Peer Review Comment';
+            body = `${actorName} left a comment on your paper!`;
+          } else if (record.type === 'message') {
+            icon = '✉️';
+            title = 'Direct Message';
+            body = `New message from ${actorName}`;
+          }
+
+          const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          showRealtimeToast(icon, title, body);
+          addNotificationItem(icon, title, body, time);
+        })
+        .subscribe();
+    } catch (e) {
+      console.warn('Realtime subscription error', e);
+    }
+  }
+
+  initRealtimeNotifications();
 });

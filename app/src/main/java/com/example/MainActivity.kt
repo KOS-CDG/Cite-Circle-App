@@ -1126,7 +1126,22 @@ fun NotificationsScreen(viewModel: HomeViewModel, navController: NavController) 
         contentPadding = PaddingValues(bottom = 16.dp)
       ) {
         items(displayedActivity, key = { it.timestamp.toString() + it.targetPaperId }) { item ->
-          ActivityRow(item) { navController.navigate("post/${item.targetPaperId}") }
+          ActivityRow(item) {
+            when (item) {
+              is ActivityItem.Messaged -> {
+                if (item.targetPaperId.isNotBlank()) {
+                  navController.navigate("chat_thread/${item.targetPaperId}")
+                } else {
+                  navController.navigate("messenger")
+                }
+              }
+              else -> {
+                if (item.targetPaperId.isNotBlank()) {
+                  navController.navigate("post/${item.targetPaperId}")
+                }
+              }
+            }
+          }
           HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
         }
       }
@@ -1160,6 +1175,30 @@ private fun ActivityRow(item: ActivityItem, onClick: () -> Unit) {
       body = item.quote.content.ifBlank { item.quote.quotedTitle }
       icon = Icons.Outlined.Repeat
       iconTint = AccentGreen
+    }
+    is ActivityItem.Endorsed -> {
+      val parts = item.actorName.trim().split(" ").filter { it.isNotBlank() }
+      initials = when {
+        parts.isEmpty() -> "U"
+        parts.size == 1 -> parts[0].take(2).uppercase()
+        else -> "${parts[0].take(1)}${parts.last().take(1)}".uppercase()
+      }
+      headline = "${item.actorName} endorsed your research"
+      body = item.paperTitle
+      icon = Icons.Filled.ThumbUp
+      iconTint = BrandBlue
+    }
+    is ActivityItem.Messaged -> {
+      val parts = item.senderName.trim().split(" ").filter { it.isNotBlank() }
+      initials = when {
+        parts.isEmpty() -> "U"
+        parts.size == 1 -> parts[0].take(2).uppercase()
+        else -> "${parts[0].take(1)}${parts.last().take(1)}".uppercase()
+      }
+      headline = "New message from ${item.senderName}"
+      body = item.preview
+      icon = Icons.Filled.Mail
+      iconTint = Color(0xFF8B5CF6)
     }
   }
 
@@ -2046,6 +2085,11 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                 when (item) {
                   is ActivityItem.Replied -> navController.navigate("post/${item.comment.paperId}")
                   is ActivityItem.Cited -> navController.navigate("post/${item.quote.quotedId}")
+                  is ActivityItem.Endorsed -> navController.navigate("post/${item.paperId}")
+                  is ActivityItem.Messaged -> {
+                    if (item.targetPaperId.isNotBlank()) navController.navigate("chat_thread/${item.targetPaperId}")
+                    else navController.navigate("messenger")
+                  }
                 }
               }
               HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
