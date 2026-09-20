@@ -83,9 +83,9 @@ import com.example.ui.theme.SurfaceWhite
  * Model IDs offered in debug builds.
  */
 private val ChatModels: List<Pair<String, Int>> = listOf(
-    "gemini-3.5-flash" to R.string.chat_model_fast,
-    "gemini-3.1-pro-preview" to R.string.chat_model_pro,
-    "gemini-3.1-flash-lite-preview" to R.string.chat_model_lite
+    "gemini-2.0-flash" to R.string.chat_model_fast,
+    "gemini-1.5-pro" to R.string.chat_model_pro,
+    "gemini-2.0-flash-lite-preview" to R.string.chat_model_lite
 )
 
 private val PromptSuggestions = listOf(

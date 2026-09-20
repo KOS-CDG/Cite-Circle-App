@@ -33,7 +33,7 @@ class ChatViewModel : ViewModel() {
 
     private val conversationHistory = mutableListOf<Content>()
 
-    var currentModel = "gemini-3.5-flash"
+    var currentModel = "gemini-2.0-flash"
     var useSearchGrounding = false
 
     fun sendMessage(text: String, image: Bitmap? = null) {
