@@ -51,6 +51,14 @@ class UserSessionManager(
     private val keyRefreshToken = stringPreferencesKey("supabase_refresh_token")
     private val keyPrivacyAccepted = booleanPreferencesKey("privacy_policy_accepted")
     private val keyRememberLogin = booleanPreferencesKey("remember_login_info")
+    private val keyUserHeadline = stringPreferencesKey("user_headline")
+    private val keyUserBio = stringPreferencesKey("user_bio")
+    private val keyUserLocation = stringPreferencesKey("user_location")
+    private val keyUserAvatarUri = stringPreferencesKey("user_avatar_uri")
+    private val keyUserCoverUri = stringPreferencesKey("user_cover_uri")
+    private val keyUserOrcid = stringPreferencesKey("user_orcid")
+    private val keyUserWebsite = stringPreferencesKey("user_website")
+    private val keyUserOpenTo = stringPreferencesKey("user_open_to")
 
     private val preferences: Flow<Preferences> = store.data.catch { cause ->
         if (cause is IOException) emit(emptyPreferences()) else throw cause
@@ -62,6 +70,14 @@ class UserSessionManager(
     val currentUserName: Flow<String> = preferences.map { it[keyUserName].orEmpty() }
     val currentUserAffiliation: Flow<String> = preferences.map { it[keyUserAffiliation].orEmpty() }
     val currentUserField: Flow<String> = preferences.map { it[keyUserField].orEmpty() }
+    val currentUserHeadline: Flow<String> = preferences.map { it[keyUserHeadline].orEmpty() }
+    val currentUserBio: Flow<String> = preferences.map { it[keyUserBio].orEmpty() }
+    val currentUserLocation: Flow<String> = preferences.map { it[keyUserLocation].orEmpty() }
+    val currentUserAvatarUri: Flow<String> = preferences.map { it[keyUserAvatarUri].orEmpty() }
+    val currentUserCoverUri: Flow<String> = preferences.map { it[keyUserCoverUri].orEmpty() }
+    val currentUserOrcid: Flow<String> = preferences.map { it[keyUserOrcid].orEmpty() }
+    val currentUserWebsite: Flow<String> = preferences.map { it[keyUserWebsite].orEmpty() }
+    val currentUserOpenTo: Flow<String> = preferences.map { it[keyUserOpenTo].orEmpty() }
     val currentAccessToken: Flow<String> = preferences.map { it[keyAccessToken].orEmpty() }
     val isPrivacyAccepted: Flow<Boolean> = preferences.map { it[keyPrivacyAccepted] ?: false }
     val rememberLoginInfo: Flow<Boolean> = preferences.map { it[keyRememberLogin] ?: true }
@@ -374,6 +390,72 @@ class UserSessionManager(
         val updated = userDao.findUserByEmail(email)
         return if (updated != null) AuthResult.Success(updated)
         else AuthResult.Error("Failed to retrieve updated profile.")
+    }
+
+    /**
+     * Comprehensive profile updater for LinkedIn-style profile attributes.
+     */
+    suspend fun updateFullProfile(
+        displayName: String,
+        headline: String,
+        affiliation: String,
+        researchField: String,
+        location: String,
+        bio: String,
+        orcid: String,
+        website: String
+    ): AuthResult {
+        val cleanName = displayName.trim()
+        val cleanHeadline = headline.trim()
+        val cleanAffiliation = affiliation.trim()
+        val cleanField = researchField.trim()
+        val cleanLocation = location.trim()
+        val cleanBio = bio.trim()
+        val cleanOrcid = orcid.trim()
+        val cleanWebsite = website.trim()
+
+        if (cleanName.isBlank()) {
+            return AuthResult.Error("Name cannot be blank.")
+        }
+
+        val email = currentUserEmail.first()
+        if (email.isNotBlank()) {
+            userDao.updateProfileInfo(email, cleanName, cleanAffiliation, cleanField)
+        }
+
+        store.edit {
+            it[keyUserName] = cleanName
+            it[keyUserHeadline] = cleanHeadline
+            it[keyUserAffiliation] = cleanAffiliation
+            it[keyUserField] = cleanField
+            it[keyUserLocation] = cleanLocation
+            it[keyUserBio] = cleanBio
+            it[keyUserOrcid] = cleanOrcid
+            it[keyUserWebsite] = cleanWebsite
+        }
+
+        val updated = if (email.isNotBlank()) userDao.findUserByEmail(email) else null
+        return if (updated != null) AuthResult.Success(updated)
+        else AuthResult.Success(UserAccount(
+            id = currentUserUid.first().ifBlank { java.util.UUID.randomUUID().toString() },
+            email = email,
+            displayName = cleanName,
+            passwordHash = "",
+            affiliation = cleanAffiliation,
+            researchField = cleanField
+        ))
+    }
+
+    suspend fun updateAvatarUri(uriString: String) {
+        store.edit { it[keyUserAvatarUri] = uriString }
+    }
+
+    suspend fun updateCoverUri(uriString: String) {
+        store.edit { it[keyUserCoverUri] = uriString }
+    }
+
+    suspend fun updateOpenTo(options: String) {
+        store.edit { it[keyUserOpenTo] = options }
     }
 
     /**
