@@ -61,6 +61,7 @@ data class GenerateContentResponse(
 @Serializable
 data class Candidate(
     val content: Content? = null,
+    val finishReason: String? = null,
     val groundingMetadata: JsonObject? = null
 )
 

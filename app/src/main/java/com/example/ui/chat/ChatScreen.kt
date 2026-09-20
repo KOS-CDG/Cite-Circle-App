@@ -34,15 +34,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -102,9 +105,16 @@ fun ChatScreen(
     viewModel: ChatViewModel = viewModel()
 ) {
     val messages by viewModel.messages.collectAsState()
+    val listState = rememberLazyListState()
     var inputText by remember { mutableStateOf("") }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     val context = LocalContext.current
+
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size - 1)
+        }
+    }
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
@@ -166,6 +176,15 @@ fun ChatScreen(
                             color = BrandBlue,
                             maxLines = 1
                         )
+                    }
+                    if (messages.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.clearChat() }) {
+                            Icon(
+                                Icons.Outlined.Delete,
+                                contentDescription = "Clear Chat",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
                 HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
@@ -282,6 +301,7 @@ fun ChatScreen(
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -297,23 +317,32 @@ fun ChatScreen(
         // Image Preview
         selectedImageUri?.let { uri ->
             @Suppress("DEPRECATION")
-            val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri))
-            } else {
-                MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+            val bitmap = try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
+                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                        decoder.isMutableRequired = true
+                    }
+                } else {
+                    MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                }
+            } catch (_: Exception) {
+                null
             }
 
             Box(
                 modifier = Modifier
                     .padding(horizontal = 16.dp, vertical = 4.dp)
             ) {
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = stringResource(R.string.cd_selected_image),
-                    modifier = Modifier
-                        .size(90.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                )
+                bitmap?.let {
+                    Image(
+                        bitmap = it.asImageBitmap(),
+                        contentDescription = stringResource(R.string.cd_selected_image),
+                        modifier = Modifier
+                            .size(90.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                    )
+                }
                 IconButton(
                     onClick = { selectedImageUri = null },
                     modifier = Modifier
@@ -392,7 +421,8 @@ fun ChatScreen(
 
                     Spacer(Modifier.width(8.dp))
 
-                    val canSend = inputText.isNotBlank() || selectedImageUri != null
+                    val isLoading = messages.any { it.isLoading }
+                    val canSend = (inputText.isNotBlank() || selectedImageUri != null) && !isLoading
                     Box(
                         modifier = Modifier
                             .size(40.dp)
@@ -402,10 +432,17 @@ fun ChatScreen(
                                 @Suppress("DEPRECATION")
                                 var bitmap: Bitmap? = null
                                 selectedImageUri?.let { uri ->
-                                    bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                        ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri))
-                                    } else {
-                                        MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                                    bitmap = try {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                            ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
+                                                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                                                decoder.isMutableRequired = true
+                                            }
+                                        } else {
+                                            MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                                        }
+                                    } catch (_: Exception) {
+                                        null
                                     }
                                 }
                                 viewModel.sendMessage(inputText, bitmap)
@@ -415,7 +452,7 @@ fun ChatScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            Icons.Filled.Send,
+                            Icons.AutoMirrored.Filled.Send,
                             contentDescription = stringResource(R.string.cd_send),
                             tint = if (canSend) SurfaceWhite else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)

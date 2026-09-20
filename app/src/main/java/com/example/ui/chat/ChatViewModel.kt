@@ -2,6 +2,9 @@ package com.example.ui.chat
 
 import android.graphics.Bitmap
 import android.util.Base64
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.BuildConfig
@@ -14,8 +17,8 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
+import retrofit2.HttpException
 import java.io.ByteArrayOutputStream
 
 data class ChatMessage(
@@ -33,8 +36,13 @@ class ChatViewModel : ViewModel() {
 
     private val conversationHistory = mutableListOf<Content>()
 
-    var currentModel = "gemini-2.5-flash"
-    var useSearchGrounding = false
+    var currentModel by mutableStateOf("gemini-2.5-flash")
+    var useSearchGrounding by mutableStateOf(false)
+
+    fun clearChat() {
+        conversationHistory.clear()
+        _messages.value = emptyList()
+    }
 
     fun sendMessage(text: String, image: Bitmap? = null) {
         val userMessage = ChatMessage(text = text, isUser = true, imageUrl = image)
@@ -42,9 +50,9 @@ class ChatViewModel : ViewModel() {
 
         val parts = mutableListOf<Part>()
         if (text.isNotBlank()) parts.add(Part(text = text))
-        
+
         image?.let {
-            val base64Image = it.toBase64()
+            val base64Image = it.toSafeBase64()
             parts.add(Part(inlineData = InlineData("image/jpeg", base64Image)))
         }
 
@@ -57,6 +65,9 @@ class ChatViewModel : ViewModel() {
             try {
                 val apiKey = BuildConfig.GEMINI_API_KEY
                 if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY" || apiKey == "your_actual_key_here") {
+                    if (conversationHistory.isNotEmpty() && conversationHistory.last().role == "user") {
+                        conversationHistory.removeAt(conversationHistory.lastIndex)
+                    }
                     _messages.update { list ->
                         list.dropLast(1) + ChatMessage(
                             text = "⚠️ Gemini API key not configured.\n\nPlease add GEMINI_API_KEY=your_key to your .env file and rebuild the app. You can get a free key at https://aistudio.google.com/",
@@ -66,7 +77,7 @@ class ChatViewModel : ViewModel() {
                     }
                     return@launch
                 }
-                
+
                 val tools = if (useSearchGrounding) {
                     listOf(Tool(googleSearch = JsonObject(emptyMap())))
                 } else null
@@ -78,24 +89,71 @@ class ChatViewModel : ViewModel() {
                 )
 
                 val response = RetrofitClient.service.generateContent(currentModel, apiKey, request)
-                val responseText = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No response text"
-                
+                val candidate = response.candidates?.firstOrNull()
+                val candidateText = candidate?.content?.parts
+                    ?.mapNotNull { it.text }
+                    ?.filter { it.isNotBlank() }
+                    ?.joinToString("\n")
+
+                val responseText = when {
+                    !candidateText.isNullOrBlank() -> candidateText
+                    candidate?.finishReason == "SAFETY" -> "⚠️ Response was blocked by Google AI content safety policies."
+                    candidate?.finishReason == "RECITATION" -> "⚠️ Response was blocked by recitation check."
+                    else -> "I couldn't generate a response. Please try rephrasing your question."
+                }
+
                 conversationHistory.add(Content(role = "model", parts = listOf(Part(text = responseText))))
 
                 _messages.update { list ->
                     list.dropLast(1) + ChatMessage(text = responseText, isUser = false)
                 }
             } catch (e: Exception) {
+                // Remove trailing user turn from history so multi-turn alternation remains valid
+                if (conversationHistory.isNotEmpty() && conversationHistory.last().role == "user") {
+                    conversationHistory.removeAt(conversationHistory.lastIndex)
+                }
+
+                val errorMessage = if (e is HttpException) {
+                    try {
+                        val errorJson = e.response()?.errorBody()?.string() ?: ""
+                        val json = Json { ignoreUnknownKeys = true }
+                        val parsedMessage = json.parseToJsonElement(errorJson)
+                            .jsonObject["error"]
+                            ?.jsonObject?.get("message")
+                            ?.jsonPrimitive?.content
+                        parsedMessage ?: "HTTP ${e.code()}: ${e.message()}"
+                    } catch (_: Exception) {
+                        "HTTP ${e.code()}: ${e.message()}"
+                    }
+                } else {
+                    e.localizedMessage ?: e.message ?: "Unknown error"
+                }
+
                 _messages.update { list ->
-                    list.dropLast(1) + ChatMessage(text = "Error: ${e.message}", isUser = false, isError = true)
+                    list.dropLast(1) + ChatMessage(text = "Error: $errorMessage", isUser = false, isError = true)
                 }
             }
         }
     }
 
-    private fun Bitmap.toBase64(): String {
+    private fun Bitmap.toSafeBase64(): String {
+        val safeBitmap = if (config == Bitmap.Config.HARDWARE) {
+            copy(Bitmap.Config.ARGB_8888, false) ?: this
+        } else {
+            this
+        }
+        val maxDim = 1536
+        val scaledBitmap = if (safeBitmap.width > maxDim || safeBitmap.height > maxDim) {
+            val ratio = minOf(maxDim.toFloat() / safeBitmap.width, maxDim.toFloat() / safeBitmap.height)
+            val newWidth = (safeBitmap.width * ratio).toInt()
+            val newHeight = (safeBitmap.height * ratio).toInt()
+            Bitmap.createScaledBitmap(safeBitmap, newWidth, newHeight, true)
+        } else {
+            safeBitmap
+        }
+
         val outputStream = ByteArrayOutputStream()
-        compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
         return Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
     }
 }
