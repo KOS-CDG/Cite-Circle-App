@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.3] — 2026-09-20 (Build 3)
+
+### 🚀 Highlights
+This release overhauls the researcher profile into a modern, fully functional **LinkedIn-style academic profile interface**. It fixes previous alignment bugs, adds working image pickers for cover and avatar, persistent profile editing via DataStore, live interactive skill endorsements, private analytics insights, and structured academic appointment timelines.
+
+### 💼 LinkedIn-Style Academic Profile Overhaul
+- **Authentic LinkedIn Architecture**: Redesigned layout featuring an overlapping left-aligned circular avatar (106dp with 3.5dp surface ring border), 140dp gradient cover banner, and prominent scholar name, headline, institution, and location.
+- **Working Photo Pickers**: Integrated Android photo selection (`ActivityResultContracts.GetContent()`) with Coil `AsyncImage` for both avatar and cover photos, persisting URI changes directly into `UserSessionManager`.
+- **Interactive 'Edit Intro' Modal**: Built a full-screen editing sheet allowing scholars to update their display name, professional headline, university/institution, research domain, location, and open-to status in real time.
+- **'Contact Info' Sheet**: One-tap modal revealing the scholar's verified email, personal/lab website, and ORCID identifier with built-in clipboard copying.
+- **'Open To' Sheet**: Added LinkedIn-style status badges allowing researchers to broadcast availability for Research Collaborations, Peer Review, or Postdoc / Lab Openings.
+- **Private Analytics Card**: Dedicated 'Analytics (Private to you)' dashboard displaying live counts for profile views, search appearances, and post impressions.
+- **Interactive Skill Endorsements**: Dynamic skills list (Deep Learning, Quantum Computing, Distributed Systems, Peer Review Ethics) with real-time upvoting and endorsement count increments.
+- **Academic Timeline Cards**: Structured sections for Experience (Stanford AI Lab, MIT CSAIL, DeepMind) and Education (MIT Ph.D., UC Berkeley B.S.).
+- **Activity Filter Tabs**: LinkedIn-style activity feed tabs ('Posts', 'Preprints', 'Reviews', 'Figures') linked directly to live manuscripts and reviews.
+- **Cleaned Up Architecture**: Modularized profile into its own dedicated `ProfileScreen.kt`, reducing `MainActivity.kt` by 583 lines.
+
+
+
 ## [1.2.0] — 2026-09-20 (Build 2)
 
 ### 🚀 Highlights

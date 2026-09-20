@@ -7,21 +7,38 @@ const corsHeaders = {
 };
 
 // Canonical Version & Release Configuration
-export const LATEST_VERSION_NAME = "1.2";
-export const LATEST_VERSION_CODE = 2;
+export const LATEST_VERSION_NAME = "1.3";
+export const LATEST_VERSION_CODE = 3;
 export const DOWNLOAD_URL = "https://cxxtrtglmxfuyihxwiza.supabase.co/storage/v1/object/public/app-releases/CiteCircle-latest.apk";
 export const FILE_SIZE_MB = 28.2;
 
 export const LATEST_RELEASE_NOTES = [
-  "🤖 Gemini AI Research Assistant: Powered by Gemini 2.5 Flash (default), 3.5 Flash & 3.1 Flash Lite with real-time Google Search Grounding for live academic citations & arXiv synthesis",
-  "🖼️ Multimodal Vision Analysis: Instant equation, chart, and figure transcription from captured or uploaded research images",
-  "🔔 Real-Time Activity Alerts: Instant WebSocket notifications & unread badge counters for paper endorsements, comments, quotes, and researcher direct messages",
-  "🔄 Smart In-App Updater: Silent background startup checks when up-to-date, manual update checks in Settings, and one-tap background APK downloads",
-  "📄 CrossRef DOI Resolver & Citation Engine: Instant metadata resolution and academic citation generation in BibTeX, APA, IEEE, and MLA formats",
-  "🛡️ Stability & Resilience: Android 9+ hardware bitmap memory safety, automatic 3-attempt exponential backoff retries, and Cloudflare R2 decentralized vault"
+  "💼 LinkedIn-Style Academic Profile: Left-aligned overlapping avatar, custom cover photo pickers, 'Edit Intro' modal, 'Contact info' dialog, and 'Open to' collaborations sheet",
+  "📊 Private Analytics & Insights: Dedicated metrics card for profile views, search appearances, and post impressions",
+  "⭐ Interactive Skill Endorsements: Real-time skill endorsement counters with persistent local state and academic peer recognition",
+  "🎓 Experience & Education Timeline: Structured appointment history, university degrees, and pinned DOI-verified preprints",
+  "🤖 Gemini AI Research Assistant: Powered by Gemini 2.5 Flash with live Google Search Grounding and multimodal vision analysis",
+  "🔔 Real-Time Activity Alerts: Instant WebSocket notifications & unread badge counters for likes, comments, and direct messages",
+  "🛡️ Stability & Security: Android 9+ hardware bitmap memory safety, automatic 3-attempt exponential backoff retries, and Cloudflare R2 decentralized vault"
 ].join("\n");
 
 export const RELEASE_HISTORY = [
+  {
+    version: "1.3",
+    version_code: 3,
+    release_date: "2026-09-20",
+    title: "LinkedIn-Style Profile Interface, Skill Endorsements & Academic Timeline",
+    highlights: [
+      "Revamped profile into LinkedIn layout: left-aligned overlapping avatar with 3.5dp surface ring border",
+      "Functional cover photo & profile picture pickers with persistent DataStore storage",
+      "Full 'Edit Intro' dialog for headline, affiliation, field, location, and open-to status",
+      "Interactive 'Contact info' modal displaying email, website, and ORCID with 1-tap clipboard copying",
+      "'Open to' sheet allowing scholars to broadcast research collaborations and peer review availability",
+      "Private Analytics card displaying profile views, post impressions, and search appearances",
+      "Interactive Skill Endorsements with live upvote counters",
+      "Structured Experience & Education timeline cards and pinned Featured Publications"
+    ]
+  },
   {
     version: "1.2",
     version_code: 2,
