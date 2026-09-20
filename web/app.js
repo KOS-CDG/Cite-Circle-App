@@ -1,5 +1,6 @@
 import { supabaseConfig } from './supabase-config.js';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { uploadFileToR2, r2Config } from './r2-config.js';
 
 // Initialize Supabase Client
 export const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
@@ -317,6 +318,14 @@ function renderPosts() {
             <div class="paper-title">${escapeHtml(post.paper.title)}</div>
             <div class="paper-abstract">${escapeHtml(post.paper.abstract)}</div>
             <div class="paper-doi">DOI: ${escapeHtml(post.paper.doi)}</div>
+            ${post.paper.url ? `
+              <div style="margin-top: 0.65rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <a href="${post.paper.url}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; font-weight: 600; color: #f38020; text-decoration: none; padding: 0.35rem 0.75rem; background: rgba(243, 128, 32, 0.12); border: 1px solid rgba(243, 128, 32, 0.35); border-radius: var(--radius-sm);">
+                  <span>☁️</span> Download via Cloudflare R2 (Zero Egress)
+                </a>
+                <span style="font-size: 0.7rem; color: var(--text-muted); font-family: var(--font-mono);">Hosted on R2 CDN</span>
+              </div>
+            ` : ''}
           </div>
         ` : ''}
 
@@ -1246,8 +1255,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  const triggerQuickPublish = document.getElementById('triggerQuickPublish');
+  if (triggerQuickPublish && publishModal) {
+    triggerQuickPublish.addEventListener('click', () => {
+      publishModal.style.display = 'flex';
+    });
+  }
+
   if (submitPublishBtn) {
-    submitPublishBtn.addEventListener('click', () => {
+    submitPublishBtn.addEventListener('click', async () => {
       const title = document.getElementById('paperTitleInput')?.value.trim();
       const field = document.getElementById('paperFieldSelect')?.value || 'AI & ML';
       const abstract = document.getElementById('paperAbstractInput')?.value.trim();
@@ -1257,15 +1273,51 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      const activeAuthorName = STATE.currentUser?.displayName || (STATE.currentUser ? STATE.currentUser.email.split('@')[0] : 'Dr. Morgan Vance');
-      const activeAuthorId = STATE.currentUser?.uid || 'OycnFiKmG3SnS9ob4xk7qDlYoRh1';
+      submitPublishBtn.disabled = true;
+      let r2UploadedFile = null;
+
+      if (STATE.selectedFile?.file) {
+        submitPublishBtn.textContent = 'Uploading to Cloudflare R2...';
+        try {
+          r2UploadedFile = await uploadFileToR2(STATE.selectedFile.file, 'manuscripts');
+          console.log('Uploaded to Cloudflare R2:', r2UploadedFile);
+        } catch (uploadErr) {
+          console.error('Cloudflare R2 Upload error:', uploadErr);
+          alert('Upload note: ' + uploadErr.message);
+        }
+      }
+
+      submitPublishBtn.textContent = 'Publishing...';
+
+      const activeAuthorName = STATE.userProfile?.name || (STATE.currentUser ? STATE.currentUser.email.split('@')[0] : 'Dr. Morgan Vance');
+      const activeAuthorId = STATE.currentUser?.id || 'c6bcdff0-d285-4ac4-a345-fe1bf934a11e';
+      const mediaUrls = r2UploadedFile ? [r2UploadedFile.publicUrl] : [];
+
+      // If signed in, persist to Supabase posts table
+      let dbPostId = null;
+      if (STATE.currentUser) {
+        try {
+          const { data: dbPost, error: dbErr } = await supabase.from('posts').insert({
+            user_id: STATE.currentUser.id,
+            content: `${title}\n\n${abstract || ''}`,
+            media_urls: mediaUrls,
+            privacy: 'public'
+          }).select().single();
+
+          if (!dbErr && dbPost) {
+            dbPostId = dbPost.id;
+          }
+        } catch (dbErr) {
+          console.warn('Supabase post insert fallback to local store:', dbErr);
+        }
+      }
 
       const newPost = {
-        id: 'post-' + Date.now(),
+        id: dbPostId || ('post-' + Date.now()),
         author: {
           id: activeAuthorId,
           name: activeAuthorName,
-          institution: 'Institute for Advanced Study',
+          institution: STATE.userProfile?.affiliation || 'Institute for Advanced Study',
           avatar: getInitials(activeAuthorName)
         },
         timestamp: 'Just now',
@@ -1274,9 +1326,10 @@ document.addEventListener('DOMContentLoaded', () => {
           title: title,
           field: field,
           format: STATE.selectedFile ? STATE.selectedFile.format : 'pdf',
-          size: STATE.selectedFile ? STATE.selectedFile.size : '1.2 MB',
+          size: STATE.selectedFile ? STATE.selectedFile.size : (r2UploadedFile ? `${Math.round(r2UploadedFile.size / 1024)} KB` : '1.2 MB'),
           doi: `10.48550/arXiv.${Math.floor(2600 + Math.random() * 99)}.${Math.floor(10000 + Math.random() * 90000)}`,
-          abstract: abstract || 'Full manuscript archived and verified with anti-malware safeguards.'
+          abstract: abstract || 'Full manuscript archived and verified with anti-malware safeguards.',
+          url: r2UploadedFile?.publicUrl || null
         },
         endorsements: 1,
         isEndorsed: true,
@@ -1293,8 +1346,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (fileValidationStatus) fileValidationStatus.style.display = 'none';
       document.getElementById('paperTitleInput').value = '';
       document.getElementById('paperAbstractInput').value = '';
+      submitPublishBtn.disabled = false;
+      submitPublishBtn.textContent = 'Publish to Academic Feed';
 
-      alert('Manuscript published to academic feed with authenticated author ID!');
+      alert(r2UploadedFile
+        ? `Manuscript published successfully!\n\nFile hosted on Cloudflare R2:\n${r2UploadedFile.publicUrl}`
+        : 'Manuscript published to academic feed!');
     });
   }
 
