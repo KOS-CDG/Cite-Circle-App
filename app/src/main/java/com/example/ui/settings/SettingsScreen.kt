@@ -123,6 +123,7 @@ fun SettingsScreen(
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var showHelpSupportDialog by remember { mutableStateOf(false) }
     var showAboutAppDialog by remember { mutableStateOf(false) }
+    var showPatchNotesDialog by remember { mutableStateOf(false) }
 
     var dataSaverEnabled by remember { mutableStateOf(false) }
     var citationAlertsEnabled by remember { mutableStateOf(true) }
@@ -437,6 +438,15 @@ fun SettingsScreen(
                             title = "About Cite Circle",
                             subtitle = "Version ${com.example.BuildConfig.VERSION_NAME} (Build ${com.example.BuildConfig.VERSION_CODE})",
                             onClick = { showAboutAppDialog = true }
+                        )
+
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                        FacebookSettingRow(
+                            icon = Icons.Outlined.Description,
+                            title = "Release Notes & Patch Changelog",
+                            subtitle = "View what's new in version ${com.example.BuildConfig.VERSION_NAME}",
+                            onClick = { showPatchNotesDialog = true }
                         )
 
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
@@ -962,11 +972,11 @@ fun SettingsScreen(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    Text("Version: 1.2.0 (Build 2026.09.19)")
+                    Text("Version: ${com.example.BuildConfig.VERSION_NAME} (Build ${com.example.BuildConfig.VERSION_CODE})")
                     Text("Design System: Meta Android Architecture (Facebook / Messenger)")
-                    Text("Storage: Room v5 (Offline First SQLite) + Firebase Sync")
+                    Text("Storage: Room v5 (Offline SQLite) + Supabase Realtime + Cloudflare R2")
+                    Text("AI Intelligence: Google Gemini 2.5 Flash + Search Grounding")
                     Text("UI Framework: Jetpack Compose + Material 3")
-                    Text("Constraint Compliance: 100% Flat Solid Surfaces · Zero Emojis · Zero Gradients")
                     Spacer(Modifier.height(4.dp))
                     Text(
                         "Cite Circle is built for researchers, scholars, and peer reviewers to collaborate without algorithmic bloat.",
@@ -977,6 +987,88 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showAboutAppDialog = false }) { Text("Close") }
+            }
+        )
+    }
+
+    // 9. Release Notes & Patch Changelog Dialog
+    if (showPatchNotesDialog) {
+        AlertDialog(
+            onDismissRequest = { showPatchNotesDialog = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Description,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Column {
+                        Text(
+                            "What's New in v${com.example.BuildConfig.VERSION_NAME}",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Text(
+                            "Build ${com.example.BuildConfig.VERSION_CODE} · Latest Release",
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.primary)
+                        )
+                    }
+                }
+            },
+            text = {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(340.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    item {
+                        Text(
+                            "Current Configuration & Improvements:",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    val notes = listOf(
+                        "🤖 Gemini AI Assistant" to "Powered by Gemini 2.5 Flash (default), 3.5 Flash & 3.1 Flash Lite with real-time Google Search Grounding for verified literature citations and arXiv synthesis.",
+                        "🖼️ Multimodal Vision Inspection" to "Instant diagram, figure, chart, and mathematical formula transcription from camera or uploaded research manuscripts.",
+                        "🔔 Real-Time Activity Alerts" to "Instant WebSocket notifications & unread badge counters for paper endorsements, peer reviews, comments, and researcher direct messages.",
+                        "🔄 Smart In-App Updater" to "Silent background startup verification when up to date, manual update checks in Settings, and one-tap background APK downloads with progress indicator.",
+                        "📄 CrossRef DOI Resolver" to "Live metadata fetching and academic citation formatting in BibTeX, APA, IEEE, and MLA formats.",
+                        "🛡️ Stability & Resilience" to "Android 9+ hardware bitmap memory safety, automatic 3-attempt exponential backoff retries, and Cloudflare R2 decentralized vault."
+                    )
+                    items(notes.size) { idx ->
+                        val (title, desc) = notes[idx]
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .padding(10.dp)
+                        ) {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(Modifier.height(3.dp))
+                            Text(
+                                text = desc,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showPatchNotesDialog = false }) { Text("Close") }
             }
         )
     }
