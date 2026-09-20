@@ -38,6 +38,7 @@ import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.SwitchAccount
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -61,6 +62,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -433,8 +435,26 @@ fun SettingsScreen(
                         FacebookSettingRow(
                             icon = Icons.Outlined.Info,
                             title = "About Cite Circle",
-                            subtitle = "Version 1.2.0 • Firebase cite-circle-3857b",
+                            subtitle = "Version ${com.example.BuildConfig.VERSION_NAME} (Build ${com.example.BuildConfig.VERSION_CODE})",
                             onClick = { showAboutAppDialog = true }
+                        )
+
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                        val isCheckingUpdates by viewModel.isCheckingUpdates.collectAsState()
+                        FacebookSettingRow(
+                            icon = Icons.Rounded.SystemUpdate,
+                            title = "Check for Updates",
+                            subtitle = if (isCheckingUpdates) "Checking for updates..." else "Currently on v${com.example.BuildConfig.VERSION_NAME}",
+                            onClick = {
+                                viewModel.checkForUpdates(
+                                    currentVersionCode = com.example.BuildConfig.VERSION_CODE,
+                                    isManualCheck = true,
+                                    onUpToDate = {
+                                        viewModel.report("Cite Circle is up to date (v${com.example.BuildConfig.VERSION_NAME})")
+                                    }
+                                )
+                            }
                         )
                     }
                 }

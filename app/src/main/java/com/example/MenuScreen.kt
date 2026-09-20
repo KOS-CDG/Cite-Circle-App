@@ -33,6 +33,7 @@ import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
@@ -347,6 +348,19 @@ fun MenuScreen(viewModel: HomeViewModel, navController: NavController) {
                     icon = Icons.Outlined.PhoneAndroid,
                     title = "Device Permissions & Cache",
                     onClick = { showCacheDialog = true }
+                )
+                DrawerChildRow(
+                    icon = Icons.Rounded.SystemUpdate,
+                    title = "Check for Updates",
+                    onClick = {
+                        viewModel.checkForUpdates(
+                            currentVersionCode = com.example.BuildConfig.VERSION_CODE,
+                            isManualCheck = true,
+                            onUpToDate = {
+                                viewModel.report("Cite Circle is up to date (v${com.example.BuildConfig.VERSION_NAME})")
+                            }
+                        )
+                    }
                 )
             }
         }

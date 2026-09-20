@@ -145,28 +145,55 @@ class HomeViewModel(
     private val _appUpdateInfo = MutableStateFlow<SupabaseClient.AppUpdateInfo?>(null)
     val appUpdateInfo: StateFlow<SupabaseClient.AppUpdateInfo?> = _appUpdateInfo.asStateFlow()
 
+    private val _isCheckingUpdates = MutableStateFlow(false)
+    val isCheckingUpdates: StateFlow<Boolean> = _isCheckingUpdates.asStateFlow()
+
     fun dismissUpdateDialog() {
         _appUpdateInfo.value = null
     }
 
-    fun checkForUpdates(currentVersionCode: Int = 1) {
+    /**
+     * In-app version checker.
+     * Rule: If the app is already up to date, DO NOT notify the user (silent on auto-check).
+     * If an update is available, notifies the user via InAppUpdateDialog.
+     * When checked manually, triggers [onUpToDate] so the user gets explicit confirmation.
+     */
+    fun checkForUpdates(
+        currentVersionCode: Int = BuildConfig.VERSION_CODE,
+        isManualCheck: Boolean = false,
+        onUpToDate: (() -> Unit)? = null
+    ) {
         viewModelScope.launch {
+            _isCheckingUpdates.value = true
             try {
                 val res = SupabaseClient.checkForAppUpdate(currentVersionCode)
                 if (res.isSuccess) {
                     val info = res.getOrNull()
                     if (info?.updateAvailable == true) {
+                        // App is NOT up to date -> Notify the user!
                         _appUpdateInfo.value = info
+                    } else {
+                        // App IS already up to date -> DO NOT notify the user on automatic startup check.
+                        if (isManualCheck) {
+                            onUpToDate?.invoke()
+                        }
                     }
+                } else if (isManualCheck) {
+                    report("Could not check for updates. Please try again later.")
                 }
             } catch (e: Exception) {
-                // Ignore silent failure if offline
+                if (isManualCheck) {
+                    report("Update check failed: ${e.localizedMessage}")
+                }
+            } finally {
+                _isCheckingUpdates.value = false
             }
         }
     }
 
     init {
-        checkForUpdates(currentVersionCode = 1)
+        // Automatic startup check: if up to date, does not notify the user. If not up to date, notifies.
+        checkForUpdates(currentVersionCode = BuildConfig.VERSION_CODE, isManualCheck = false)
     }
 
     val feed: StateFlow<ListState<SavedPaper>> = repository.allPapers
