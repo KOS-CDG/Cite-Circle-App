@@ -41,11 +41,17 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.withStyle
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -308,7 +314,10 @@ fun ChatScreen(
                 reverseLayout = false
             ) {
                 items(messages) { msg ->
-                    MessageBubble(msg)
+                    MessageBubble(
+                        message = msg,
+                        onRetry = { viewModel.retryLastMessage() }
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
             }
@@ -465,7 +474,10 @@ fun ChatScreen(
 }
 
 @Composable
-fun MessageBubble(message: ChatMessage) {
+fun MessageBubble(
+    message: ChatMessage,
+    onRetry: (() -> Unit)? = null
+) {
     val isUser = message.isUser
     val alignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart
     val bgColor = if (isUser) BrandBlue else SurfaceInset
@@ -535,13 +547,77 @@ fun MessageBubble(message: ChatMessage) {
                     }
                     if (message.text.isNotBlank()) {
                         Text(
-                            text = message.text,
-                            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
+                            text = if (isUser) AnnotatedString(message.text) else formatMarkdown(message.text),
+                            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
                             color = if (message.isError) MaterialTheme.colorScheme.error else textColor
                         )
                     }
+                    if (message.isError && onRetry != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f))
+                                .clickable { onRetry() }
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Filled.Refresh,
+                                contentDescription = "Retry",
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                "Retry",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun formatMarkdown(text: String): AnnotatedString {
+    return buildAnnotatedString {
+        val lines = text.split("\n")
+        lines.forEachIndexed { index, line ->
+            val isH1 = line.startsWith("# ")
+            val isH2 = line.startsWith("## ")
+            val isH3 = line.startsWith("### ")
+
+            if (isH1 || isH2 || isH3) {
+                val headerText = line.replaceFirst(Regex("^#{1,3}\\s*"), "")
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                    append(headerText)
+                }
+            } else {
+                val parts = line.split("**")
+                parts.forEachIndexed { pIndex, part ->
+                    if (pIndex % 2 == 1) {
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                            append(part)
+                        }
+                    } else {
+                        val codeParts = part.split("`")
+                        codeParts.forEachIndexed { cIndex, codePart ->
+                            if (cIndex % 2 == 1) {
+                                withStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = Color.Black.copy(alpha = 0.08f))) {
+                                    append(" $codePart ")
+                                }
+                            } else {
+                                append(codePart)
+                            }
+                        }
+                    }
+                }
+            }
+            if (index < lines.size - 1) append("\n")
         }
     }
 }

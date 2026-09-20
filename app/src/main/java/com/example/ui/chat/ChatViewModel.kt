@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.BuildConfig
 import com.example.network.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,6 +21,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import retrofit2.HttpException
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 
 data class ChatMessage(
     val text: String,
@@ -44,12 +46,36 @@ class ChatViewModel : ViewModel() {
         _messages.value = emptyList()
     }
 
+    fun retryLastMessage() {
+        val lastUserMsgIndex = _messages.value.indexOfLast { it.isUser }
+        if (lastUserMsgIndex == -1) return
+        val lastUserMsg = _messages.value[lastUserMsgIndex]
+
+        // Drop trailing error message if present
+        if (_messages.value.isNotEmpty() && _messages.value.last().isError) {
+            _messages.update { it.dropLast(1) }
+        }
+
+        // Remove the failed user bubble from list so re-sending replaces it cleanly
+        _messages.update { list ->
+            list.filterIndexed { index, _ -> index != lastUserMsgIndex }
+        }
+
+        sendMessage(lastUserMsg.text, lastUserMsg.imageUrl)
+    }
+
     fun sendMessage(text: String, image: Bitmap? = null) {
+        if (text.isBlank() && image == null) return
+
         val userMessage = ChatMessage(text = text, isUser = true, imageUrl = image)
         _messages.update { it + userMessage }
 
         val parts = mutableListOf<Part>()
-        if (text.isNotBlank()) parts.add(Part(text = text))
+        if (text.isNotBlank()) {
+            parts.add(Part(text = text))
+        } else if (image != null) {
+            parts.add(Part(text = "Please analyze and describe this academic diagram, chart, or document in detail."))
+        }
 
         image?.let {
             val base64Image = it.toSafeBase64()
@@ -88,8 +114,38 @@ class ChatViewModel : ViewModel() {
                     tools = tools
                 )
 
-                val response = RetrofitClient.service.generateContent(currentModel, apiKey, request)
-                val candidate = response.candidates?.firstOrNull()
+                // Automatic retry loop with exponential backoff on transient 503 demand spikes and 429 rate limits
+                var attempts = 0
+                var lastException: Exception? = null
+                var response: GenerateContentResponse? = null
+
+                while (attempts < 3) {
+                    try {
+                        response = RetrofitClient.service.generateContent(currentModel, apiKey, request)
+                        break
+                    } catch (e: HttpException) {
+                        lastException = e
+                        if (e.code() == 503 || e.code() == 429) {
+                            attempts++
+                            if (attempts < 3) {
+                                delay(attempts * 1500L)
+                                continue
+                            }
+                        }
+                        throw e
+                    } catch (e: IOException) {
+                        lastException = e
+                        attempts++
+                        if (attempts < 3) {
+                            delay(attempts * 1000L)
+                            continue
+                        }
+                        throw e
+                    }
+                }
+
+                val finalResponse = response ?: throw (lastException ?: IllegalStateException("No response received"))
+                val candidate = finalResponse.candidates?.firstOrNull()
                 val candidateText = candidate?.content?.parts
                     ?.mapNotNull { it.text }
                     ?.filter { it.isNotBlank() }
