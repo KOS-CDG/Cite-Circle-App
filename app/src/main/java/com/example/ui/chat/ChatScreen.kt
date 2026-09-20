@@ -18,9 +18,11 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -64,6 +66,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -333,7 +336,11 @@ fun ChatScreen(
             color = MaterialTheme.colorScheme.surface,
             shadowElevation = 0.dp
         ) {
-            Column(modifier = Modifier.navigationBarsPadding()) {
+            Column(
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .imePadding()
+            ) {
                 HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
                 Row(
                     modifier = Modifier
@@ -356,15 +363,19 @@ fun ChatScreen(
                     Box(
                         modifier = Modifier
                             .weight(1f)
+                            .defaultMinSize(minHeight = 40.dp)
                             .clip(RoundedCornerShape(20.dp))
                             .background(SurfaceInset)
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.CenterStart
                     ) {
                         if (inputText.isEmpty()) {
                             Text(
                                 "Ask Gemini academic question...",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                         BasicTextField(

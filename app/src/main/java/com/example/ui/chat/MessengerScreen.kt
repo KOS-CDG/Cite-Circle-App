@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,11 +21,13 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Article
@@ -42,8 +45,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,9 +57,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -135,36 +138,59 @@ fun MessengerScreen(
                         .padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left: current user avatar
-                    Avatar(identity.initials, 38.dp)
-
-                    // Center: screen title
+                    // Left: current user avatar (tapping opens profile)
                     Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.Center
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .clickable { navController.navigate("profile") }
                     ) {
-                        Text(
-                            text = "Chats",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        Avatar(identity.initials, 38.dp)
                     }
 
-                    // Right: action icons
-                    Row {
-                        IconButton(onClick = { showCameraModal = true }) {
+                    Spacer(Modifier.width(12.dp))
+
+                    // Start-aligned screen title: "Chats"
+                    Text(
+                        text = "Chats",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 24.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(Modifier.weight(1f))
+
+                    // Right: action icons in circular SurfaceInset buttons (Messenger native)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(SurfaceInset)
+                                .clickable { showCameraModal = true },
+                            contentAlignment = Alignment.Center
+                        ) {
                             Icon(
                                 imageVector = Icons.Filled.CameraAlt,
                                 contentDescription = "Camera",
-                                tint = MaterialTheme.colorScheme.onSurface
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                        IconButton(onClick = { showNewChatDialog = true }) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(SurfaceInset)
+                                .clickable { showNewChatDialog = true },
+                            contentAlignment = Alignment.Center
+                        ) {
                             Icon(
                                 imageVector = Icons.Filled.Edit,
                                 contentDescription = "New Conversation",
-                                tint = MaterialTheme.colorScheme.onSurface
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
@@ -174,39 +200,74 @@ fun MessengerScreen(
             }
         }
 
-        // ── Search pill ───────────────────────────────────────────────────────
-        Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-            TextField(
+        // ── Search pill (BasicTextField with pixel-perfect vertical centering) ──
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            BasicTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                cursorBrush = SolidColor(BrandBlue),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(42.dp)
-                    .clip(RoundedCornerShape(21.dp)),
-                placeholder = {
-                    Text(
-                        text = "Search conversations and researchers...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Filled.Search,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(21.dp),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = SurfaceInset,
-                    unfocusedContainerColor = SurfaceInset,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent
-                )
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(SurfaceInset),
+                decorationBox = { innerTextField ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Box(
+                            modifier = Modifier.weight(1f),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            if (searchQuery.isEmpty()) {
+                                Text(
+                                    text = "Search conversations and researchers...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            innerTextField()
+                        }
+                        if (searchQuery.isNotEmpty()) {
+                            Spacer(Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                                    .clickable { searchQuery = "" },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = "Clear search",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
+                }
             )
         }
 
@@ -215,56 +276,68 @@ fun MessengerScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
-            // Item A: Gemini AI Assistant banner
+            // Item A: Gemini AI Assistant banner (Messenger-style inset card)
             item(key = "banner_ai") {
-                Row(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.primary)
-                        .clickable { navController.navigate("chat") }
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
                 ) {
-                    // Icon bubble
-                    Box(
+                    Row(
                         modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(BrandBlue)
+                            .clickable { navController.navigate("chat") }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.AutoAwesome,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(22.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.AutoAwesome,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        Spacer(Modifier.width(12.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Gemini Research Assistant",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "Multimodal AI research & citation partner",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.85f)
+                            )
+                        }
+
+                        Spacer(Modifier.width(8.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color.White.copy(alpha = 0.2f))
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                text = "Chat",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = Color.White
+                            )
+                        }
                     }
-
-                    Spacer(Modifier.width(12.dp))
-
-                    // Title + subtitle
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Gemini Research Assistant",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                        Text(
-                            text = "Multimodal Research Assistant",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-                        )
-                    }
-
-                    // CTA label
-                    Text(
-                        text = "Chat",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.tertiary
-                    )
                 }
             }
 
@@ -281,14 +354,15 @@ fun MessengerScreen(
                         )
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            verticalAlignment = Alignment.Bottom
                         ) {
                             // Self "Your Note" card
                             item(key = "active_self") {
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     modifier = Modifier
-                                        .width(72.dp)
+                                        .width(68.dp)
                                         .clickable { showNoteDialog = true }
                                 ) {
                                     if (userNote.isNotBlank()) {
@@ -307,7 +381,7 @@ fun MessengerScreen(
                                                 overflow = TextOverflow.Ellipsis
                                             )
                                         }
-                                        Spacer(Modifier.height(2.dp))
+                                        Spacer(Modifier.height(4.dp))
                                     }
                                     Box(
                                         modifier = Modifier.size(52.dp),
@@ -342,13 +416,14 @@ fun MessengerScreen(
                                             )
                                         }
                                     }
-                                    Spacer(Modifier.height(4.dp))
+                                    Spacer(Modifier.height(6.dp))
                                     Text(
                                         text = if (userNote.isNotBlank()) "Your Note" else "Share Note",
-                                        style = MaterialTheme.typography.bodySmall,
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                                         color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        overflow = TextOverflow.Ellipsis,
+                                        textAlign = TextAlign.Center
                                     )
                                 }
                             }
@@ -450,6 +525,13 @@ fun MessengerScreen(
                 CollaboratorContact(it.authorName, it.authorInitials, it.affiliation)
             }.distinctBy { it.name }
         }
+        val matchingAuthors = remember(distinctAuthors, participantName) {
+            val q = participantName.trim().lowercase()
+            if (q.isBlank()) distinctAuthors.take(4)
+            else distinctAuthors.filter {
+                it.name.lowercase().contains(q) || it.affiliation.lowercase().contains(q)
+            }.take(4)
+        }
 
         AlertDialog(
             onDismissRequest = { showNewChatDialog = false },
@@ -476,15 +558,15 @@ fun MessengerScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    if (distinctAuthors.isNotEmpty()) {
+                    if (matchingAuthors.isNotEmpty()) {
                         Text(
-                            text = "Recent Co-Authors & Cited Researchers",
+                            text = if (participantName.isBlank()) "Recent Co-Authors & Cited Researchers" else "Matching Researchers",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            distinctAuthors.take(4).forEach { author ->
+                            matchingAuthors.forEach { author ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -598,7 +680,7 @@ private fun ActiveCollaboratorItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .clickable(onClick = onClick)
-            .width(64.dp)
+            .width(68.dp)
     ) {
         Box(
             modifier = Modifier.size(52.dp),
@@ -619,7 +701,7 @@ private fun ActiveCollaboratorItem(
             if (conversation.isOnline) {
                 Box(
                     modifier = Modifier
-                        .size(14.dp)
+                        .size(16.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surface)
                         .padding(2.dp)
@@ -630,15 +712,16 @@ private fun ActiveCollaboratorItem(
             }
         }
 
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
 
         Text(
             text = conversation.participantName.split(" ").firstOrNull()
                 ?: conversation.participantName,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center
         )
     }
 }
@@ -658,8 +741,8 @@ private fun ConversationRow(
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.surface)
                 .clickable(onClick = onClick)
-                .height(74.dp)
-                .padding(horizontal = 16.dp),
+                .defaultMinSize(minHeight = 72.dp)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // ── Avatar with optional online dot ──────────────────────────────

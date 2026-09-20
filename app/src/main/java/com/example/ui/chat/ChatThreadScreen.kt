@@ -9,8 +9,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CameraAlt
@@ -31,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,6 +72,7 @@ fun ChatThreadScreen(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     var inputText by rememberSaveable { mutableStateOf("") }
+    var isActionsExpanded by rememberSaveable { mutableStateOf(false) }
     var selectedPaperToCite by remember { mutableStateOf<SavedPaper?>(null) }
     var showPaperPicker by remember { mutableStateOf(false) }
     var showVoiceCallDialog by remember { mutableStateOf(false) }
@@ -154,95 +159,137 @@ fun ChatThreadScreen(
         topBar = {
             Surface(
                 color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 1.dp
+                shadowElevation = 0.dp
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .height(56.dp)
-                        .padding(horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.cd_back),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    if (conversation != null) {
-                        Box(contentAlignment = Alignment.BottomEnd) {
-                            Avatar(conversation!!.participantInitials, 38.dp)
-                            if (conversation!!.isOnline) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(10.dp)
-                                        .clip(CircleShape)
-                                        .background(AccentGreen)
-                                        .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
-                                )
-                            }
-                        }
-
-                        Spacer(Modifier.width(10.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                conversation!!.participantName,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                if (conversation!!.isOnline) "Online • ${conversation!!.participantAffiliation}"
-                                else conversation!!.participantAffiliation,
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                color = if (conversation!!.isOnline) AccentGreen
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                Column {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .height(56.dp)
+                            .padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.cd_back),
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
-                        if (conversation!!.attachedPaperId.isNotBlank()) {
-                            TextButton(
-                                onClick = { navController.navigate("post/${conversation!!.attachedPaperId}") }
+                        if (conversation != null) {
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { showInfoDialog = true },
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    stringResource(R.string.messenger_view_paper),
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.primary
+                                Box(contentAlignment = Alignment.BottomEnd) {
+                                    Avatar(conversation!!.participantInitials, 38.dp)
+                                    if (conversation!!.isOnline) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(10.dp)
+                                                .clip(CircleShape)
+                                                .background(AccentGreen)
+                                                .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                                        )
+                                    }
+                                }
+
+                                Spacer(Modifier.width(10.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        conversation!!.participantName,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        if (conversation!!.isOnline) "Active Now"
+                                        else conversation!!.participantAffiliation.ifBlank { "Academic Peer" },
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                        color = if (conversation!!.isOnline) AccentGreen
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            // Action icons: voice call, video call, info
+                            IconButton(onClick = { showVoiceCallDialog = true }, modifier = Modifier.size(36.dp)) {
+                                Icon(
+                                    Icons.Filled.Call,
+                                    contentDescription = "Voice Call",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            IconButton(onClick = { showVideoCallDialog = true }, modifier = Modifier.size(36.dp)) {
+                                Icon(
+                                    Icons.Filled.Videocam,
+                                    contentDescription = "Video Call",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            IconButton(onClick = { showInfoDialog = true }, modifier = Modifier.size(36.dp)) {
+                                Icon(
+                                    Icons.Filled.Info,
+                                    contentDescription = "Info",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
+                    }
 
-                        // Action icons: voice call, video call, info
-                        IconButton(onClick = { showVoiceCallDialog = true }) {
+                    // Pinned paper banner beneath top bar when attached
+                    if (conversation?.attachedPaperTitle?.isNotBlank() == true) {
+                        HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(SurfaceInset)
+                                .clickable {
+                                    if (conversation!!.attachedPaperId.isNotBlank()) {
+                                        navController.navigate("post/${conversation!!.attachedPaperId}")
+                                    }
+                                }
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
-                                Icons.Filled.Call,
-                                contentDescription = "Voice Call",
-                                tint = MaterialTheme.colorScheme.onSurface
+                                Icons.Outlined.Article,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
                             )
-                        }
-                        IconButton(onClick = { showVideoCallDialog = true }) {
-                            Icon(
-                                Icons.Filled.Videocam,
-                                contentDescription = "Video Call",
-                                tint = MaterialTheme.colorScheme.onSurface
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Discussing: ${conversation!!.attachedPaperTitle}",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
                             )
-                        }
-                        IconButton(onClick = { showInfoDialog = true }) {
+                            Spacer(Modifier.width(4.dp))
                             Icon(
-                                Icons.Filled.Info,
-                                contentDescription = "Info",
-                                tint = MaterialTheme.colorScheme.onSurface
+                                Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = "View Paper",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(14.dp)
                             )
                         }
                     }
+
+                    HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
                 }
             }
         },
@@ -296,100 +343,143 @@ fun ChatThreadScreen(
                     }
                 }
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 6.dp),
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left attachment icons (Messenger-style)
-                    IconButton(onClick = { showPaperPicker = true }, modifier = Modifier.size(40.dp)) {
-                        Icon(
-                            Icons.Filled.AddCircle,
-                            contentDescription = "Attach Paper",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    IconButton(
-                        onClick = {
-                            inputText = if (inputText.isBlank()) "[Figure Attached]" else "$inputText [Figure Attached]"
-                        },
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            Icons.Filled.CameraAlt,
-                            contentDescription = "Camera",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    IconButton(
-                        onClick = {
-                            inputText = if (inputText.isBlank()) "[Chart Attached]" else "$inputText [Chart Attached]"
-                        },
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            Icons.Filled.Image,
-                            contentDescription = "Gallery",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    IconButton(
-                        onClick = {
-                            inputText = if (inputText.isBlank()) "[Audio Note 0:15]" else "$inputText [Audio Note 0:15]"
-                        },
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            Icons.Filled.Mic,
-                            contentDescription = "Audio",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp)
-                        )
+                    // Collapsible Messenger-style action buttons
+                    if (inputText.isBlank() || isActionsExpanded) {
+                        IconButton(
+                            onClick = { showPaperPicker = true },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.AddCircle,
+                                contentDescription = "Attach Paper",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                inputText = if (inputText.isBlank()) "[Figure Attached]" else "$inputText [Figure Attached]"
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.CameraAlt,
+                                contentDescription = "Camera",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                inputText = if (inputText.isBlank()) "[Chart Attached]" else "$inputText [Chart Attached]"
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Image,
+                                contentDescription = "Gallery",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                inputText = if (inputText.isBlank()) "[Audio Note 0:15]" else "$inputText [Audio Note 0:15]"
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Mic,
+                                contentDescription = "Audio",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = { showPaperPicker = true },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.FormatQuote,
+                                contentDescription = stringResource(R.string.cd_attach_paper),
+                                tint = if (selectedPaperToCite != null) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        if (isActionsExpanded) {
+                            IconButton(
+                                onClick = { isActionsExpanded = false },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.Close,
+                                    contentDescription = "Collapse actions",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    } else {
+                        // Collapsed single action expander button
+                        IconButton(
+                            onClick = { isActionsExpanded = true },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = "Expand actions",
+                                tint = BrandBlue,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
 
-                    // Paper citation picker icon
-                    IconButton(
-                        onClick = { showPaperPicker = true },
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            Icons.Outlined.FormatQuote,
-                            contentDescription = stringResource(R.string.cd_attach_paper),
-                            tint = if (selectedPaperToCite != null) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Spacer(Modifier.width(4.dp))
 
-                    OutlinedTextField(
-                        value = inputText,
-                        onValueChange = { inputText = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = {
+                    // Borderless SurfaceInset pill for input
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .defaultMinSize(minHeight = 38.dp)
+                            .clip(RoundedCornerShape(19.dp))
+                            .background(SurfaceInset)
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (inputText.isEmpty() && selectedPaperToCite == null) {
                             Text(
-                                stringResource(
+                                text = stringResource(
                                     R.string.messenger_input_placeholder,
                                     conversation?.participantName?.split(" ")?.firstOrNull() ?: ""
                                 ),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
-                        },
-                        textStyle = MaterialTheme.typography.bodyMedium,
-                        maxLines = 4,
-                        shape = MaterialTheme.shapes.extraLarge,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                        }
+                        BasicTextField(
+                            value = inputText,
+                            onValueChange = {
+                                inputText = it
+                                if (it.isNotBlank()) isActionsExpanded = false
+                            },
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            cursorBrush = SolidColor(BrandBlue),
+                            modifier = Modifier.fillMaxWidth()
                         )
-                    )
+                    }
 
                     Spacer(Modifier.width(4.dp))
 
@@ -402,6 +492,7 @@ fun ChatThreadScreen(
                                 val paper = selectedPaperToCite
                                 inputText = ""
                                 selectedPaperToCite = null
+                                isActionsExpanded = false
                                 scope.launch {
                                     chatRepository.sendMessage(
                                         conversationId = conversationId,
@@ -414,10 +505,10 @@ fun ChatThreadScreen(
                                     )
                                 }
                             },
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.size(38.dp)
                         ) {
                             Icon(
-                                Icons.Filled.Send,
+                                Icons.AutoMirrored.Filled.Send,
                                 contentDescription = stringResource(R.string.cd_send),
                                 tint = BrandBlue,
                                 modifier = Modifier.size(22.dp)
@@ -436,7 +527,7 @@ fun ChatThreadScreen(
                                     )
                                 }
                             },
-                            modifier = Modifier.size(40.dp)
+                            modifier = Modifier.size(38.dp)
                         ) {
                             Icon(
                                 Icons.Filled.ThumbUp,
