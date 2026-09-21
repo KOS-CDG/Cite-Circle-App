@@ -93,7 +93,13 @@ fun MenuScreen(viewModel: HomeViewModel, navController: NavController) {
             icon = Icons.Filled.Chat,
             badgeColor = BrandBlue,
             title = "Messenger",
-            onClick = { navController.navigate("messenger") }
+            onClick = {
+                navController.navigate("messenger") {
+                    popUpTo("feed") { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            }
         ),
         Shortcut(
             icon = Icons.Filled.Groups,

@@ -972,14 +972,13 @@ fun SettingsScreen(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    Text("Version: ${com.example.BuildConfig.VERSION_NAME} (Build ${com.example.BuildConfig.VERSION_CODE})")
-                    Text("Design System: Meta Android Architecture (Facebook / Messenger)")
-                    Text("Storage: Room v5 (Offline SQLite) + Supabase Realtime + Cloudflare R2")
-                    Text("AI Intelligence: Google Gemini 2.5 Flash + Search Grounding")
-                    Text("UI Framework: Jetpack Compose + Material 3")
+                    Text("Version ${com.example.BuildConfig.VERSION_NAME} (Build ${com.example.BuildConfig.VERSION_CODE})")
+                    Text("Platform: Android · Jetpack Compose")
+                    Text("AI Research Assistant: Google Gemini")
+                    Text("Storage: Offline SQLite + Cloud Sync")
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Cite Circle is built for researchers, scholars, and peer reviewers to collaborate without algorithmic bloat.",
+                        "Cite Circle is built for researchers, scholars, and peer reviewers to share preprints, manage citations, and collaborate on academic manuscripts.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1033,12 +1032,12 @@ fun SettingsScreen(
                         )
                     }
                     val notes = listOf(
-                        "🤖 Gemini AI Assistant" to "Powered by Gemini 2.5 Flash (default), 3.5 Flash & 3.1 Flash Lite with real-time Google Search Grounding for verified literature citations and arXiv synthesis.",
-                        "🖼️ Multimodal Vision Inspection" to "Instant diagram, figure, chart, and mathematical formula transcription from camera or uploaded research manuscripts.",
-                        "🔔 Real-Time Activity Alerts" to "Instant WebSocket notifications & unread badge counters for paper endorsements, peer reviews, comments, and researcher direct messages.",
-                        "🔄 Smart In-App Updater" to "Silent background startup verification when up to date, manual update checks in Settings, and one-tap background APK downloads with progress indicator.",
-                        "📄 CrossRef DOI Resolver" to "Live metadata fetching and academic citation formatting in BibTeX, APA, IEEE, and MLA formats.",
-                        "🛡️ Stability & Resilience" to "Android 9+ hardware bitmap memory safety, automatic 3-attempt exponential backoff retries, and Cloudflare R2 decentralized vault."
+                        "Gemini AI Assistant" to "Powered by Gemini 2.5 Flash (default) with real-time Google Search Grounding for verified literature citations and arXiv synthesis.",
+                        "Multimodal Vision Inspection" to "Instant diagram, figure, chart, and mathematical formula transcription from camera or uploaded research manuscripts.",
+                        "Real-Time Activity Alerts" to "Instant WebSocket notifications and unread badge counters for paper endorsements, peer reviews, comments, and researcher direct messages.",
+                        "Smart In-App Updater" to "Silent background startup verification when up to date, manual update checks in Settings, and one-tap APK downloads with progress indicator.",
+                        "CrossRef DOI Resolver" to "Live metadata fetching and academic citation formatting in BibTeX, APA, IEEE, and MLA formats.",
+                        "Stability and Resilience" to "Android 9+ hardware bitmap memory safety, automatic 3-attempt exponential backoff retries, and decentralized vault storage."
                     )
                     items(notes.size) { idx ->
                         val (title, desc) = notes[idx]

@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.4] — 2026-09-21 (Build 4)
+
+### Highlights
+This release hardens the Gemini AI assistant to strictly adhere to academic and scientific research domains with robust prompt-injection and extraction defenses, resolves the Messenger navigation backstack trapping issue, completes full end-to-end profile editing for all sections (Experience, Education, Skills, Degree suffix) backed by offline DataStore persistence, and removes all UI gradients and decorative emojis across the platform.
+
+### Academic AI Guardrails & Anti-Extraction Protection
+- Domain-Restricted Intelligence: Trained and constrained the Gemini AI assistant to discuss only peer-reviewed research, scientific methodology, academic literature, paper writing, and scholarly peer review.
+- Jailbreak & Prompt Injection Defenses: Enforced strict refusal mechanisms against prompt extraction attacks, system prompt leakage, role reversals, and non-academic queries.
+- Safe Code Generation Policy: AI strictly refuses non-research code generation while permitting verified scientific computation scripts (Python, R, PyTorch, LaTeX).
+
+### Messenger Navigation & Backstack Stability
+- Top Bar & Menu Single-Top Navigation: Configured Messenger navigation actions to use `launchSingleTop = true`, `popUpTo("feed")`, and state preservation, preventing cyclic backstack buildup.
+- Header Back Navigation: Added a dedicated Back arrow button in the Messenger screen header, allowing users to return immediately to their previous screen without becoming trapped.
+- Layout Overflow Fix: Restructured `LazyColumn` weight sizing to eliminate unbounded height rendering issues.
+
+### Complete Editable Academic Profile
+- Full Section Editing: Added interactive dialogs allowing scholars to add, edit, and remove entries for Experience & Academic Positions, Education, Skills & Endorsements, and Academic Degree title suffixes.
+- DataStore Persistence: Integrated JSON and CSV serializers in `UserSessionManager` so all profile customizations persist reliably across app restarts.
+- Owner Action Suite: Replaced self-connect buttons with authentic owner controls: "Open to", "Edit Profile", "Share", and "More".
+- Polished Alignment: Aligned profile metrics and identity headers with strict left alignment following professional academic standards.
+
+### UI Hygiene & Design Standardization
+- Zero Gradient Policy: Eliminated all gradient brushes across the application, adopting clean, high-contrast solid surface tokens.
+- Professional Typography: Removed decorative emojis from analytics dialogs, settings menus, and system release logs.
+- About App Cleanliness: Removed internal architecture notes from the About dialog in favor of verified platform version metadata.
+
 ## [1.3] — 2026-09-20 (Build 3)
 
 ### 🚀 Highlights

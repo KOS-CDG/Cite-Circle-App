@@ -85,7 +85,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -115,13 +114,151 @@ import com.example.ui.theme.DividerLight
 import com.example.ui.theme.PageNeutral
 import com.example.ui.theme.SurfaceInset
 import com.example.ui.theme.SurfaceWhite
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.runtime.toMutableStateList
 import kotlinx.coroutines.launch
+import java.util.UUID
+import org.json.JSONArray
+import org.json.JSONObject
 
 data class SkillItem(
     val name: String,
     var endorsementCount: Int,
     var isEndorsed: Boolean = false
 )
+
+data class ExperienceItem(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val title: String,
+    val institution: String,
+    val duration: String,
+    val location: String,
+    val description: String
+)
+
+data class EducationItem(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val school: String,
+    val degree: String,
+    val years: String,
+    val details: String
+)
+
+private fun parseExperienceJson(json: String): List<ExperienceItem> {
+    if (json.isBlank()) {
+        return listOf(
+            ExperienceItem(
+                title = "Postdoctoral Research Fellow",
+                institution = "Stanford AI & Quantum Lab",
+                duration = "2024 – Present · 2 yrs",
+                location = "Palo Alto, California · Full-time",
+                description = "Investigating quantum foundation model reasoning, distributed parameter sharding, and reproducible peer review verification."
+            ),
+            ExperienceItem(
+                title = "Doctoral Researcher & Teaching Fellow",
+                institution = "MIT CSAIL",
+                duration = "2020 – 2024 · 4 yrs",
+                location = "Cambridge, Massachusetts",
+                description = "Published 6 first-author manuscripts across NeurIPS, ICML, and ICLR on transformer attention mechanics."
+            ),
+            ExperienceItem(
+                title = "Visiting Research Scientist",
+                institution = "Google DeepMind / Quantum AI",
+                duration = "Summer 2023 · 5 mos",
+                location = "Mountain View, California",
+                description = "Co-developed tensor-network representations for scalable quantum circuit simulation."
+            )
+        )
+    }
+    return try {
+        val array = JSONArray(json)
+        val list = mutableListOf<ExperienceItem>()
+        for (i in 0 until array.length()) {
+            val obj = array.getJSONObject(i)
+            list.add(
+                ExperienceItem(
+                    id = obj.optString("id", java.util.UUID.randomUUID().toString()),
+                    title = obj.optString("title", ""),
+                    institution = obj.optString("institution", ""),
+                    duration = obj.optString("duration", ""),
+                    location = obj.optString("location", ""),
+                    description = obj.optString("description", "")
+                )
+            )
+        }
+        list
+    } catch (_: Exception) {
+        emptyList()
+    }
+}
+
+private fun serializeExperienceList(list: List<ExperienceItem>): String {
+    val array = JSONArray()
+    for (item in list) {
+        val obj = JSONObject()
+        obj.put("id", item.id)
+        obj.put("title", item.title)
+        obj.put("institution", item.institution)
+        obj.put("duration", item.duration)
+        obj.put("location", item.location)
+        obj.put("description", item.description)
+        array.put(obj)
+    }
+    return array.toString()
+}
+
+private fun parseEducationJson(json: String): List<EducationItem> {
+    if (json.isBlank()) {
+        return listOf(
+            EducationItem(
+                school = "Massachusetts Institute of Technology (MIT)",
+                degree = "Doctor of Philosophy (Ph.D.), Computer Science & AI",
+                years = "2020 – 2024",
+                details = "Dissertation: 'Scalable Attention Dynamics in Non-Euclidean Latent Spaces'"
+            ),
+            EducationItem(
+                school = "University of California, Berkeley",
+                degree = "Bachelor of Science (B.S.), Electrical Engineering & Computer Sciences",
+                years = "2016 – 2020",
+                details = "Summa Cum Laude · Regents' and Chancellor's Scholar"
+            )
+        )
+    }
+    return try {
+        val array = JSONArray(json)
+        val list = mutableListOf<EducationItem>()
+        for (i in 0 until array.length()) {
+            val obj = array.getJSONObject(i)
+            list.add(
+                EducationItem(
+                    id = obj.optString("id", java.util.UUID.randomUUID().toString()),
+                    school = obj.optString("school", ""),
+                    degree = obj.optString("degree", ""),
+                    years = obj.optString("years", ""),
+                    details = obj.optString("details", "")
+                )
+            )
+        }
+        list
+    } catch (_: Exception) {
+        emptyList()
+    }
+}
+
+private fun serializeEducationList(list: List<EducationItem>): String {
+    val array = JSONArray()
+    for (item in list) {
+        val obj = JSONObject()
+        obj.put("id", item.id)
+        obj.put("school", item.school)
+        obj.put("degree", item.degree)
+        obj.put("years", item.years)
+        obj.put("details", item.details)
+        array.put(obj)
+    }
+    return array.toString()
+}
 
 /**
  * High-fidelity, fully interactive LinkedIn-style Profile screen for Cite Circle.
@@ -153,6 +290,10 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
     val currentWebsite by sessionManager.currentUserWebsite.collectAsStateWithLifecycle(initialValue = "")
     val currentEmail by sessionManager.currentUserEmail.collectAsStateWithLifecycle(initialValue = "")
     val currentOpenTo by sessionManager.currentUserOpenTo.collectAsStateWithLifecycle(initialValue = "")
+    val currentDegree by sessionManager.currentUserDegree.collectAsStateWithLifecycle(initialValue = "")
+    val currentExperienceJson by sessionManager.currentUserExperienceJson.collectAsStateWithLifecycle(initialValue = "")
+    val currentEducationJson by sessionManager.currentUserEducationJson.collectAsStateWithLifecycle(initialValue = "")
+    val currentSkillsCsv by sessionManager.currentUserSkillsCsv.collectAsStateWithLifecycle(initialValue = "")
 
     // Fallbacks
     val authorIdentity = remember(context) { AuthorIdentity.current(context) }
@@ -168,6 +309,7 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
     val website = currentWebsite.ifBlank { "https://citecircle.org/author/arivera" }
     val email = currentEmail.ifBlank { "alex.rivera@citecircle.edu" }
     val openTo = currentOpenTo.ifBlank { "Research Collaborations · Peer Review" }
+    val degreeSuffix = currentDegree.ifBlank { "(Ph.D.)" }
 
     val stats = remember(feed.items) { ProfileStats.from(feed.items) }
     val initials = remember(displayName) { AuthorIdentity.initialsOf(displayName) }
@@ -181,21 +323,45 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
     var showAnalyticsDialog by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
 
-    var isInCircle by remember { mutableStateOf(false) }
+    // Academic Experience, Education, and Skills state
+    val experiences = remember(currentExperienceJson) {
+        parseExperienceJson(currentExperienceJson).toMutableStateList()
+    }
+    var showAddEditExperienceDialog by remember { mutableStateOf(false) }
+    var experienceToEdit by remember { mutableStateOf<ExperienceItem?>(null) }
+
+    val educations = remember(currentEducationJson) {
+        parseEducationJson(currentEducationJson).toMutableStateList()
+    }
+    var showAddEditEducationDialog by remember { mutableStateOf(false) }
+    var educationToEdit by remember { mutableStateOf<EducationItem?>(null) }
+
+    val defaultSkillNames = remember {
+        listOf(
+            "Deep Learning & PyTorch",
+            "Quantum Information Science",
+            "Distributed System Architecture",
+            "Academic Peer Review & Ethics",
+            "Transformer Model Alignment"
+        )
+    }
+    val skillNames = remember(currentSkillsCsv) {
+        if (currentSkillsCsv.isNotBlank()) {
+            currentSkillsCsv.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        } else {
+            defaultSkillNames
+        }
+    }
+    val skills = remember(skillNames) {
+        skillNames.mapIndexed { idx, name ->
+            SkillItem(name, 48 - idx * 7, false)
+        }.toMutableStateList()
+    }
+    var showAddSkillDialog by remember { mutableStateOf(false) }
+
     var connectionCount by remember { mutableIntStateOf(1248) }
     var selectedActivityTab by remember { mutableIntStateOf(0) }
     var isBioExpanded by remember { mutableStateOf(false) }
-
-    // Interactive Skills list with live endorsements
-    val skills = remember {
-        mutableStateListOf(
-            SkillItem("Deep Learning & PyTorch", 48, false),
-            SkillItem("Quantum Information Science", 32, false),
-            SkillItem("Distributed System Architecture", 27, false),
-            SkillItem("Academic Peer Review & Ethics", 19, false),
-            SkillItem("Transformer Model Alignment", 15, false)
-        )
-    }
 
     // Photo pickers
     val coverPickerLauncher = rememberLauncherForActivityResult(
@@ -307,11 +473,7 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(135.dp)
-                                        .background(
-                                            Brush.horizontalGradient(
-                                                listOf(BrandBlue, Color(0xFF1565C0), Color(0xFF0D47A1))
-                                            )
-                                        )
+                                        .background(MaterialTheme.colorScheme.primary)
                                 ) {
                                     if (currentCoverUri.isNotBlank()) {
                                         AsyncImage(
@@ -439,11 +601,13 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                             .size(20.dp)
                                             .clickable { showVerificationDialog = true }
                                     )
-                                    Text(
-                                        text = "(Ph.D.)",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    if (degreeSuffix.isNotBlank()) {
+                                        Text(
+                                            text = degreeSuffix,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
 
                                 Spacer(Modifier.height(4.dp))
@@ -561,7 +725,7 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
 
                                 Spacer(Modifier.height(14.dp))
 
-                                // Action Buttons Row (LinkedIn Pill Buttons)
+                                // Action Buttons Row (LinkedIn Owner Pill Buttons)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -581,44 +745,43 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                         )
                                     }
 
-                                    // 2. Add to Circle / Connected (Outlined Pill)
-                                    OutlinedButton(
-                                        onClick = {
-                                            isInCircle = !isInCircle
-                                            connectionCount += if (isInCircle) 1 else -1
-                                            viewModel.report(
-                                                if (isInCircle) "Added $displayName to your Academic Circle"
-                                                else "Removed from Academic Circle"
-                                            )
-                                        },
-                                        shape = RoundedCornerShape(20.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            contentColor = if (isInCircle) AccentGreen else BrandBlue
-                                        ),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                                        modifier = Modifier.weight(1.2f)
-                                    ) {
-                                        Icon(
-                                            if (isInCircle) Icons.Filled.Check else Icons.Filled.Add,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(Modifier.width(4.dp))
-                                        Text(
-                                            if (isInCircle) "Connected" else "Connect",
-                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                                        )
-                                    }
-
-                                    // 3. Edit Profile (Outlined Pill)
+                                    // 2. Edit Profile (Outlined Pill)
                                     OutlinedButton(
                                         onClick = { showEditIntroDialog = true },
                                         shape = RoundedCornerShape(20.dp),
                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                                        modifier = Modifier.weight(1.2f)
+                                    ) {
+                                        Icon(
+                                            Icons.Outlined.Edit,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            "Edit Profile",
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                        )
+                                    }
+
+                                    // 3. Share Profile (Outlined Pill)
+                                    OutlinedButton(
+                                        onClick = {
+                                            clipboardManager.setText(AnnotatedString(website))
+                                            viewModel.report("Profile URL copied to clipboard")
+                                        },
+                                        shape = RoundedCornerShape(20.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                                         modifier = Modifier.weight(1f)
                                     ) {
+                                        Icon(
+                                            Icons.Outlined.Share,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Spacer(Modifier.width(4.dp))
                                         Text(
-                                            "Edit Intro",
+                                            "Share",
                                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
                                         )
                                     }
@@ -655,7 +818,11 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                                 text = { Text("Send Profile in Direct Message") },
                                                 onClick = {
                                                     showMoreMenu = false
-                                                    navController.navigate("messenger")
+                                                    navController.navigate("messenger") {
+                                                        popUpTo("feed") { saveState = true }
+                                                        launchSingleTop = true
+                                                        restoreState = true
+                                                    }
                                                 },
                                                 leadingIcon = { Icon(Icons.Outlined.Email, contentDescription = null) }
                                             )
@@ -732,26 +899,32 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                AnalyticsMetricTile(
-                                    icon = Icons.Outlined.Visibility,
-                                    value = "1,280",
-                                    label = "profile views",
-                                    subtext = "Past 7 days"
-                                )
-                                AnalyticsMetricTile(
-                                    icon = Icons.Outlined.AutoGraph,
-                                    value = "3,420",
-                                    label = "post impressions",
-                                    subtext = "+18% this week"
-                                )
-                                AnalyticsMetricTile(
-                                    icon = Icons.Filled.Search,
-                                    value = "412",
-                                    label = "search appearances",
-                                    subtext = "Top scholar search"
-                                )
+                                Box(modifier = Modifier.weight(1f)) {
+                                    AnalyticsMetricTile(
+                                        icon = Icons.Outlined.Visibility,
+                                        value = "1,280",
+                                        label = "profile views",
+                                        subtext = "Past 7 days"
+                                    )
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    AnalyticsMetricTile(
+                                        icon = Icons.Outlined.AutoGraph,
+                                        value = "3,420",
+                                        label = "post impressions",
+                                        subtext = "+18% this week"
+                                    )
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    AnalyticsMetricTile(
+                                        icon = Icons.Filled.Search,
+                                        value = "412",
+                                        label = "search appearances",
+                                        subtext = "Top scholar search"
+                                    )
+                                }
                             }
                         }
                     }
@@ -822,8 +995,12 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
 
                             Spacer(Modifier.height(8.dp))
 
+                            val specialties = remember(researchField, skillNames) {
+                                (listOf(researchField) + skillNames).distinct().filter { it.isNotBlank() }.take(6)
+                            }
+
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(listOf("Deep Learning", "Transformers", "Distributed AI", "Quantum Algorithms", "Peer Review Reproducibility")) { domain ->
+                                items(specialties) { domain ->
                                     Surface(
                                         shape = RoundedCornerShape(16.dp),
                                         color = SurfaceInset,
@@ -1076,95 +1253,7 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                 }
 
                 // =========================================================
-                // 6. LinkedIn "Experience & Positions" Card
-                // =========================================================
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = "Experience & Academic Positions",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-
-                            Spacer(Modifier.height(14.dp))
-
-                            TimelineExperienceItem(
-                                title = "Postdoctoral Research Fellow",
-                                institution = "Stanford AI & Quantum Lab",
-                                duration = "2024 – Present · 2 yrs",
-                                location = "Palo Alto, California · Full-time",
-                                description = "Investigating quantum foundation model reasoning, distributed parameter sharding, and reproducible peer review verification."
-                            )
-
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), thickness = 0.5.dp, color = DividerLight)
-
-                            TimelineExperienceItem(
-                                title = "Doctoral Researcher & Teaching Fellow",
-                                institution = "MIT CSAIL",
-                                duration = "2020 – 2024 · 4 yrs",
-                                location = "Cambridge, Massachusetts",
-                                description = "Published 6 first-author manuscripts across NeurIPS, ICML, and ICLR on transformer attention mechanics."
-                            )
-
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), thickness = 0.5.dp, color = DividerLight)
-
-                            TimelineExperienceItem(
-                                title = "Visiting Research Scientist",
-                                institution = "Google DeepMind / Quantum AI",
-                                duration = "Summer 2023 · 5 mos",
-                                location = "Mountain View, California",
-                                description = "Co-developed tensor-network representations for scalable quantum circuit simulation."
-                            )
-                        }
-                    }
-                }
-
-                // =========================================================
-                // 7. LinkedIn "Education" Card
-                // =========================================================
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = "Education",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-
-                            Spacer(Modifier.height(14.dp))
-
-                            TimelineEducationItem(
-                                school = "Massachusetts Institute of Technology (MIT)",
-                                degree = "Doctor of Philosophy (Ph.D.), Computer Science & AI",
-                                years = "2020 – 2024",
-                                details = "Dissertation: 'Scalable Attention Dynamics in Non-Euclidean Latent Spaces'"
-                            )
-
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), thickness = 0.5.dp, color = DividerLight)
-
-                            TimelineEducationItem(
-                                school = "University of California, Berkeley",
-                                degree = "Bachelor of Science (B.S.), Electrical Engineering & Computer Sciences",
-                                years = "2016 – 2020",
-                                details = "Summa Cum Laude · Regents' and Chancellor's Scholar"
-                            )
-                        }
-                    }
-                }
-
-                // =========================================================
-                // 8. LinkedIn "Skills & Endorsements" Card (INTERACTIVE!)
+                // 6. LinkedIn "Experience & Academic Positions" Card (EDITABLE)
                 // =========================================================
                 item {
                     Card(
@@ -1179,7 +1268,150 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Column {
+                                Text(
+                                    text = "Experience & Academic Positions",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                IconButton(
+                                    onClick = {
+                                        experienceToEdit = null
+                                        showAddEditExperienceDialog = true
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Add,
+                                        contentDescription = "Add Experience",
+                                        tint = BrandBlue,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.height(14.dp))
+
+                            if (experiences.isEmpty()) {
+                                Text(
+                                    text = "No academic positions added yet. Tap + to add experience.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+                            } else {
+                                experiences.forEachIndexed { index, exp ->
+                                    TimelineExperienceItem(
+                                        title = exp.title,
+                                        institution = exp.institution,
+                                        duration = exp.duration,
+                                        location = exp.location,
+                                        description = exp.description,
+                                        onEdit = {
+                                            experienceToEdit = exp
+                                            showAddEditExperienceDialog = true
+                                        }
+                                    )
+                                    if (index < experiences.size - 1) {
+                                        HorizontalDivider(
+                                            modifier = Modifier.padding(vertical = 12.dp),
+                                            thickness = 0.5.dp,
+                                            color = DividerLight
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // =========================================================
+                // 7. LinkedIn "Education" Card (EDITABLE)
+                // =========================================================
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Education",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                IconButton(
+                                    onClick = {
+                                        educationToEdit = null
+                                        showAddEditEducationDialog = true
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Add,
+                                        contentDescription = "Add Education",
+                                        tint = BrandBlue,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.height(14.dp))
+
+                            if (educations.isEmpty()) {
+                                Text(
+                                    text = "No education degrees added yet. Tap + to add education.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+                            } else {
+                                educations.forEachIndexed { index, edu ->
+                                    TimelineEducationItem(
+                                        school = edu.school,
+                                        degree = edu.degree,
+                                        years = edu.years,
+                                        details = edu.details,
+                                        onEdit = {
+                                            educationToEdit = edu
+                                            showAddEditEducationDialog = true
+                                        }
+                                    )
+                                    if (index < educations.size - 1) {
+                                        HorizontalDivider(
+                                            modifier = Modifier.padding(vertical = 12.dp),
+                                            thickness = 0.5.dp,
+                                            color = DividerLight
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // =========================================================
+                // 8. LinkedIn "Skills & Endorsements" Card (EDITABLE & INTERACTIVE)
+                // =========================================================
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = "Skills & Endorsements",
                                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
@@ -1191,61 +1423,104 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
+                                IconButton(
+                                    onClick = { showAddSkillDialog = true },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Add,
+                                        contentDescription = "Add Skill",
+                                        tint = BrandBlue,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             }
 
                             Spacer(Modifier.height(14.dp))
 
-                            skills.forEachIndexed { index, skill ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = skill.name,
-                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "${skill.endorsementCount} endorsements by peer researchers",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-
-                                    OutlinedButton(
-                                        onClick = {
-                                            skill.isEndorsed = !skill.isEndorsed
-                                            skill.endorsementCount += if (skill.isEndorsed) 1 else -1
-                                            viewModel.report(
-                                                if (skill.isEndorsed) "Endorsed ${skill.name} for $displayName"
-                                                else "Removed endorsement"
-                                            )
-                                        },
-                                        shape = RoundedCornerShape(16.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            containerColor = if (skill.isEndorsed) BrandBlue.copy(alpha = 0.1f) else Color.Transparent,
-                                            contentColor = if (skill.isEndorsed) BrandBlue else MaterialTheme.colorScheme.onSurface
-                                        ),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                            if (skills.isEmpty()) {
+                                Text(
+                                    text = "No skills listed yet. Tap + to add academic proficiencies.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+                            } else {
+                                skills.forEachIndexed { index, skill ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Icon(
-                                            Icons.Filled.ThumbUp,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Spacer(Modifier.width(4.dp))
-                                        Text(
-                                            if (skill.isEndorsed) "Endorsed" else "Endorse",
-                                            style = MaterialTheme.typography.labelSmall
-                                        )
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = skill.name,
+                                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "${skill.endorsementCount} endorsements by peer researchers",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    skill.isEndorsed = !skill.isEndorsed
+                                                    skill.endorsementCount += if (skill.isEndorsed) 1 else -1
+                                                    viewModel.report(
+                                                        if (skill.isEndorsed) "Endorsed ${skill.name} for $displayName"
+                                                        else "Removed endorsement"
+                                                    )
+                                                },
+                                                shape = RoundedCornerShape(16.dp),
+                                                colors = ButtonDefaults.outlinedButtonColors(
+                                                    containerColor = if (skill.isEndorsed) BrandBlue.copy(alpha = 0.1f) else Color.Transparent,
+                                                    contentColor = if (skill.isEndorsed) BrandBlue else MaterialTheme.colorScheme.onSurface
+                                                ),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Filled.ThumbUp,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(
+                                                    if (skill.isEndorsed) "Endorsed" else "Endorse",
+                                                    style = MaterialTheme.typography.labelSmall
+                                                )
+                                            }
+
+                                            IconButton(
+                                                onClick = {
+                                                    skills.remove(skill)
+                                                    coroutineScope.launch {
+                                                        sessionManager.updateSkillsCsv(skills.joinToString(",") { it.name })
+                                                        viewModel.report("Removed skill: ${skill.name}")
+                                                    }
+                                                },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Filled.Close,
+                                                    contentDescription = "Remove skill",
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
                                     }
-                                }
-                                if (index < skills.size - 1) {
-                                    HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
+                                    if (index < skills.size - 1) {
+                                        HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
+                                    }
                                 }
                             }
                         }
@@ -1262,6 +1537,7 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
     // =============================================================
     if (showEditIntroDialog) {
         var editName by remember { mutableStateOf(displayName) }
+        var editDegree by remember { mutableStateOf(degreeSuffix) }
         var editHeadline by remember { mutableStateOf(headline) }
         var editAffiliation by remember { mutableStateOf(affiliation) }
         var editField by remember { mutableStateOf(researchField) }
@@ -1291,6 +1567,15 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                             value = editName,
                             onValueChange = { editName = it },
                             label = { Text("Full Name *") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = editDegree,
+                            onValueChange = { editDegree = it },
+                            label = { Text("Academic Degree / Title Suffix (e.g. Ph.D., M.S.)") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -1373,7 +1658,8 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                 location = editLocation,
                                 bio = editBio,
                                 orcid = editOrcid,
-                                website = editWebsite
+                                website = editWebsite,
+                                degree = editDegree
                             )
                             isSaving = false
                             showEditIntroDialog = false
@@ -1615,10 +1901,13 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Private academic performance report (past 7 days):", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("👁️ 1,280 Profile Views (+14% vs last week)")
-                    Text("📈 3,420 Paper Impressions on Home Feed")
-                    Text("🔍 412 Search Appearances for 'Quantum Machine Learning'")
-                    Text("📊 Author h-index: 18 · i10-index: 24")
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        AnalyticsStatRow(label = "Profile Views", value = "1,280 (+14% vs last week)")
+                        AnalyticsStatRow(label = "Paper Impressions on Feed", value = "3,420")
+                        AnalyticsStatRow(label = "Search Appearances", value = "412 for 'Quantum Machine Learning'")
+                        AnalyticsStatRow(label = "Author h-index", value = "18")
+                        AnalyticsStatRow(label = "i10-index", value = "24")
+                    }
                 }
             },
             confirmButton = {
@@ -1628,11 +1917,378 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
             }
         )
     }
+
+    // =============================================================
+    // Dialog 7: Add / Edit Experience Dialog
+    // =============================================================
+    if (showAddEditExperienceDialog) {
+        var title by remember { mutableStateOf(experienceToEdit?.title ?: "") }
+        var institution by remember { mutableStateOf(experienceToEdit?.institution ?: "") }
+        var duration by remember { mutableStateOf(experienceToEdit?.duration ?: "") }
+        var expLocation by remember { mutableStateOf(experienceToEdit?.location ?: "") }
+        var description by remember { mutableStateOf(experienceToEdit?.description ?: "") }
+
+        AlertDialog(
+            onDismissRequest = {
+                showAddEditExperienceDialog = false
+                experienceToEdit = null
+            },
+            title = {
+                Text(
+                    text = if (experienceToEdit == null) "Add Experience" else "Edit Experience",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(340.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    item {
+                        OutlinedTextField(
+                            value = title,
+                            onValueChange = { title = it },
+                            label = { Text("Title / Role *") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = institution,
+                            onValueChange = { institution = it },
+                            label = { Text("Institution / Organization *") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = duration,
+                            onValueChange = { duration = it },
+                            label = { Text("Duration (e.g., 2021 - Present)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = expLocation,
+                            onValueChange = { expLocation = it },
+                            label = { Text("Location (e.g., Stanford, CA)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = description,
+                            onValueChange = { description = it },
+                            label = { Text("Description / Key Contributions") },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 3
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (title.isNotBlank() && institution.isNotBlank()) {
+                            val currentList = experiences.toMutableList()
+                            val editing = experienceToEdit
+                            if (editing != null) {
+                                val index = currentList.indexOfFirst { it.id == editing.id }
+                                if (index != -1) {
+                                    currentList[index] = editing.copy(
+                                        title = title.trim(),
+                                        institution = institution.trim(),
+                                        duration = duration.trim(),
+                                        location = expLocation.trim(),
+                                        description = description.trim()
+                                    )
+                                }
+                            } else {
+                                currentList.add(
+                                    ExperienceItem(
+                                        id = UUID.randomUUID().toString(),
+                                        title = title.trim(),
+                                        institution = institution.trim(),
+                                        duration = duration.trim(),
+                                        location = expLocation.trim(),
+                                        description = description.trim()
+                                    )
+                                )
+                            }
+                            experiences.clear()
+                            experiences.addAll(currentList)
+                            coroutineScope.launch {
+                                sessionManager.updateExperienceJson(serializeExperienceList(currentList))
+                                viewModel.report("Experience updated successfully.")
+                            }
+                            showAddEditExperienceDialog = false
+                            experienceToEdit = null
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
+                    enabled = title.isNotBlank() && institution.isNotBlank()
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (experienceToEdit != null) {
+                        TextButton(
+                            onClick = {
+                                val editing = experienceToEdit
+                                if (editing != null) {
+                                    experiences.removeAll { it.id == editing.id }
+                                    coroutineScope.launch {
+                                        sessionManager.updateExperienceJson(serializeExperienceList(experiences))
+                                        viewModel.report("Experience removed.")
+                                    }
+                                }
+                                showAddEditExperienceDialog = false
+                                experienceToEdit = null
+                            },
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("Delete")
+                        }
+                    }
+                    TextButton(onClick = {
+                        showAddEditExperienceDialog = false
+                        experienceToEdit = null
+                    }) {
+                        Text("Cancel")
+                    }
+                }
+            }
+        )
+    }
+
+    // =============================================================
+    // Dialog 8: Add / Edit Education Dialog
+    // =============================================================
+    if (showAddEditEducationDialog) {
+        var school by remember { mutableStateOf(educationToEdit?.school ?: "") }
+        var degree by remember { mutableStateOf(educationToEdit?.degree ?: "") }
+        var years by remember { mutableStateOf(educationToEdit?.years ?: "") }
+        var details by remember { mutableStateOf(educationToEdit?.details ?: "") }
+
+        AlertDialog(
+            onDismissRequest = {
+                showAddEditEducationDialog = false
+                educationToEdit = null
+            },
+            title = {
+                Text(
+                    text = if (educationToEdit == null) "Add Education" else "Edit Education",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(300.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    item {
+                        OutlinedTextField(
+                            value = school,
+                            onValueChange = { school = it },
+                            label = { Text("School / University *") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = degree,
+                            onValueChange = { degree = it },
+                            label = { Text("Degree / Field of Study *") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = years,
+                            onValueChange = { years = it },
+                            label = { Text("Years (e.g., 2016 - 2020)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = details,
+                            onValueChange = { details = it },
+                            label = { Text("Details / Honors / Thesis") },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 2
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (school.isNotBlank() && degree.isNotBlank()) {
+                            val currentList = educations.toMutableList()
+                            val editing = educationToEdit
+                            if (editing != null) {
+                                val index = currentList.indexOfFirst { it.id == editing.id }
+                                if (index != -1) {
+                                    currentList[index] = editing.copy(
+                                        school = school.trim(),
+                                        degree = degree.trim(),
+                                        years = years.trim(),
+                                        details = details.trim()
+                                    )
+                                }
+                            } else {
+                                currentList.add(
+                                    EducationItem(
+                                        id = UUID.randomUUID().toString(),
+                                        school = school.trim(),
+                                        degree = degree.trim(),
+                                        years = years.trim(),
+                                        details = details.trim()
+                                    )
+                                )
+                            }
+                            educations.clear()
+                            educations.addAll(currentList)
+                            coroutineScope.launch {
+                                sessionManager.updateEducationJson(serializeEducationList(currentList))
+                                viewModel.report("Education updated successfully.")
+                            }
+                            showAddEditEducationDialog = false
+                            educationToEdit = null
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
+                    enabled = school.isNotBlank() && degree.isNotBlank()
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (educationToEdit != null) {
+                        TextButton(
+                            onClick = {
+                                val editing = educationToEdit
+                                if (editing != null) {
+                                    educations.removeAll { it.id == editing.id }
+                                    coroutineScope.launch {
+                                        sessionManager.updateEducationJson(serializeEducationList(educations))
+                                        viewModel.report("Education removed.")
+                                    }
+                                }
+                                showAddEditEducationDialog = false
+                                educationToEdit = null
+                            },
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("Delete")
+                        }
+                    }
+                    TextButton(onClick = {
+                        showAddEditEducationDialog = false
+                        educationToEdit = null
+                    }) {
+                        Text("Cancel")
+                    }
+                }
+            }
+        )
+    }
+
+    // =============================================================
+    // Dialog 9: Add Skill Dialog
+    // =============================================================
+    if (showAddSkillDialog) {
+        var newSkillName by remember { mutableStateOf("") }
+
+        AlertDialog(
+            onDismissRequest = { showAddSkillDialog = false },
+            title = {
+                Text("Add Skill & Endorsement", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Add a research skill or academic proficiency to be endorsed by peers:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = newSkillName,
+                        onValueChange = { newSkillName = it },
+                        label = { Text("Skill name (e.g. Statistical Analysis)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val clean = newSkillName.trim()
+                        if (clean.isNotBlank() && skills.none { it.name.equals(clean, ignoreCase = true) }) {
+                            skills.add(SkillItem(clean, 0, false))
+                            coroutineScope.launch {
+                                sessionManager.updateSkillsCsv(skills.joinToString(",") { it.name })
+                                viewModel.report("Added skill: $clean")
+                            }
+                            showAddSkillDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
+                    enabled = newSkillName.isNotBlank()
+                ) {
+                    Text("Add")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddSkillDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 // -----------------------------------------------------------------
 // Helper Composables for LinkedIn UI Elements
 // -----------------------------------------------------------------
+
+@Composable
+private fun AnalyticsStatRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
 
 @Composable
 private fun AnalyticsMetricTile(
@@ -1743,11 +2399,13 @@ private fun TimelineExperienceItem(
     institution: String,
     duration: String,
     location: String,
-    description: String
+    description: String,
+    onEdit: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top
     ) {
         Box(
             modifier = Modifier
@@ -1763,8 +2421,21 @@ private fun TimelineExperienceItem(
             Text(title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
             Text(institution, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
             Text("$duration · $location", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(4.dp))
-            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 17.sp)
+            if (description.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 17.sp)
+            }
+        }
+
+        if (onEdit != null) {
+            IconButton(onClick = onEdit, modifier = Modifier.size(28.dp)) {
+                Icon(
+                    Icons.Outlined.Edit,
+                    contentDescription = "Edit position",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
         }
     }
 }
@@ -1774,11 +2445,13 @@ private fun TimelineEducationItem(
     school: String,
     degree: String,
     years: String,
-    details: String
+    details: String,
+    onEdit: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top
     ) {
         Box(
             modifier = Modifier
@@ -1797,6 +2470,17 @@ private fun TimelineEducationItem(
             if (details.isNotBlank()) {
                 Spacer(Modifier.height(2.dp))
                 Text(details, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+
+        if (onEdit != null) {
+            IconButton(onClick = onEdit, modifier = Modifier.size(28.dp)) {
+                Icon(
+                    Icons.Outlined.Edit,
+                    contentDescription = "Edit education",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
             }
         }
     }

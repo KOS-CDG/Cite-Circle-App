@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -135,26 +136,48 @@ fun MessengerScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp)
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left: current user avatar (tapping opens profile)
+                    // Back button to safely exit Messenger from any entry point
+                    IconButton(
+                        onClick = {
+                            if (!navController.popBackStack()) {
+                                navController.navigate("feed") {
+                                    popUpTo("feed") { inclusive = false }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Spacer(Modifier.width(4.dp))
+
+                    // Current user avatar (tapping opens profile)
                     Box(
                         modifier = Modifier
                             .clip(CircleShape)
                             .clickable { navController.navigate("profile") }
                     ) {
-                        Avatar(identity.initials, 38.dp)
+                        Avatar(identity.initials, 36.dp)
                     }
 
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(10.dp))
 
                     // Start-aligned screen title: "Chats"
                     Text(
                         text = "Chats",
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 24.sp
+                            fontSize = 22.sp
                         ),
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -273,7 +296,9 @@ fun MessengerScreen(
 
         // ── Main list ─────────────────────────────────────────────────────────
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
             // Item A: Gemini AI Assistant banner (Messenger-style inset card)

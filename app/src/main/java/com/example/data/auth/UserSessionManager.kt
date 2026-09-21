@@ -59,6 +59,10 @@ class UserSessionManager(
     private val keyUserOrcid = stringPreferencesKey("user_orcid")
     private val keyUserWebsite = stringPreferencesKey("user_website")
     private val keyUserOpenTo = stringPreferencesKey("user_open_to")
+    private val keyUserDegree = stringPreferencesKey("user_degree")
+    private val keyUserExperience = stringPreferencesKey("user_experience_json")
+    private val keyUserEducation = stringPreferencesKey("user_education_json")
+    private val keyUserSkills = stringPreferencesKey("user_skills_csv")
 
     private val preferences: Flow<Preferences> = store.data.catch { cause ->
         if (cause is IOException) emit(emptyPreferences()) else throw cause
@@ -78,6 +82,10 @@ class UserSessionManager(
     val currentUserOrcid: Flow<String> = preferences.map { it[keyUserOrcid].orEmpty() }
     val currentUserWebsite: Flow<String> = preferences.map { it[keyUserWebsite].orEmpty() }
     val currentUserOpenTo: Flow<String> = preferences.map { it[keyUserOpenTo].orEmpty() }
+    val currentUserDegree: Flow<String> = preferences.map { it[keyUserDegree].orEmpty() }
+    val currentUserExperienceJson: Flow<String> = preferences.map { it[keyUserExperience].orEmpty() }
+    val currentUserEducationJson: Flow<String> = preferences.map { it[keyUserEducation].orEmpty() }
+    val currentUserSkillsCsv: Flow<String> = preferences.map { it[keyUserSkills].orEmpty() }
     val currentAccessToken: Flow<String> = preferences.map { it[keyAccessToken].orEmpty() }
     val isPrivacyAccepted: Flow<Boolean> = preferences.map { it[keyPrivacyAccepted] ?: false }
     val rememberLoginInfo: Flow<Boolean> = preferences.map { it[keyRememberLogin] ?: true }
@@ -403,7 +411,8 @@ class UserSessionManager(
         location: String,
         bio: String,
         orcid: String,
-        website: String
+        website: String,
+        degree: String = ""
     ): AuthResult {
         val cleanName = displayName.trim()
         val cleanHeadline = headline.trim()
@@ -413,6 +422,7 @@ class UserSessionManager(
         val cleanBio = bio.trim()
         val cleanOrcid = orcid.trim()
         val cleanWebsite = website.trim()
+        val cleanDegree = degree.trim()
 
         if (cleanName.isBlank()) {
             return AuthResult.Error("Name cannot be blank.")
@@ -432,6 +442,9 @@ class UserSessionManager(
             it[keyUserBio] = cleanBio
             it[keyUserOrcid] = cleanOrcid
             it[keyUserWebsite] = cleanWebsite
+            if (cleanDegree.isNotBlank()) {
+                it[keyUserDegree] = cleanDegree
+            }
         }
 
         val updated = if (email.isNotBlank()) userDao.findUserByEmail(email) else null
@@ -456,6 +469,22 @@ class UserSessionManager(
 
     suspend fun updateOpenTo(options: String) {
         store.edit { it[keyUserOpenTo] = options }
+    }
+
+    suspend fun updateDegree(degree: String) {
+        store.edit { it[keyUserDegree] = degree.trim() }
+    }
+
+    suspend fun updateExperienceJson(jsonString: String) {
+        store.edit { it[keyUserExperience] = jsonString }
+    }
+
+    suspend fun updateEducationJson(jsonString: String) {
+        store.edit { it[keyUserEducation] = jsonString }
+    }
+
+    suspend fun updateSkillsCsv(csvString: String) {
+        store.edit { it[keyUserSkills] = csvString }
     }
 
     /**

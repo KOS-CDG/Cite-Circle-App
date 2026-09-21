@@ -471,7 +471,13 @@ private fun AppTopBar(navController: NavController, viewModel: HomeViewModel) {
               .size(38.dp)
               .clip(CircleShape)
               .background(SurfaceInset)
-              .clickable { navController.navigate("messenger") },
+              .clickable {
+                navController.navigate("messenger") {
+                  popUpTo("feed") { saveState = true }
+                  launchSingleTop = true
+                  restoreState = true
+                }
+              },
             contentAlignment = Alignment.Center
           ) {
             val count = unreadMessages ?: 0

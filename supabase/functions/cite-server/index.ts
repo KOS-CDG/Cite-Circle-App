@@ -7,22 +7,35 @@ const corsHeaders = {
 };
 
 // Canonical Version & Release Configuration
-export const LATEST_VERSION_NAME = "1.3";
-export const LATEST_VERSION_CODE = 3;
+export const LATEST_VERSION_NAME = "1.4";
+export const LATEST_VERSION_CODE = 4;
 export const DOWNLOAD_URL = "https://cxxtrtglmxfuyihxwiza.supabase.co/storage/v1/object/public/app-releases/CiteCircle-latest.apk";
 export const FILE_SIZE_MB = 28.2;
 
 export const LATEST_RELEASE_NOTES = [
-  "💼 LinkedIn-Style Academic Profile: Left-aligned overlapping avatar, custom cover photo pickers, 'Edit Intro' modal, 'Contact info' dialog, and 'Open to' collaborations sheet",
-  "📊 Private Analytics & Insights: Dedicated metrics card for profile views, search appearances, and post impressions",
-  "⭐ Interactive Skill Endorsements: Real-time skill endorsement counters with persistent local state and academic peer recognition",
-  "🎓 Experience & Education Timeline: Structured appointment history, university degrees, and pinned DOI-verified preprints",
-  "🤖 Gemini AI Research Assistant: Powered by Gemini 2.5 Flash with live Google Search Grounding and multimodal vision analysis",
-  "🔔 Real-Time Activity Alerts: Instant WebSocket notifications & unread badge counters for likes, comments, and direct messages",
-  "🛡️ Stability & Security: Android 9+ hardware bitmap memory safety, automatic 3-attempt exponential backoff retries, and Cloudflare R2 decentralized vault"
+  "Academic AI Research Guardrails: Constrained Gemini AI strictly to peer-reviewed research topics with anti-extraction and prompt injection defenses",
+  "Messenger Navigation Stability: Fixed backstack loop trapping with singleTop navigation and added header back button",
+  "Fully Editable Academic Profile: Complete editing for Experience, Education, Skills, and Degree title suffix with DataStore persistence",
+  "Owner Profile Actions: Added Open to, Edit Profile, Share, and More action suite with clean left-aligned typography",
+  "UI Standardization: Removed all gradient brushes and decorative emojis for an authentic, high-contrast academic aesthetic",
+  "About App Cleanliness: Cleaned platform version metadata and removed internal architectural notes"
 ].join("\n");
 
 export const RELEASE_HISTORY = [
+  {
+    version: "1.4",
+    version_code: 4,
+    release_date: "2026-09-21",
+    title: "Academic AI Guardrails, Messenger Navigation Fix & Editable Profile",
+    highlights: [
+      "Gemini AI assistant restricted strictly to scientific research topics with anti-jailbreak defenses",
+      "Messenger screen navigation resolved with top-bar singleTop and header back arrow button",
+      "Fully interactive Experience, Education, and Skills dialogs with local DataStore persistence",
+      "Academic Degree title suffix (e.g. Ph.D., M.S.) added to Intro editor",
+      "Owner profile action controls: Open to, Edit Profile, Share, and More menu",
+      "Complete removal of UI gradient brushes and decorative emojis across the application"
+    ]
+  },
   {
     version: "1.3",
     version_code: 3,
