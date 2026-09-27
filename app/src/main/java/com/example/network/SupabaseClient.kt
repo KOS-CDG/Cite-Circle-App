@@ -216,7 +216,8 @@ object SupabaseClient {
 
     suspend fun getPosts(
         limit: Int = 50,
-        accessToken: String? = null
+        accessToken: String? = null,
+        currentUserId: String? = null
     ): Result<List<SavedPaper>> = withContext(Dispatchers.IO) {
         try {
             val token = if (!accessToken.isNullOrBlank()) accessToken else SupabaseConfig.ANON_KEY
@@ -236,11 +237,55 @@ object SupabaseClient {
                 return@withContext Result.failure(IOException("Failed to fetch posts: ${response.code}"))
             }
 
+            val userLikedPostIds = mutableSetOf<String>()
+            val userSavedPostIds = mutableSetOf<String>()
+
+            if (!currentUserId.isNullOrBlank() && !accessToken.isNullOrBlank() && accessToken != SupabaseConfig.ANON_KEY) {
+                try {
+                    val likesReq = Request.Builder()
+                        .url("${SupabaseConfig.URL}/rest/v1/post_likes?user_id=eq.$currentUserId&select=post_id")
+                        .header("apikey", SupabaseConfig.ANON_KEY)
+                        .header("Authorization", "Bearer $accessToken")
+                        .get()
+                        .build()
+                    val likesResp = httpClient.newCall(likesReq).execute()
+                    if (likesResp.isSuccessful) {
+                        val likesArr = JSONArray(likesResp.body?.string() ?: "[]")
+                        for (j in 0 until likesArr.length()) {
+                            val pid = likesArr.getJSONObject(j).optString("post_id", "")
+                            if (pid.isNotBlank()) userLikedPostIds.add(pid)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to load user post likes", e)
+                }
+
+                try {
+                    val savedReq = Request.Builder()
+                        .url("${SupabaseConfig.URL}/rest/v1/saved_posts?user_id=eq.$currentUserId&select=post_id")
+                        .header("apikey", SupabaseConfig.ANON_KEY)
+                        .header("Authorization", "Bearer $accessToken")
+                        .get()
+                        .build()
+                    val savedResp = httpClient.newCall(savedReq).execute()
+                    if (savedResp.isSuccessful) {
+                        val savedArr = JSONArray(savedResp.body?.string() ?: "[]")
+                        for (j in 0 until savedArr.length()) {
+                            val pid = savedArr.getJSONObject(j).optString("post_id", "")
+                            if (pid.isNotBlank()) userSavedPostIds.add(pid)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to load user saved posts", e)
+                }
+            }
+
             val jsonArray = JSONArray(body)
             val papers = mutableListOf<SavedPaper>()
 
             for (i in 0 until jsonArray.length()) {
                 val row = jsonArray.getJSONObject(i)
+                val postId = row.getString("id")
                 val authorObj = row.optJSONObject("author")
                 val authorName = authorObj?.optString("full_name", "")?.takeIf { it.isNotBlank() }
                     ?: authorObj?.optString("username", "Researcher") ?: "Researcher"
@@ -252,7 +297,7 @@ object SupabaseClient {
                 val imageUri = if (mediaUrls != null && mediaUrls.length() > 0) mediaUrls.optString(0, "") else row.optString("image_url", "")
 
                 val paper = SavedPaper(
-                    id = row.getString("id"),
+                    id = postId,
                     authorInitials = authorInitials,
                     authorName = authorName,
                     affiliation = affiliation,
@@ -265,11 +310,11 @@ object SupabaseClient {
                     url = meta?.optString("url")?.takeIf { it.isNotBlank() } ?: row.optString("url", ""),
                     publishedAt = parseIsoTimestamp(row.optString("created_at", "")),
                     citationOverride = "",
-                    isEndorsed = false,
+                    isEndorsed = userLikedPostIds.contains(postId),
                     endorsementCount = row.optInt("likes_count", 0),
                     commentCount = row.optInt("comments_count", 0),
                     repostCount = 0,
-                    isBookmarked = false,
+                    isBookmarked = userSavedPostIds.contains(postId),
                     imageUri = imageUri,
                     quotedId = meta?.optString("quoted_post_id")?.takeIf { it.isNotBlank() } ?: row.optString("quoted_post_id", ""),
                     quotedAuthorName = "",
@@ -397,6 +442,47 @@ object SupabaseClient {
             }
         } catch (e: Exception) {
             Log.e(TAG, "toggleLike error", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun togglePostBookmark(
+        postId: String,
+        userId: String,
+        isCurrentlyBookmarked: Boolean,
+        accessToken: String
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            if (!isCurrentlyBookmarked) {
+                // Add bookmark to saved_posts
+                val json = JSONObject().apply {
+                    put("post_id", postId)
+                    put("user_id", userId)
+                }
+                val request = Request.Builder()
+                    .url("${SupabaseConfig.URL}/rest/v1/saved_posts")
+                    .header("apikey", SupabaseConfig.ANON_KEY)
+                    .header("Authorization", "Bearer $accessToken")
+                    .header("Content-Type", "application/json")
+                    .post(json.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .build()
+
+                val response = httpClient.newCall(request).execute()
+                Result.success(response.isSuccessful)
+            } else {
+                // Remove bookmark from saved_posts
+                val request = Request.Builder()
+                    .url("${SupabaseConfig.URL}/rest/v1/saved_posts?post_id=eq.$postId&user_id=eq.$userId")
+                    .header("apikey", SupabaseConfig.ANON_KEY)
+                    .header("Authorization", "Bearer $accessToken")
+                    .delete()
+                    .build()
+
+                val response = httpClient.newCall(request).execute()
+                Result.success(response.isSuccessful)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "togglePostBookmark error", e)
             Result.failure(e)
         }
     }

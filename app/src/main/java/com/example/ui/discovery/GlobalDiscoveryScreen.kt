@@ -63,6 +63,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,6 +85,9 @@ import com.example.ui.theme.DividerLight
 import com.example.ui.theme.PageNeutral
 import com.example.ui.theme.SurfaceInset
 import com.example.ui.theme.SurfaceWhite
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -112,9 +116,10 @@ fun GlobalDiscoveryScreen(
     var searchQuery by remember { mutableStateOf("") }
     var isSearching by remember { mutableStateOf(false) }
     var results by remember { mutableStateOf<List<DiscoveredPaper>>(emptyList()) }
-    var selectedFilter by remember { mutableStateOf("All") } // "All", "OpenAlex", "arXiv"
+    var selectedFilter by remember { mutableStateOf("All") } // "All", "CrossRef", "arXiv", "OpenAlex"
     var importedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var importingId by remember { mutableStateOf<String?>(null) }
+    var searchJob by remember { mutableStateOf<Job?>(null) }
 
     val trendingTopics = remember {
         listOf(
@@ -131,26 +136,37 @@ fun GlobalDiscoveryScreen(
 
     fun executeSearch(query: String) {
         val trimmed = query.trim()
-        if (trimmed.isBlank() || isSearching) return
-        searchQuery = trimmed
-        isSearching = true
-
-        scope.launch {
+        if (trimmed.isBlank()) return
+        searchJob?.cancel()
+        searchJob = scope.launch {
+            isSearching = true
             try {
                 val papers = ScholarlyDiscoveryService.search(trimmed, maxResultsPerSource = 15)
                 results = papers
             } catch (e: Exception) {
-                results = emptyList()
+                if (e !is CancellationException) {
+                    results = emptyList()
+                }
             } finally {
                 isSearching = false
             }
         }
     }
 
+    // Auto-search debouncer: triggers 450ms after user stops typing
+    LaunchedEffect(searchQuery) {
+        val trimmed = searchQuery.trim()
+        if (trimmed.length >= 3) {
+            delay(450)
+            executeSearch(trimmed)
+        }
+    }
+
     val filteredResults = remember(results, selectedFilter) {
         when (selectedFilter) {
-            "OpenAlex" -> results.filter { it.source == "OpenAlex" }
-            "arXiv" -> results.filter { it.source == "arXiv" }
+            "CrossRef" -> results.filter { it.source.equals("CrossRef", ignoreCase = true) }
+            "arXiv" -> results.filter { it.source.equals("arXiv", ignoreCase = true) }
+            "OpenAlex" -> results.filter { it.source.equals("OpenAlex", ignoreCase = true) }
             else -> results
         }
     }
@@ -191,7 +207,11 @@ fun GlobalDiscoveryScreen(
                         },
                         trailingIcon = {
                             if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }) {
+                                IconButton(onClick = {
+                                    searchQuery = ""
+                                    searchJob?.cancel()
+                                    results = emptyList()
+                                }) {
                                     Icon(Icons.Filled.Close, contentDescription = "Clear")
                                 }
                             }
@@ -231,7 +251,7 @@ fun GlobalDiscoveryScreen(
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf("All", "OpenAlex", "arXiv").forEach { filter ->
+                    listOf("All", "CrossRef", "arXiv", "OpenAlex").forEach { filter ->
                         FilterChip(
                             selected = selectedFilter == filter,
                             onClick = { selectedFilter = filter },
@@ -276,7 +296,7 @@ fun GlobalDiscoveryScreen(
                         )
                         Spacer(Modifier.height(16.dp))
                         Text(
-                            "Searching OpenAlex & arXiv Catalogs...",
+                            "Searching CrossRef, arXiv & OpenAlex Catalogs...",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -463,15 +483,20 @@ private fun DiscoveredPaperCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     // Source badge
+                    val badgeColor = when (paper.source) {
+                        "CrossRef" -> Color(0xFF0288D1)
+                        "arXiv" -> Color(0xFFE65100)
+                        else -> BrandBlue
+                    }
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = if (paper.source == "OpenAlex") BrandBlue.copy(alpha = 0.12f) else Color(0xFFFF9800).copy(alpha = 0.15f)
+                        color = badgeColor.copy(alpha = 0.12f)
                     ) {
                         Text(
                             paper.source,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = if (paper.source == "OpenAlex") BrandBlue else Color(0xFFE65100),
+                            color = badgeColor,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
@@ -544,7 +569,7 @@ private fun DiscoveredPaperCard(
                     text = paper.abstractText,
                     style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                    maxLines = if (expandedAbstract) 12 else 2,
+                    maxLines = if (expandedAbstract) Int.MAX_VALUE else 3,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(

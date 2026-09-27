@@ -71,7 +71,7 @@ class SupabaseRealtimeManager(
             .build()
 
         webSocket = httpClient.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(ws: WebSocket, response: Response) {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.d(TAG, "Connected to Supabase Realtime WebSocket")
                 isConnected = true
                 reconnectBackoffMs = 2000L
@@ -95,13 +95,13 @@ class SupabaseRealtimeManager(
                     })
                     put("ref", ref)
                 }
-                ws.send(joinMsg.toString())
+                webSocket.send(joinMsg.toString())
 
                 // 2. Start heartbeat job
                 startHeartbeat()
             }
 
-            override fun onMessage(ws: WebSocket, text: String) {
+            override fun onMessage(webSocket: WebSocket, text: String) {
                 try {
                     val json = JSONObject(text)
                     val event = json.optString("event")
@@ -134,18 +134,18 @@ class SupabaseRealtimeManager(
                 }
             }
 
-            override fun onClosed(ws: WebSocket, code: Int, reason: String) {
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 Log.d(TAG, "WebSocket closed: $code / $reason")
                 isConnected = false
-                webSocket = null
+                this@SupabaseRealtimeManager.webSocket = null
                 stopHeartbeat()
                 scheduleReconnect()
             }
 
-            override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 Log.w(TAG, "WebSocket failure: ${t.message}")
                 isConnected = false
-                webSocket = null
+                this@SupabaseRealtimeManager.webSocket = null
                 stopHeartbeat()
                 scheduleReconnect()
             }

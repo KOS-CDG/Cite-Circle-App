@@ -61,13 +61,13 @@ function authedHeaders(extra = {}) {
 // ============================================================================
 console.log('--- Suite 1: Edge Function (cite-server) Endpoints ---');
 
-await it('Edge-Server', 'Root GET returns health status, capabilities and version 2.2', async () => {
+await it('Edge-Server', 'Root GET returns health status, capabilities and version 2.5', async () => {
   const res = await fetch(`${SUPABASE_URL}/functions/v1/cite-server`);
   assert.strictEqual(res.status, 200);
   const data = await res.json();
   assert.strictEqual(data.status, 'online');
-  assert.strictEqual(data.version, '2.2');
-  assert.strictEqual(data.version_code, 12);
+  assert.strictEqual(data.version, '2.5');
+  assert.strictEqual(data.version_code, 15);
   assert.ok(Array.isArray(data.capabilities));
   assert.ok(data.capabilities.includes('doi-resolver'));
   assert.ok(data.capabilities.includes('citation-generator'));
@@ -88,31 +88,31 @@ await it('Edge-Server', 'Check update with outdated version code reports update_
   const data = await res.json();
   assert.strictEqual(data.success, true);
   assert.strictEqual(data.update_available, true);
-  assert.strictEqual(data.latest_version_code, 12);
-  assert.strictEqual(data.latest_version_name, '2.2');
+  assert.strictEqual(data.latest_version_code, 15);
+  assert.strictEqual(data.latest_version_name, '2.5');
   assert.ok(data.download_url.endsWith('.apk'));
   assert.strictEqual(data.file_size_mb, 28.6);
 });
 
 await it('Edge-Server', 'Check update with latest version code reports update_available = false', async () => {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/cite-server?action=check_update&code=12`);
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/cite-server?action=check_update&code=15`);
   assert.strictEqual(res.status, 200);
   const data = await res.json();
   assert.strictEqual(data.success, true);
   assert.strictEqual(data.update_available, false);
 });
 
-await it('Edge-Server', 'Patch notes action returns structured release history up to v2.2', async () => {
+await it('Edge-Server', 'Patch notes action returns structured release history up to v2.5', async () => {
   const res = await fetch(`${SUPABASE_URL}/functions/v1/cite-server?action=patch_notes`);
   assert.strictEqual(res.status, 200);
   const data = await res.json();
   assert.strictEqual(data.success, true);
-  assert.strictEqual(data.latest_version, '2.2');
+  assert.strictEqual(data.latest_version, '2.5');
   assert.ok(Array.isArray(data.history));
-  assert.ok(data.history.length >= 10, 'History must include all 10 releases');
-  const v22 = data.history.find(h => h.version === '2.2');
-  assert.ok(v22, 'Must include v2.2 entry');
-  assert.strictEqual(v22.version_code, 12);
+  assert.ok(data.history.length >= 10, 'History must include all releases');
+  const v25 = data.history.find(h => h.version === '2.5');
+  assert.ok(v25, 'Must include v2.5 entry');
+  assert.strictEqual(v25.version_code, 15);
 });
 
 await it('Edge-Server', 'Citation generator formats APA style correctly', async () => {

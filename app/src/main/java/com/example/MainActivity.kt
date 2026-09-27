@@ -93,6 +93,7 @@ private val Gutter = 16.dp
 private fun isPushedRoute(route: String?): Boolean {
   val r = route.orEmpty()
   return r == "compose" || r == "chat" || r == "settings" || r == "opps" || r == "profile" ||
+    r == "discovery" ||
     r.startsWith("post/") || r.startsWith("quote/") || r.startsWith("share/") ||
     r.startsWith("edit/") || r.startsWith("image/") || r.startsWith("venue/") ||
     r.startsWith("chat_thread/") || r.startsWith("pdf_viewer") ||
@@ -120,7 +121,7 @@ class MainActivity : ComponentActivity() {
 
 private data class NavItem(
   val route: String,
-  @StringRes val label: Int,
+  @param:StringRes val label: Int,
   val selectedIcon: ImageVector,
   val unselectedIcon: ImageVector,
   val isCenterAction: Boolean = false
@@ -140,8 +141,25 @@ fun FolioApp(viewModel: HomeViewModel) {
   val application = context.applicationContext as MyApplication
   val navController = rememberNavController()
   val authManager = remember { com.example.ui.auth.FirebaseAuthManager(context) }
-  val isLocalLoggedIn = remember { kotlinx.coroutines.runBlocking { application.sessionManager.isLoggedIn.first() } }
-  val startDestination = remember { if (authManager.getCurrentUser() != null || isLocalLoggedIn) "feed" else "auth" }
+  val isFirebaseLoggedIn = remember { authManager.getCurrentUser() != null }
+  val isLocalLoggedIn by application.sessionManager.isLoggedIn.collectAsStateWithLifecycle(initialValue = null)
+
+  // Fast splash state while DataStore loads on background thread (avoids blocking main thread)
+  if (isLocalLoggedIn == null && !isFirebaseLoggedIn) {
+    Box(
+      modifier = Modifier
+        .fillMaxSize()
+        .background(MaterialTheme.colorScheme.background),
+      contentAlignment = Alignment.Center
+    ) {
+      CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+    }
+    return
+  }
+
+  val startDestination = remember(isLocalLoggedIn) {
+    if (isFirebaseLoggedIn || (isLocalLoggedIn == true)) "feed" else "auth"
+  }
 
   // Derived from the back stack rather than an addOnDestinationChangedListener call in the
   // composable body — that registered a fresh, never-removed listener on every recomposition.

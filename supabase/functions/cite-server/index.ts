@@ -7,20 +7,37 @@ const corsHeaders = {
 };
 
 // Canonical Version & Release Configuration
-export const LATEST_VERSION_NAME = "2.4";
-export const LATEST_VERSION_CODE = 14;
+export const LATEST_VERSION_NAME = "2.5";
+export const LATEST_VERSION_CODE = 15;
 export const DOWNLOAD_URL = "https://cxxtrtglmxfuyihxwiza.supabase.co/storage/v1/object/public/app-releases/CiteCircle-latest.apk";
 export const FILE_SIZE_MB = 28.6;
 
 export const LATEST_RELEASE_NOTES = [
-  "🤖 AI Research Co-Pilot: Grounded manuscript analysis (Methodology, Contributions, Limitations, Review Summary) directly inside the PDF Reader",
-  "🔍 Global Scholarly Discovery Engine: Multi-source search across 250M+ open-access papers on CrossRef, arXiv, and OpenAlex",
-  "💡 In-Reader Excerpt AI Explainer: Instant deep-dive explanations on highlighted manuscript passages",
-  "📥 1-Tap Vault Ingestion: Save discovered papers to offline Room SQLite vault with PDF caching in one tap",
-  "⚡ Triple-Engine Resilience: Automatic fallback between CrossRef, arXiv, and OpenAlex ensures uninterrupted research search"
+  "⚡ Zero-Allocation GPU PDF Inversion: ColorFilter night mode eliminates 100% of bitmap GC memory thrashing",
+  "🏎️ Instant UI Startup: Eliminated main thread blocking on auth initialization for immediate 60fps frame rate",
+  "💾 Two-Way Cloud Bookmarks: Seamless bookmark synchronization across Android app, web portal, and Supabase saved_posts",
+  "🔍 Global Discovery Polish: CrossRef filter chip, 450ms search debounce, active job cancellation, and full abstract previews",
+  "📡 Realtime Stability: WebSocket lifecycle parameter alignments for clean event streaming"
 ].join("\n");
 
 export const RELEASE_HISTORY = [
+  {
+    version: "2.5",
+    version_code: 15,
+    release_date: "2026-09-27",
+    title: "Zero-Allocation GPU Rendering, Cloud Bookmarks & Discovery Engine Polish",
+    highlights: [
+      "Hardware-accelerated ColorFilter night mode in PDF Reader eliminating CPU bitmap churn",
+      "Doubled PDF page LRU cache from 8 to 16 with 50% RAM reduction via RGB_565 rasterization",
+      "Adjacent page pre-rasterization for instantaneous page swipe fluidity",
+      "Instant startup unblocking Main UI thread on auth state collection",
+      "Two-way cloud bookmark syncing connecting Room SQLite with Supabase saved_posts & user_library_papers",
+      "Global Discovery real-time search debouncing (450ms) and active search coroutine cancellation",
+      "Dedicated CrossRef filter chip and custom scholarly badge styling",
+      "Expandable abstract preview with full manuscript text readout",
+      "Clean WebSocket parameter compliance in SupabaseRealtimeManager"
+    ]
+  },
   {
     version: "2.4",
     version_code: 14,

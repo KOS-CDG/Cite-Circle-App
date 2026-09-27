@@ -843,7 +843,12 @@ class HomeViewModel(
         try {
             val session = (appContext.applicationContext as? MyApplication)?.sessionManager
             val token = session?.currentAccessToken?.first() ?: SupabaseConfig.ANON_KEY
-            val res = SupabaseClient.getPosts(limit = 50, accessToken = token)
+            val userId = session?.currentUserUid?.first().orEmpty()
+            val res = SupabaseClient.getPosts(
+                limit = 50,
+                accessToken = token,
+                currentUserId = userId.takeIf { it.isNotBlank() }
+            )
             if (res.isSuccess) {
                 val remotePosts = res.getOrThrow()
                 repository.savePapers(remotePosts)
@@ -977,7 +982,33 @@ class HomeViewModel(
     }
 
     fun toggleBookmark(id: String, currentStatus: Boolean) {
-        viewModelScope.launch { repository.toggleBookmark(id, currentStatus) }
+        viewModelScope.launch {
+            repository.toggleBookmark(id, currentStatus)
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first() ?: SupabaseConfig.ANON_KEY
+                if (userId.isNotBlank()) {
+                    // Sync social feed post bookmark
+                    SupabaseClient.togglePostBookmark(id, userId, currentStatus, token)
+
+                    // Also sync personal library paper status if paper exists in user's library
+                    val paper = repository.findPaper(id)
+                    if (paper != null && token != SupabaseConfig.ANON_KEY) {
+                        SupabaseClient.syncUserPaperMeta(
+                            userId = userId,
+                            paperId = id,
+                            readingStatus = paper.readingStatus,
+                            notes = paper.researchNotes,
+                            isBookmarked = !currentStatus,
+                            accessToken = token
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("HomeViewModel", "toggleBookmark cloud sync error", e)
+            }
+        }
     }
 
     fun addComment(paperId: String, body: String) {
