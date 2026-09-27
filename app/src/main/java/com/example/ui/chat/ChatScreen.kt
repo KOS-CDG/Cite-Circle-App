@@ -92,9 +92,8 @@ import com.example.ui.theme.SurfaceWhite
  * Model IDs offered in debug builds.
  */
 private val ChatModels: List<Pair<String, Int>> = listOf(
-    "gemini-2.5-flash" to R.string.chat_model_fast,
-    "gemini-3.5-flash" to R.string.chat_model_pro,
-    "gemini-3.1-flash-lite-preview" to R.string.chat_model_lite
+    "deepseek-chat" to R.string.chat_model_fast,
+    "deepseek-reasoner" to R.string.chat_model_pro
 )
 
 private val PromptSuggestions = listOf(
@@ -171,7 +170,7 @@ fun ChatScreen(
                     Spacer(Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "Gemini Assistant",
+                            "DeepSeek Assistant",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1
@@ -262,14 +261,14 @@ fun ChatScreen(
                 }
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    "Academic Assistant Powered by Gemini",
+                    "Academic Assistant Powered by DeepSeek",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Synthesize literature across arXiv, format ACM/IEEE citations, generate figure interpretations, or draft rebuttal responses.",
+                    "Synthesize literature across arXiv, format ACM/IEEE citations, generate figure interpretations, or draft rebuttal responses with DeepSeek-V3 & R1 reasoning.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
@@ -409,7 +408,7 @@ fun ChatScreen(
                     ) {
                         if (inputText.isEmpty()) {
                             Text(
-                                "Ask Gemini academic question...",
+                                "Ask DeepSeek academic question...",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                 maxLines = 1,

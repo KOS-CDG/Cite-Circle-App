@@ -1029,7 +1029,7 @@ fun SettingsScreen(
                     )
                     Text("Version ${com.example.BuildConfig.VERSION_NAME} (Build ${com.example.BuildConfig.VERSION_CODE})")
                     Text("Platform: Android · Jetpack Compose")
-                    Text("AI Research Assistant: Google Gemini")
+                    Text("AI Research Assistant: DeepSeek AI (V3 & R1)")
                     Text("Storage: Offline SQLite + Cloud Sync")
                     Spacer(Modifier.height(4.dp))
                     Text(
@@ -1087,7 +1087,7 @@ fun SettingsScreen(
                         )
                     }
                     val notes = listOf(
-                        "Gemini AI Assistant" to "Powered by Gemini 2.5 Flash (default) with real-time Google Search Grounding for verified literature citations and arXiv synthesis.",
+                        "DeepSeek AI Assistant" to "Powered by DeepSeek-V3 for rapid literature synthesis and DeepSeek-R1 for mathematical and methodological reasoning.",
                         "Multimodal Vision Inspection" to "Instant diagram, figure, chart, and mathematical formula transcription from camera or uploaded research manuscripts.",
                         "Real-Time Activity Alerts" to "Instant WebSocket notifications and unread badge counters for paper endorsements, peer reviews, comments, and researcher direct messages.",
                         "Smart In-App Updater" to "Silent background startup verification when up to date, manual update checks in Settings, and one-tap APK downloads with progress indicator.",

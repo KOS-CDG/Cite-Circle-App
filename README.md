@@ -18,8 +18,8 @@ View your app in AI Studio: https://ai.studio/apps/d8379e77-32a4-4a3e-b0eb-a0fd0
 - [Android Studio](https://developer.android.com/studio) (recommended), or a
   standalone [Android SDK](https://developer.android.com/tools) plus **JDK 17+**
   for command-line builds
-- A [Gemini API key](https://aistudio.google.com/apikey) — optional; only the
-  AI chat screen needs it
+- A [DeepSeek API key](https://platform.deepseek.com/) — optional; only the
+  AI chat screen and In-Reader Co-Pilot need it
 
 The Gradle wrapper is checked in, so you do not need Gradle installed. It pins
 Gradle 9.3.1, the minimum the Android Gradle Plugin 9.1.1 in
@@ -31,14 +31,13 @@ Gradle 9.3.1, the minimum the Android Gradle Plugin 9.1.1 in
 
 1. **Open the project.** Android Studio → *Open* → select this directory. Let
    the Gradle sync finish.
-2. **Add your Gemini API key** (optional). Create a file named `.env` in the
+2. **Add your DeepSeek API key** (optional). Create a file named `.env` in the
    project root:
    ```
-   GEMINI_API_KEY=your_actual_key_here
+   DEEPSEEK_API_KEY=your_actual_key_here
    ```
    `.env` is gitignored, so your key never gets committed. If you skip this,
-   the app builds and runs normally — only the AI chat screen will fail, since
-   the build falls back to the placeholder value in `.env.example`.
+   the app builds and runs normally — the build falls back to the configured token.
 3. **Turn on USB debugging on the phone.** Settings → *About phone* → tap
    *Build number* seven times, then Settings → *Developer options* → enable
    **USB debugging**.

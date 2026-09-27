@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [2.6] — 2026-09-27 (Build 16)
+
+### Highlights
+Cite Circle v2.6 completes the comprehensive migration to **DeepSeek AI (V3 & R1)** across the entire academic platform. Google Gemini has been completely replaced with DeepSeek's state-of-the-art models: **DeepSeek-V3** (`deepseek-chat`) powers lightning-fast academic literature synthesis, paper summarization, citation formatting, and the in-reader AI Research Co-Pilot; **DeepSeek-R1** (`deepseek-reasoner`) delivers deep mathematical derivations, methodological analysis, and step-by-step scientific chain-of-thought reasoning. The legacy Gemini network layer has been fully deprecated and removed in favor of a modern, clean, authenticated `DeepSeekApiService`.
+
+### 🧠 DeepSeek AI Integration
+- **DeepSeek-V3 Engine**: Integrated `deepseek-chat` for instantaneous preprint summarization, ACM/IEEE/BibTeX citation formatting, and academic Q&A.
+- **DeepSeek-R1 Step-by-Step Reasoner**: Integrated `deepseek-reasoner` providing explicit chain-of-thought methodological derivations (`reasoning_content`) before answering complex statistical, algorithmic, and experimental benchmark questions.
+- **In-Reader Co-Pilot Upgrade**: `PaperAiCoPilotSheet.kt` upgraded to DeepSeek-V3 with paper-grounded context (Title, Authors, Year, Venue, DOI, and Abstract) for 1-tap methodology breakdowns, limitations, and notes appending.
+- **Dedicated Academic Assistant**: Updated `ChatScreen.kt` and `ChatViewModel.kt` with toggleable model chips for DeepSeek-V3 and DeepSeek-R1.
+- **Domain Guardrails & Safety**: Preserved strict academic constraints, scholarly persona, and anti-prompt-injection defenses.
+- **Resilient Multi-Layered Authentication**: Seamless token configuration via `DEEPSEEK_API_KEY` in `.env` with fallback to the configured direct API key.
+- **Clean Architecture Cleanup**: Removed legacy `GeminiApiService.kt`, cleaned references across Menus, Messenger banner, and Settings, and updated unit test suites.
+
 ## [2.5] — 2026-09-27 (Build 15)
 
 ### Highlights

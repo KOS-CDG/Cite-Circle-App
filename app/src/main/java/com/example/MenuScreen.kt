@@ -129,7 +129,7 @@ fun MenuScreen(viewModel: HomeViewModel, navController: NavController) {
         Shortcut(
             icon = Icons.Filled.AutoAwesome,
             badgeColor = Color(0xFFE7A33E),
-            title = "Gemini Assistant",
+            title = "DeepSeek Assistant",
             onClick = { navController.navigate("chat") }
         ),
         Shortcut(

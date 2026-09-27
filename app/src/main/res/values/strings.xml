@@ -171,11 +171,11 @@
     <string name="action_continue_with_google">Continue with Google</string>
 
     <!-- Assistant -->
-    <string name="chat_model_fast">Fast</string>
-    <string name="chat_model_pro">Pro</string>
+    <string name="chat_model_fast">DeepSeek-V3</string>
+    <string name="chat_model_pro">DeepSeek-R1</string>
     <string name="chat_model_lite">Lite</string>
     <string name="chat_search_grounding">Search grounding</string>
-    <string name="chat_input_placeholder">Type a message…</string>
+    <string name="chat_input_placeholder">Ask DeepSeek academic question…</string>
     <string name="cd_add_photo">Add photo</string>
     <string name="cd_send">Send</string>
     <string name="cd_selected_image">Selected image</string>

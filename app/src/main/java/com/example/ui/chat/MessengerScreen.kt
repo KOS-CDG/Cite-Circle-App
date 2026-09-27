@@ -359,13 +359,13 @@ fun MessengerScreen(
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Gemini Research Assistant",
+                                text = "DeepSeek Research Assistant",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
                             Text(
-                                text = "Multimodal AI research & citation partner",
+                                text = "DeepSeek V3 & R1 reasoning and citation partner",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color.White.copy(alpha = 0.85f)
                             )

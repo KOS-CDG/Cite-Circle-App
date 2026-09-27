@@ -7,20 +7,35 @@ const corsHeaders = {
 };
 
 // Canonical Version & Release Configuration
-export const LATEST_VERSION_NAME = "2.5";
-export const LATEST_VERSION_CODE = 15;
+export const LATEST_VERSION_NAME = "2.6";
+export const LATEST_VERSION_CODE = 16;
 export const DOWNLOAD_URL = "https://cxxtrtglmxfuyihxwiza.supabase.co/storage/v1/object/public/app-releases/CiteCircle-latest.apk";
 export const FILE_SIZE_MB = 28.6;
 
 export const LATEST_RELEASE_NOTES = [
-  "⚡ Zero-Allocation GPU PDF Inversion: ColorFilter night mode eliminates 100% of bitmap GC memory thrashing",
-  "🏎️ Instant UI Startup: Eliminated main thread blocking on auth initialization for immediate 60fps frame rate",
-  "💾 Two-Way Cloud Bookmarks: Seamless bookmark synchronization across Android app, web portal, and Supabase saved_posts",
-  "🔍 Global Discovery Polish: CrossRef filter chip, 450ms search debounce, active job cancellation, and full abstract previews",
-  "📡 Realtime Stability: WebSocket lifecycle parameter alignments for clean event streaming"
+  "🧠 DeepSeek AI Integration: Full migration from Gemini to DeepSeek-V3 and DeepSeek-R1 models",
+  "📖 In-Reader Co-Pilot Upgraded: Grounded DeepSeek-V3 manuscript analysis for methodologies, contributions, and reviews",
+  "💭 Step-by-Step Reasoning: DeepSeek-R1 chain-of-thought derivations for mathematical proofs and complex benchmarks",
+  "🛡️ Scholarly Integrity: Maintained strict academic system prompts and anti-prompt-injection guardrails",
+  "🧹 Clean Architecture: Replaced legacy Retrofit clients with high-performance DeepSeekApiService"
 ].join("\n");
 
 export const RELEASE_HISTORY = [
+  {
+    version: "2.6",
+    version_code: 16,
+    release_date: "2026-09-27",
+    title: "DeepSeek AI Engine (V3 & R1) Integration",
+    highlights: [
+      "Complete migration from Google Gemini to DeepSeek AI across the entire platform",
+      "DeepSeek-V3 for ultra-fast, high-fidelity scholarly paper synthesis and academic literature Q&A",
+      "DeepSeek-R1 for mathematical derivations, methodology analysis, and step-by-step scientific reasoning",
+      "Upgraded In-Reader AI Research Co-Pilot to DeepSeek-V3 with manuscript-grounded context",
+      "Updated dedicated Academic Chat Assistant with toggleable DeepSeek-V3 and DeepSeek-R1 reasoning models",
+      "Direct token fallback and secrets-management for seamless authentication",
+      "Deprecated and removed legacy Gemini network client classes"
+    ]
+  },
   {
     version: "2.5",
     version_code: 15,
@@ -313,7 +328,7 @@ Deno.serve(async (req: Request) => {
           "citation-generator",
           "in-app-updater",
           "patch-notes",
-          "gemini-ai",
+          "deepseek-ai",
           "search-grounding",
           "platform-sync",
           "health-check"

@@ -74,10 +74,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.BuildConfig
-import com.example.network.Content
-import com.example.network.GenerateContentRequest
-import com.example.network.Part
-import com.example.network.RetrofitClient
+import com.example.network.DeepSeekChatRequest
+import com.example.network.DeepSeekClient
+import com.example.network.DeepSeekMessage
 import com.example.ui.theme.BrandBlue
 import com.example.ui.theme.DividerLight
 import com.example.ui.theme.PageNeutral
@@ -95,6 +94,16 @@ data class AiCoPilotMessage(
     val isError: Boolean = false,
     val timestamp: Long = System.currentTimeMillis()
 )
+
+private fun getDeepSeekApiKey(): String {
+    return try {
+        val field = BuildConfig::class.java.getField("DEEPSEEK_API_KEY")
+        val key = field.get(null) as? String
+        if (!key.isNullOrBlank() && key != "your_deepseek_api_key_here") key else DeepSeekClient.DEFAULT_TOKEN
+    } catch (_: Exception) {
+        DeepSeekClient.DEFAULT_TOKEN
+    }
+}
 
 /**
  * Slide-up AI Research Co-Pilot bottom sheet embedded inside the In-App PDF Reader.
@@ -138,7 +147,7 @@ fun PaperAiCoPilotSheet(
         )
     }
 
-    // Function to query Gemini
+    // Function to query DeepSeek
     fun executeQuery(prompt: String) {
         if (prompt.isBlank() || isThinking) return
 
@@ -148,11 +157,11 @@ fun PaperAiCoPilotSheet(
 
         scope.launch {
             try {
-                val apiKey = BuildConfig.GEMINI_API_KEY
-                if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
+                val apiKey = getDeepSeekApiKey()
+                if (apiKey.isBlank()) {
                     delay(300)
                     messages = messages + AiCoPilotMessage(
-                        text = "⚠️ Gemini API key is not configured. Please supply GEMINI_API_KEY in your gradle properties or .env to activate the AI Research Co-Pilot.",
+                        text = "⚠️ DeepSeek API key is not configured. Please supply DEEPSEEK_API_KEY in your gradle properties or .env to activate the AI Research Co-Pilot.",
                         isUser = false,
                         isError = true
                     )
@@ -179,32 +188,37 @@ fun PaperAiCoPilotSheet(
                     5. Keep responses concise, objective, and scholarly.
                 """.trimIndent()
 
-                val historyContents = messages.map { m ->
-                    Content(
-                        role = if (m.isUser) "user" else "model",
-                        parts = listOf(Part(text = m.text))
+                val historyMessages = messages.map { m ->
+                    DeepSeekMessage(
+                        role = if (m.isUser) "user" else "assistant",
+                        content = m.text
                     )
                 }
 
-                val request = GenerateContentRequest(
-                    contents = historyContents,
-                    systemInstruction = Content(parts = listOf(Part(text = systemPrompt)))
+                val request = DeepSeekChatRequest(
+                    model = "deepseek-chat",
+                    messages = listOf(DeepSeekMessage(role = "system", content = systemPrompt)) + historyMessages
                 )
 
                 val response = withContext(Dispatchers.IO) {
-                    RetrofitClient.service.generateContent("gemini-2.5-flash", apiKey, request)
+                    DeepSeekClient.service.createChatCompletion("Bearer $apiKey", request)
                 }
 
-                val aiText = response.candidates?.firstOrNull()?.content?.parts
-                    ?.mapNotNull { it.text }
-                    ?.joinToString("\n")
-                    ?.trim()
-                    ?: "No response generated."
+                val choice = response.choices?.firstOrNull()
+                val content = choice?.message?.content?.trim()
+                val reasoning = choice?.message?.reasoningContent?.trim()
+
+                val aiText = when {
+                    !reasoning.isNullOrBlank() && !content.isNullOrBlank() -> "$reasoning\n\n$content"
+                    !content.isNullOrBlank() -> content
+                    !reasoning.isNullOrBlank() -> reasoning
+                    else -> "No response generated."
+                }
 
                 messages = messages + AiCoPilotMessage(text = aiText, isUser = false)
             } catch (e: Exception) {
                 messages = messages + AiCoPilotMessage(
-                    text = "Connection error: ${e.localizedMessage ?: "Failed to reach Gemini API"}",
+                    text = "Connection error: ${e.localizedMessage ?: "Failed to reach DeepSeek API"}",
                     isUser = false,
                     isError = true
                 )
@@ -284,7 +298,7 @@ fun PaperAiCoPilotSheet(
                                 color = BrandBlue.copy(alpha = 0.08f)
                             ) {
                                 Text(
-                                    "Gemini 2.5 Flash",
+                                    "DeepSeek-V3",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = BrandBlue,
                                     fontWeight = FontWeight.SemiBold,
@@ -435,7 +449,7 @@ fun PaperAiCoPilotSheet(
                                     )
                                     Spacer(Modifier.width(10.dp))
                                     Text(
-                                        "Synthesizing paper context with Gemini 2.5 Flash...",
+                                        "Synthesizing paper context with DeepSeek-V3...",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )

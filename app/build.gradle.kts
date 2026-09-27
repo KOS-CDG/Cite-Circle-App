@@ -18,8 +18,8 @@ android {
     applicationId = "com.aistudio.folio.wzpx"
     minSdk = 24
     targetSdk = 36
-    versionCode = 15
-    versionName = "2.5"
+    versionCode = 16
+    versionName = "2.6"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -102,8 +102,8 @@ dependencies {
   // Renders post images from app-internal files, with downsampling and caching handled for us.
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
-  // firebase-ai is deliberately absent: nothing imports it. The chat screen talks to Gemini
-  // through the hand-rolled Retrofit client in network/GeminiApiService.kt.
+  // firebase-ai is deliberately absent: nothing imports it. The chat screen talks to DeepSeek
+  // through the hand-rolled Retrofit client in network/DeepSeekApiService.kt.
   implementation(libs.firebase.firestore)
 
   // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google

@@ -70,7 +70,7 @@ class NavigationAndUiFeaturesTest {
         composeTestRule.onNodeWithText("View your profile").assertIsDisplayed()
         composeTestRule.onNodeWithText("Research Fields").assertExists()
         composeTestRule.onNodeWithText("Paper Vault").assertExists()
-        composeTestRule.onNodeWithText("Gemini Assistant").assertExists()
+        composeTestRule.onNodeWithText("DeepSeek Assistant").assertExists()
         composeTestRule.onNodeWithText("Conferences").assertExists()
         composeTestRule.onNodeWithText("Citation Metrics").assertExists()
         composeTestRule.onNodeWithText("Help & Support").assertExists()
