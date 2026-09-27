@@ -846,9 +846,7 @@ class HomeViewModel(
             val res = SupabaseClient.getPosts(limit = 50, accessToken = token)
             if (res.isSuccess) {
                 val remotePosts = res.getOrThrow()
-                remotePosts.forEach { paper ->
-                    repository.savePaper(paper)
-                }
+                repository.savePapers(remotePosts)
             }
         } catch (e: Exception) {
             // Offline or initial launch: Room cached posts displayed

@@ -8,6 +8,8 @@ import com.example.data.SavedPaper
 import com.example.data.chat.ChatMessageEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.ConnectionPool
+import okhttp3.Dispatcher
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -42,6 +44,11 @@ object SupabaseClient {
 
     private val httpClient by lazy {
         OkHttpClient.Builder()
+            .connectionPool(ConnectionPool(16, 5, TimeUnit.MINUTES))
+            .dispatcher(Dispatcher().apply {
+                maxRequests = 64
+                maxRequestsPerHost = 20
+            })
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
@@ -213,7 +220,7 @@ object SupabaseClient {
     ): Result<List<SavedPaper>> = withContext(Dispatchers.IO) {
         try {
             val token = if (!accessToken.isNullOrBlank()) accessToken else SupabaseConfig.ANON_KEY
-            val url = "${SupabaseConfig.URL}/rest/v1/posts?select=*,author:profiles!posts_author_id_fkey(*)&order=created_at.desc&limit=$limit"
+            val url = "${SupabaseConfig.URL}/rest/v1/posts?select=*,author:profiles!posts_user_id_fkey(*)&order=created_at.desc&limit=$limit"
 
             val request = Request.Builder()
                 .url(url)
@@ -240,18 +247,22 @@ object SupabaseClient {
                 val authorInitials = getInitials(authorName)
                 val affiliation = authorObj?.optString("bio", "") ?: ""
 
+                val meta = row.optJSONObject("metadata")
+                val mediaUrls = row.optJSONArray("media_urls")
+                val imageUri = if (mediaUrls != null && mediaUrls.length() > 0) mediaUrls.optString(0, "") else row.optString("image_url", "")
+
                 val paper = SavedPaper(
                     id = row.getString("id"),
                     authorInitials = authorInitials,
                     authorName = authorName,
                     affiliation = affiliation,
                     content = row.optString("content", ""),
-                    title = row.optString("title", ""),
-                    authors = row.optString("authors", ""),
-                    year = row.optString("year", ""),
-                    venue = row.optString("venue", ""),
-                    doi = row.optString("doi", ""),
-                    url = row.optString("url", ""),
+                    title = meta?.optString("title")?.takeIf { it.isNotBlank() } ?: row.optString("title", ""),
+                    authors = meta?.optString("authors")?.takeIf { it.isNotBlank() } ?: row.optString("authors", ""),
+                    year = meta?.optString("year")?.takeIf { it.isNotBlank() } ?: row.optString("year", ""),
+                    venue = meta?.optString("venue")?.takeIf { it.isNotBlank() } ?: row.optString("venue", ""),
+                    doi = meta?.optString("doi")?.takeIf { it.isNotBlank() } ?: row.optString("doi", ""),
+                    url = meta?.optString("url")?.takeIf { it.isNotBlank() } ?: row.optString("url", ""),
                     publishedAt = parseIsoTimestamp(row.optString("created_at", "")),
                     citationOverride = "",
                     isEndorsed = false,
@@ -259,15 +270,15 @@ object SupabaseClient {
                     commentCount = row.optInt("comments_count", 0),
                     repostCount = 0,
                     isBookmarked = false,
-                    imageUri = row.optString("image_url", ""),
-                    quotedId = row.optString("quoted_post_id", ""),
+                    imageUri = imageUri,
+                    quotedId = meta?.optString("quoted_post_id")?.takeIf { it.isNotBlank() } ?: row.optString("quoted_post_id", ""),
                     quotedAuthorName = "",
                     quotedTitle = "",
                     quotedContent = "",
-                    pdfUrl = row.optString("pdf_url", ""),
+                    pdfUrl = meta?.optString("pdf_url")?.takeIf { it.isNotBlank() } ?: row.optString("pdf_url", ""),
                     pdfLocalPath = "",
-                    abstractText = row.optString("abstract_text", ""),
-                    openAccess = row.optBoolean("open_access", false)
+                    abstractText = meta?.optString("abstract_text")?.takeIf { it.isNotBlank() } ?: row.optString("abstract_text", ""),
+                    openAccess = meta?.optBoolean("open_access", false) ?: row.optBoolean("open_access", false)
                 )
                 papers.add(paper)
             }
@@ -285,27 +296,34 @@ object SupabaseClient {
         accessToken: String
     ): Result<SavedPaper> = withContext(Dispatchers.IO) {
         try {
+            val meta = JSONObject().apply {
+                if (paper.title.isNotBlank()) put("title", paper.title)
+                if (paper.authors.isNotBlank()) put("authors", paper.authors)
+                if (paper.year.isNotBlank()) put("year", paper.year)
+                if (paper.venue.isNotBlank()) put("venue", paper.venue)
+                if (paper.doi.isNotBlank()) put("doi", paper.doi)
+                if (paper.url.isNotBlank()) put("url", paper.url)
+                if (paper.pdfUrl.isNotBlank()) put("pdf_url", paper.pdfUrl)
+                if (paper.abstractText.isNotBlank()) put("abstract_text", paper.abstractText)
+                put("open_access", paper.openAccess)
+                if (paper.quotedId.isNotBlank()) {
+                    put("quoted_post_id", paper.quotedId)
+                }
+            }
+
+            val mediaArray = JSONArray()
+            if (paper.imageUri.isNotBlank()) mediaArray.put(paper.imageUri)
+            if (paper.pdfUrl.isNotBlank() && !paper.imageUri.equals(paper.pdfUrl)) mediaArray.put(paper.pdfUrl)
+
             val json = JSONObject().apply {
                 if (paper.id.isNotBlank() && paper.id.length >= 30) {
                     put("id", paper.id)
                 }
-                put("author_id", authorId)
+                put("user_id", authorId)
                 put("content", paper.content)
-                put("title", paper.title)
-                put("authors", paper.authors)
-                put("year", paper.year)
-                put("venue", paper.venue)
-                put("doi", paper.doi)
-                put("url", paper.url)
-                put("pdf_url", paper.pdfUrl)
-                put("abstract_text", paper.abstractText)
-                put("open_access", paper.openAccess)
-                if (paper.imageUri.isNotBlank()) {
-                    put("image_url", paper.imageUri)
-                }
-                if (paper.quotedId.isNotBlank()) {
-                    put("quoted_post_id", paper.quotedId)
-                }
+                put("media_urls", mediaArray)
+                put("metadata", meta)
+                put("privacy", "public")
             }
 
             val request = Request.Builder()
@@ -392,7 +410,7 @@ object SupabaseClient {
         try {
             val json = JSONObject().apply {
                 put("post_id", postId)
-                put("author_id", authorId)
+                put("user_id", authorId)
                 put("content", content.trim())
             }
 
@@ -418,7 +436,7 @@ object SupabaseClient {
     ): Result<List<Comment>> = withContext(Dispatchers.IO) {
         try {
             val token = if (!accessToken.isNullOrBlank()) accessToken else SupabaseConfig.ANON_KEY
-            val url = "${SupabaseConfig.URL}/rest/v1/comments?select=*,author:profiles!comments_author_id_fkey(*)&post_id=eq.$postId&order=created_at.asc"
+            val url = "${SupabaseConfig.URL}/rest/v1/comments?select=*,author:profiles!comments_user_id_fkey(*)&post_id=eq.$postId&order=created_at.asc"
 
             val request = Request.Builder()
                 .url(url)

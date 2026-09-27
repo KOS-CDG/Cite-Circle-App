@@ -795,6 +795,31 @@ class PaperRepository(private val database: AppDatabase) {
 
     suspend fun savePaper(paper: SavedPaper) = dao.insertPaper(paper)
 
+    suspend fun savePapers(papers: List<SavedPaper>) {
+        if (papers.isEmpty()) return
+        database.withTransaction {
+            val localMap = dao.getAllPapersOnce().associateBy { it.id }
+            val merged: List<SavedPaper> = papers.map { remote: SavedPaper ->
+                val local = localMap[remote.id]
+                if (local != null) {
+                    remote.copy(
+                        pdfLocalPath = if (remote.pdfLocalPath.isNotBlank()) remote.pdfLocalPath else local.pdfLocalPath,
+                        researchNotes = if (remote.researchNotes.isNotBlank()) remote.researchNotes else local.researchNotes,
+                        readingStatus = if (remote.readingStatus != "TO_READ") remote.readingStatus else local.readingStatus,
+                        lastReadPage = if (remote.lastReadPage > 1) remote.lastReadPage else local.lastReadPage,
+                        totalPageCount = if (remote.totalPageCount > 0) remote.totalPageCount else local.totalPageCount,
+                        pageBookmarks = if (remote.pageBookmarks.isNotBlank()) remote.pageBookmarks else local.pageBookmarks,
+                        isBookmarked = local.isBookmarked || remote.isBookmarked,
+                        isEndorsed = local.isEndorsed || remote.isEndorsed
+                    )
+                } else {
+                    remote
+                }
+            }
+            dao.insertPapers(merged)
+        }
+    }
+
     suspend fun updatePdfLocalPath(id: String, localPath: String) = dao.updatePdfLocalPath(id, localPath)
     suspend fun updateReadingStatus(id: String, status: String) = dao.updateReadingStatus(id, status)
     suspend fun updateResearchNotes(id: String, notes: String) = dao.updateResearchNotes(id, notes)
