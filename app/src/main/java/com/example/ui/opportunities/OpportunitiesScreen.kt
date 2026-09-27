@@ -4,6 +4,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -64,9 +67,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.HomeViewModel
 import com.example.ui.components.EmptyState
+import com.example.ui.components.RefreshableBox
 import com.example.ui.theme.AccentGreen
 import com.example.ui.theme.BrandBlue
 import com.example.ui.theme.DividerLight
@@ -180,6 +185,7 @@ fun OpportunitiesScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(OpportunityCategory.ALL) }
     val savedOpportunities = remember { mutableStateMapOf<String, Boolean>() }
+    val isRefreshing by (viewModel?.isRefreshing?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(false) })
 
     val filteredList = remember(searchQuery, selectedCategory) {
         val q = searchQuery.trim().lowercase()
@@ -305,64 +311,73 @@ fun OpportunitiesScreen(
         }
 
         // Listings Stream
-        if (filteredList.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surface),
-                contentAlignment = Alignment.Center
-            ) {
-                EmptyState(
-                    title = "No Opportunities Found",
-                    message = "No calls for papers or grants match \"$searchQuery\". Try adjusting your search query or category filter.",
-                    icon = Icons.Outlined.WorkOutline,
-                    actionLabel = "Clear Filter",
-                    onAction = {
-                        searchQuery = ""
-                        selectedCategory = OpportunityCategory.ALL
-                    }
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = 8.dp)
-            ) {
-                items(filteredList, key = { it.id }) { opp ->
-                    val isSaved = savedOpportunities[opp.id] == true
-                    OpportunityCard(
-                        opportunity = opp,
-                        isSaved = isSaved,
-                        onToggleSave = {
-                            val next = !isSaved
-                            savedOpportunities[opp.id] = next
-                            viewModel?.report(
-                                if (next) "Opportunity saved to vault"
-                                else "Opportunity removed from vault"
-                            )
-                        },
-                        onCopyLink = {
-                            clipboardManager.setText(AnnotatedString("${opp.title}\n${opp.url}\nDeadline: ${opp.deadline}"))
-                            viewModel?.report("Opportunity link & details copied to clipboard")
-                        },
-                        onDiscuss = {
-                            navController?.navigate("messenger")
-                        },
-                        onOpenUrl = {
-                            try {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(opp.url))
-                                context.startActivity(intent)
-                            } catch (_: Exception) {
-                                viewModel?.report("Could not open external browser for: ${opp.url}")
-                            }
+        RefreshableBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel?.refresh() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            if (filteredList.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surface)
+                        .verticalScroll(rememberScrollState()),
+                    contentAlignment = Alignment.Center
+                ) {
+                    EmptyState(
+                        title = "No Opportunities Found",
+                        message = "No calls for papers or grants match \"$searchQuery\". Try adjusting your search query or category filter.",
+                        icon = Icons.Outlined.WorkOutline,
+                        actionLabel = "Clear Filter",
+                        onAction = {
+                            searchQuery = ""
+                            selectedCategory = OpportunityCategory.ALL
                         }
                     )
-                    Spacer(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .background(PageNeutral)
-                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    items(filteredList, key = { it.id }) { opp ->
+                        val isSaved = savedOpportunities[opp.id] == true
+                        OpportunityCard(
+                            opportunity = opp,
+                            isSaved = isSaved,
+                            onToggleSave = {
+                                val next = !isSaved
+                                savedOpportunities[opp.id] = next
+                                viewModel?.report(
+                                    if (next) "Opportunity saved to vault"
+                                    else "Opportunity removed from vault"
+                                )
+                            },
+                            onCopyLink = {
+                                clipboardManager.setText(AnnotatedString("${opp.title}\n${opp.url}\nDeadline: ${opp.deadline}"))
+                                viewModel?.report("Opportunity link & details copied to clipboard")
+                            },
+                            onOpenUrl = {
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(opp.url))
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {
+                                    viewModel?.report("Could not open external browser for: ${opp.url}")
+                                }
+                            }
+                        )
+                        Spacer(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .background(PageNeutral)
+                        )
+                    }
+                    item {
+                        Spacer(Modifier.navigationBarsPadding())
+                    }
                 }
             }
         }
@@ -376,7 +391,6 @@ private fun OpportunityCard(
     isSaved: Boolean,
     onToggleSave: () -> Unit,
     onCopyLink: () -> Unit,
-    onDiscuss: () -> Unit,
     onOpenUrl: () -> Unit
 ) {
     val categoryBadgeColor = when (opportunity.category) {
@@ -547,23 +561,6 @@ private fun OpportunityCard(
                 )
                 Spacer(Modifier.width(4.dp))
                 Text("Copy", style = MaterialTheme.typography.labelSmall)
-            }
-
-            // Discuss button
-            OutlinedButton(
-                onClick = onDiscuss,
-                modifier = Modifier.height(36.dp),
-                shape = RoundedCornerShape(18.dp),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
-            ) {
-                Icon(
-                    Icons.Filled.Chat,
-                    contentDescription = null,
-                    modifier = Modifier.size(15.dp),
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(Modifier.width(4.dp))
-                Text("Discuss", style = MaterialTheme.typography.labelSmall)
             }
 
             Spacer(Modifier.weight(1f))

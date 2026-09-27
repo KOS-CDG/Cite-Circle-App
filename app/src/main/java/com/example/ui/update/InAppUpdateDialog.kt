@@ -43,12 +43,10 @@ fun InAppUpdateDialog(
     onDismiss: () -> Unit
 ) {
     AlertDialog(
-        onDismissRequest = {
-            if (!updateInfo.mandatory) onDismiss()
-        },
+        onDismissRequest = onDismiss,
         properties = DialogProperties(
-            dismissOnBackPress = !updateInfo.mandatory,
-            dismissOnClickOutside = !updateInfo.mandatory
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
         ),
         shape = RoundedCornerShape(20.dp),
         containerColor = MaterialTheme.colorScheme.surface,
@@ -136,10 +134,8 @@ fun InAppUpdateDialog(
             }
         },
         dismissButton = {
-            if (!updateInfo.mandatory) {
-                TextButton(onClick = onDismiss) {
-                    Text("Later", color = MaterialTheme.colorScheme.outline)
-                }
+            TextButton(onClick = onDismiss) {
+                Text("Later", color = MaterialTheme.colorScheme.outline)
             }
         }
     )

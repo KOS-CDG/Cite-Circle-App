@@ -75,6 +75,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -83,11 +84,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.HomeViewModel
 import com.example.MyApplication
 import com.example.data.AuthorIdentity
 import com.example.data.auth.AuthResult
 import com.example.data.auth.UserAccount
+import com.example.ui.components.RefreshableBox
 import kotlinx.coroutines.launch
 
 /**
@@ -106,8 +109,10 @@ fun SettingsScreen(
     val sessionManager = app.sessionManager
     val scope = rememberCoroutineScope()
 
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val currentName by sessionManager.currentUserName.collectAsStateWithLifecycle(initialValue = "")
     val currentEmail by sessionManager.currentUserEmail.collectAsStateWithLifecycle(initialValue = "")
+    val currentAvatarUri by sessionManager.currentUserAvatarUri.collectAsStateWithLifecycle(initialValue = "")
     val currentAffiliation by sessionManager.currentUserAffiliation.collectAsStateWithLifecycle(initialValue = "")
     val currentField by sessionManager.currentUserField.collectAsStateWithLifecycle(initialValue = "")
     val rememberLogin by sessionManager.rememberLoginInfo.collectAsStateWithLifecycle(initialValue = true)
@@ -134,7 +139,7 @@ fun SettingsScreen(
     }
 
     val authorInitials = remember(currentName) {
-        if (currentName.isNotBlank()) AuthorIdentity.initialsOf(currentName) else "AR"
+        if (currentName.isNotBlank()) AuthorIdentity.initialsOf(currentName) else ""
     }
 
     Scaffold(
@@ -157,13 +162,21 @@ fun SettingsScreen(
             )
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        RefreshableBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                viewModel.refresh()
+                scope.launch {
+                    cachePaperCount = app.repository.countAllPapers()
+                }
+            },
+            modifier = Modifier.padding(padding)
         ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
 
             // 1. Facebook-Style Settings Search Bar
             item {
@@ -228,25 +241,47 @@ fun SettingsScreen(
                                     .background(MaterialTheme.colorScheme.primary),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    authorInitials,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp
-                                )
+                                if (currentAvatarUri.isNotBlank()) {
+                                    AsyncImage(
+                                        model = currentAvatarUri,
+                                        contentDescription = "Profile Photo",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(CircleShape)
+                                    )
+                                } else if (authorInitials.isNotBlank()) {
+                                    Text(
+                                        authorInitials,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Outlined.Person,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
                             }
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    currentName.ifBlank { "Dr. Alex Rivera" },
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    currentEmail.ifBlank { "alex.rivera@citecircle.edu" },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                if (currentName.isNotBlank()) {
+                                    Text(
+                                        currentName,
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                if (currentEmail.isNotBlank()) {
+                                    Text(
+                                        currentEmail,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                             Icon(
                                 Icons.AutoMirrored.Outlined.ArrowForwardIos,
@@ -259,10 +294,14 @@ fun SettingsScreen(
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(vertical = 8.dp))
 
                         // Accounts Center Sub-Options
+                        val detailsSubtitle = listOf(currentAffiliation, currentField)
+                            .filter { it.isNotBlank() }
+                            .joinToString(" • ")
+                            .ifBlank { "Manage account & contact info" }
                         FacebookSettingRow(
                             icon = Icons.Outlined.Person,
                             title = "Personal details",
-                            subtitle = "${currentAffiliation.ifBlank { "Stanford AI" }} • ${currentField.ifBlank { "AI & ML" }}",
+                            subtitle = detailsSubtitle,
                             onClick = { showPersonalDetailsDialog = true }
                         )
 
@@ -506,7 +545,7 @@ fun SettingsScreen(
                         Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(10.dp))
                         Text(
-                            "Log Out ${currentName.ifBlank { "Account" }}",
+                            if (currentName.isNotBlank()) "Log Out $currentName" else "Log Out",
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
@@ -531,6 +570,7 @@ fun SettingsScreen(
             }
         }
     }
+}
 
     // ==========================================
     // DIALOGS & EDITORS (Facebook Style)
@@ -744,14 +784,29 @@ fun SettingsScreen(
                             .background(MaterialTheme.colorScheme.primary),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(authorInitials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                        if (currentAvatarUri.isNotBlank()) {
+                            AsyncImage(
+                                model = currentAvatarUri,
+                                contentDescription = "Profile Photo",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(60.dp)
+                                    .clip(CircleShape)
+                            )
+                        } else if (authorInitials.isNotBlank()) {
+                            Text(authorInitials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                        } else {
+                            Icon(Icons.Outlined.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
+                        }
                     }
 
-                    Text(
-                        currentName.ifBlank { "Dr. Alex Rivera" },
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                    if (currentName.isNotBlank()) {
+                        Text(
+                            currentName,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
 
                     Text(
                         "Are you sure you want to log out of your Cite Circle academic account?",
@@ -944,7 +999,7 @@ fun SettingsScreen(
                         Text("Papers saved to the Vault are stored locally in Room v5 database and accessible with zero network connectivity.", style = MaterialTheme.typography.bodySmall)
 
                         Text("• Peer Collaboration & Reviews", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
-                        Text("Use Messenger to launch encrypted academic discussions with co-authors and cited researchers.", style = MaterialTheme.typography.bodySmall)
+                        Text("Participate in academic discussions with co-authors and cited researchers in comment threads.", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             },

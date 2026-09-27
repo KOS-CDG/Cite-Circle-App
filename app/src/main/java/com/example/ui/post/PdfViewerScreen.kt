@@ -21,11 +21,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.FormatQuote
+import androidx.compose.material.icons.outlined.Notes
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,6 +48,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.HomeViewModel
 import com.example.data.PdfStore
 import com.example.data.security.DocumentFormat
 import kotlinx.coroutines.Dispatchers
@@ -50,17 +58,20 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * In-App Research Paper PDF Viewer.
+ * In-App Research Paper PDF Viewer & Excerpt Highlighter.
  *
  * Renders PDF pages with on-demand bitmap rasterization, LRU memory caching,
- * pan-and-zoom controls, night reading mode, and external sharing.
+ * pan-and-zoom controls, night reading mode, page bookmarking, reading progress tracking,
+ * excerpt highlighter dialog, and in-reader research notes sheet.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PdfViewerScreen(
+    paperId: String = "",
     initialLocalPath: String = "",
     remoteUrl: String = "",
     paperTitle: String = "Research Paper",
+    viewModel: HomeViewModel? = null,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -70,6 +81,30 @@ fun PdfViewerScreen(
     var isDownloading by remember { mutableStateOf(initialLocalPath.isBlank() && remoteUrl.isNotBlank()) }
     var downloadError by remember { mutableStateOf<String?>(null) }
     var nightMode by remember { mutableStateOf(false) }
+
+    // Observe paper data from Room if paperId is provided
+    val paperState = if (paperId.isNotBlank() && viewModel != null) {
+        viewModel.paper(paperId).collectAsStateWithLifecycle(initialValue = null).value
+    } else null
+
+    // Track active page currently in view
+    var activePage by remember { mutableIntStateOf(paperState?.lastReadPage ?: 1) }
+    var totalPages by remember { mutableIntStateOf(paperState?.totalPageCount ?: 0) }
+
+    // Parse bookmarked pages
+    val bookmarkedPages = remember(paperState?.pageBookmarks) {
+        paperState?.pageBookmarks
+            ?.split(",")
+            ?.mapNotNull { it.trim().toIntOrNull() }
+            ?.toSet()
+            ?: emptySet()
+    }
+
+    // Modal dialog and bottom sheet states
+    var showExcerptDialog by remember { mutableStateOf(false) }
+    var showNotesSheet by remember { mutableStateOf(false) }
+    var showBookmarksMenu by remember { mutableStateOf(false) }
+    var jumpToPageTarget by remember { mutableStateOf<Int?>(null) }
 
     // Download remote PDF if no local path exists
     LaunchedEffect(remoteUrl, initialLocalPath) {
@@ -101,7 +136,8 @@ fun PdfViewerScreen(
                         )
                         if (activeLocalPath.isNotBlank()) {
                             Text(
-                                PdfStore.getFormattedSize(activeLocalPath),
+                                if (totalPages > 0) "Page $activePage of $totalPages • ${PdfStore.getFormattedSize(activeLocalPath)}"
+                                else PdfStore.getFormattedSize(activeLocalPath),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -114,12 +150,91 @@ fun PdfViewerScreen(
                     }
                 },
                 actions = {
+                    // Page bookmark toggle
+                    if (paperId.isNotBlank() && viewModel != null && totalPages > 0) {
+                        val isBookmarked = bookmarkedPages.contains(activePage)
+                        IconButton(onClick = { viewModel.togglePageBookmark(paperId, activePage) }) {
+                            Icon(
+                                if (isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                contentDescription = if (isBookmarked) "Remove Bookmark" else "Bookmark Page",
+                                tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        // Bookmarks list menu
+                        if (bookmarkedPages.isNotEmpty()) {
+                            Box {
+                                IconButton(onClick = { showBookmarksMenu = true }) {
+                                    Icon(
+                                        Icons.Outlined.Bookmarks,
+                                        contentDescription = "Bookmarked Pages",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showBookmarksMenu,
+                                    onDismissRequest = { showBookmarksMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                "Bookmarks (${bookmarkedPages.size})",
+                                                fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.labelMedium
+                                            )
+                                        },
+                                        onClick = { },
+                                        enabled = false
+                                    )
+                                    bookmarkedPages.sorted().forEach { page ->
+                                        DropdownMenuItem(
+                                            text = { Text("Jump to Page $page") },
+                                            leadingIcon = {
+                                                Icon(
+                                                    Icons.Filled.Bookmark,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            },
+                                            onClick = {
+                                                showBookmarksMenu = false
+                                                jumpToPageTarget = page
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Excerpt Highlighter action
+                        IconButton(onClick = { showExcerptDialog = true }) {
+                            Icon(
+                                Icons.Outlined.FormatQuote,
+                                contentDescription = "Highlight Excerpt",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        // Research Notes sheet action
+                        IconButton(onClick = { showNotesSheet = true }) {
+                            Icon(
+                                Icons.Outlined.Notes,
+                                contentDescription = "Research Notes",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // Night reading mode
                     IconButton(onClick = { nightMode = !nightMode }) {
                         Icon(
                             if (nightMode) Icons.Filled.LightMode else Icons.Filled.DarkMode,
                             contentDescription = if (nightMode) "Normal Mode" else "Night Reading Mode"
                         )
                     }
+
+                    // Share document
                     if (activeLocalPath.isNotBlank()) {
                         IconButton(onClick = {
                             sharePdf(context, activeLocalPath, paperTitle)
@@ -223,7 +338,17 @@ fun PdfViewerScreen(
                         activeLocalPath.endsWith(".pdf", ignoreCase = true) -> {
                             PdfRendererContent(
                                 filePath = activeLocalPath,
-                                nightMode = nightMode
+                                nightMode = nightMode,
+                                paperId = paperId,
+                                initialPage = paperState?.lastReadPage ?: 1,
+                                readingStatus = paperState?.readingStatus.orEmpty(),
+                                jumpToPageTarget = jumpToPageTarget,
+                                onJumpCompleted = { jumpToPageTarget = null },
+                                viewModel = viewModel,
+                                onPageChanged = { page, count ->
+                                    activePage = page
+                                    totalPages = count
+                                }
                             )
                         }
                         format == DocumentFormat.TXT ||
@@ -252,17 +377,55 @@ fun PdfViewerScreen(
                     )
                 }
             }
+
+            // Excerpt Highlighter Dialog
+            if (showExcerptDialog && paperId.isNotBlank() && viewModel != null) {
+                ExcerptHighlighterDialog(
+                    pageNumber = activePage,
+                    onDismiss = { showExcerptDialog = false },
+                    onSaveExcerpt = { tag, excerpt, commentary ->
+                        viewModel.appendExcerptToNotes(
+                            paperId = paperId,
+                            pageNumber = activePage,
+                            tag = tag,
+                            excerpt = excerpt,
+                            commentary = commentary
+                        )
+                        showExcerptDialog = false
+                    }
+                )
+            }
+
+            // In-Reader Research Notes Sheet
+            if (showNotesSheet && paperId.isNotBlank() && viewModel != null) {
+                InReaderResearchNotesSheet(
+                    paperTitle = paperTitle,
+                    initialNotes = paperState?.researchNotes.orEmpty(),
+                    onDismiss = { showNotesSheet = false },
+                    onSaveNotes = { notes ->
+                        viewModel.saveResearchNotes(paperId, notes)
+                    }
+                )
+            }
         }
     }
 }
 
 /**
  * Renders the local PDF file using Android's native PdfRenderer.
+ * Includes page-resuming, dynamic reading progress tracking, zoom/pan, and finish prompts.
  */
 @Composable
 private fun PdfRendererContent(
     filePath: String,
-    nightMode: Boolean
+    nightMode: Boolean,
+    paperId: String,
+    initialPage: Int,
+    readingStatus: String,
+    jumpToPageTarget: Int?,
+    onJumpCompleted: () -> Unit,
+    viewModel: HomeViewModel?,
+    onPageChanged: (page: Int, totalPages: Int) -> Unit
 ) {
     val file = remember(filePath) { File(filePath) }
     if (!file.exists() || !file.canRead()) {
@@ -322,6 +485,37 @@ private fun PdfRendererContent(
     var panOffsetX by remember { mutableFloatStateOf(0f) }
     var panOffsetY by remember { mutableFloatStateOf(0f) }
 
+    // Auto-resume to lastReadPage on first launch
+    var hasRestoredInitialPage by remember { mutableStateOf(false) }
+    LaunchedEffect(pageCount) {
+        if (!hasRestoredInitialPage && pageCount > 0 && initialPage in 1..pageCount) {
+            hasRestoredInitialPage = true
+            listState.scrollToItem((initialPage - 1).coerceAtLeast(0))
+        }
+    }
+
+    // React to external jump requests (e.g. from bookmarks menu)
+    LaunchedEffect(jumpToPageTarget) {
+        if (jumpToPageTarget != null && jumpToPageTarget in 1..pageCount) {
+            listState.animateScrollToItem((jumpToPageTarget - 1).coerceAtLeast(0))
+            onJumpCompleted()
+        }
+    }
+
+    // Dynamic current visible page tracking
+    val currentPage by remember {
+        derivedStateOf { (listState.firstVisibleItemIndex + 1).coerceIn(1, pageCount.coerceAtLeast(1)) }
+    }
+
+    LaunchedEffect(currentPage, pageCount) {
+        if (pageCount > 0) {
+            onPageChanged(currentPage, pageCount)
+            if (paperId.isNotBlank() && viewModel != null) {
+                viewModel.updateReadingProgress(paperId, currentPage, pageCount)
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -361,22 +555,72 @@ private fun PdfRendererContent(
             }
         }
 
-        // Floating page pill
-        val firstVisible = remember { derivedStateOf { listState.firstVisibleItemIndex + 1 } }
+        // Reading Progress Indicator Pill
+        val progress = if (pageCount > 0) currentPage.toFloat() / pageCount else 0f
+        val percent = (progress * 100).toInt()
+
         Surface(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp)
+                .padding(bottom = 16.dp, start = 16.dp, end = 16.dp)
                 .clip(MaterialTheme.shapes.extraLarge),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-            shadowElevation = 6.dp
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+            shadowElevation = 6.dp,
+            tonalElevation = 3.dp
         ) {
-            Text(
-                text = "Page ${firstVisible.value} of $pageCount",
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Page $currentPage of $pageCount",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "•",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "$percent%",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    // Prompt to mark as read when reaching the end of the manuscript
+                    if (currentPage >= pageCount && pageCount > 1 &&
+                        readingStatus != "READ" && readingStatus != "COMPLETED" &&
+                        paperId.isNotBlank() && viewModel != null
+                    ) {
+                        Spacer(Modifier.width(4.dp))
+                        FilledTonalButton(
+                            onClick = { viewModel.setReadingStatus(paperId, "READ") },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            modifier = Modifier.height(28.dp)
+                        ) {
+                            Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Mark Read", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(4.dp))
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .width(180.dp)
+                        .height(3.dp)
+                        .clip(MaterialTheme.shapes.small),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            }
         }
     }
 }
@@ -450,6 +694,196 @@ private fun PdfPageItem(
                     color = MaterialTheme.colorScheme.primary
                 )
             }
+        }
+    }
+}
+
+/**
+ * Excerpt Highlighter Dialog.
+ * Enables capturing quotes, tagging key categories, and appending directly to Research Notes.
+ */
+@Composable
+fun ExcerptHighlighterDialog(
+    pageNumber: Int,
+    onDismiss: () -> Unit,
+    onSaveExcerpt: (tag: String, excerpt: String, commentary: String) -> Unit
+) {
+    var selectedTag by remember { mutableStateOf("Key Finding") }
+    var excerptText by remember { mutableStateOf("") }
+    var commentaryText by remember { mutableStateOf("") }
+    val tagsRow1 = listOf("Key Finding", "Methodology", "Result")
+    val tagsRow2 = listOf("Limitation", "Idea", "General")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    "Highlight Excerpt",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Text(
+                        "Page $pageNumber",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    "Category Tag",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    tagsRow1.forEach { tag ->
+                        FilterChip(
+                            selected = selectedTag == tag,
+                            onClick = { selectedTag = tag },
+                            label = { Text(tag, style = MaterialTheme.typography.labelSmall) }
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    tagsRow2.forEach { tag ->
+                        FilterChip(
+                            selected = selectedTag == tag,
+                            onClick = { selectedTag = tag },
+                            label = { Text(tag, style = MaterialTheme.typography.labelSmall) }
+                        )
+                    }
+                }
+
+                OutlinedTextField(
+                    value = excerptText,
+                    onValueChange = { excerptText = it },
+                    label = { Text("Excerpt Quote") },
+                    placeholder = { Text("Paste or type passage from this page...") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 90.dp, max = 150.dp),
+                    shape = MaterialTheme.shapes.medium
+                )
+
+                OutlinedTextField(
+                    value = commentaryText,
+                    onValueChange = { commentaryText = it },
+                    label = { Text("Insight / Note (Optional)") },
+                    placeholder = { Text("Add personal context or research connection...") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 60.dp, max = 110.dp),
+                    shape = MaterialTheme.shapes.medium
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (excerptText.isNotBlank()) {
+                        onSaveExcerpt(selectedTag, excerptText, commentaryText)
+                    }
+                },
+                enabled = excerptText.isNotBlank()
+            ) {
+                Text("Append to Notes")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+/**
+ * In-Reader Research Notes Bottom Sheet.
+ * Allows viewing and editing paper notes without leaving the document reader.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InReaderResearchNotesSheet(
+    paperTitle: String,
+    initialNotes: String,
+    onDismiss: () -> Unit,
+    onSaveNotes: (String) -> Unit
+) {
+    var notesText by remember(initialNotes) { mutableStateOf(initialNotes) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Research Notes",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        paperTitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Button(
+                    onClick = {
+                        onSaveNotes(notesText)
+                        onDismiss()
+                    }
+                ) {
+                    Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Save")
+                }
+            }
+
+            OutlinedTextField(
+                value = notesText,
+                onValueChange = { notesText = it },
+                placeholder = { Text("Jot down summaries, ideas, methodologies, or saved excerpts...") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.65f),
+                shape = MaterialTheme.shapes.medium
+            )
         }
     }
 }

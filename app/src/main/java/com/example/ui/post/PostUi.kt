@@ -4,7 +4,9 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -17,6 +19,7 @@ import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.ModeComment
 import androidx.compose.material.icons.outlined.PersonRemove
 import androidx.compose.material.icons.outlined.PictureAsPdf
@@ -25,6 +28,9 @@ import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.ui.lists.OrganizePaperDialog
+import com.example.ui.lists.parseCollectionColor
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +58,7 @@ import com.example.data.SavedPaper
 import com.example.data.formatTimeAgo
 import com.example.data.isQuote
 import com.example.data.security.DocumentFormat
+import com.example.navigateToPdf
 import com.example.ui.share.ShareUtils
 import com.example.ui.theme.BrandBlue
 import com.example.ui.theme.DividerLight
@@ -106,6 +113,81 @@ fun PostCard(
             PostHeader(paper, viewModel, navController)
         }
 
+        val paperCollections by viewModel.getCollectionsForPaper(paper.id).collectAsStateWithLifecycle(emptyList())
+        if (paperCollections.isNotEmpty() || paper.isBookmarked || paper.readingStatus != "TO_READ") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (paper.isBookmarked || paper.readingStatus != "TO_READ") {
+                    com.example.ui.lists.ReadingStatusBadge(
+                        currentStatus = paper.readingStatus,
+                        onStatusSelected = { newStatus -> viewModel.setReadingStatus(paper.id, newStatus) }
+                    )
+                }
+
+                paperCollections.forEach { col ->
+                    val colColor = parseCollectionColor(col.colorHex)
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = colColor.copy(alpha = 0.12f),
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, colColor.copy(alpha = 0.35f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(colColor)
+                            )
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                text = col.name,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (paper.researchNotes.isNotBlank()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 2.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Outlined.Description,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    paper.researchNotes,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+        }
+
         if (paper.content.isNotBlank()) {
             Text(
                 paper.content,
@@ -148,10 +230,12 @@ fun PostCard(
                 PaperPdfBadge(
                     paper = paper,
                     onReadPdf = {
-                        val encPath = if (paper.pdfLocalPath.isNotBlank()) Uri.encode(paper.pdfLocalPath) else ""
-                        val encUrl = if (paper.pdfUrl.isNotBlank()) Uri.encode(paper.pdfUrl) else ""
-                        val encTitle = Uri.encode(paper.title.ifBlank { "Research Paper" })
-                        navController.navigate("pdf_viewer?path=$encPath&url=$encUrl&title=$encTitle")
+                        navController.navigateToPdf(
+                            paperId = paper.id,
+                            path = paper.pdfLocalPath,
+                            url = paper.pdfUrl,
+                            title = paper.title.ifBlank { "Research Paper" }
+                        )
                     }
                 )
             }
@@ -188,7 +272,25 @@ fun PostHeader(
     navController: NavController? = null
 ) {
     var showOverflow by remember { mutableStateOf(false) }
+    var showOrganizeDialog by remember { mutableStateOf(false) }
+    var showNotesDialog by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
+
+    if (showOrganizeDialog && viewModel != null) {
+        OrganizePaperDialog(
+            paper = paper,
+            viewModel = viewModel,
+            onDismiss = { showOrganizeDialog = false }
+        )
+    }
+
+    if (showNotesDialog && viewModel != null) {
+        com.example.ui.lists.ResearchNotesDialog(
+            paper = paper,
+            viewModel = viewModel,
+            onDismiss = { showNotesDialog = false }
+        )
+    }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
         Avatar(
@@ -250,6 +352,22 @@ fun PostHeader(
                         viewModel?.toggleBookmark(paper.id, paper.isBookmarked)
                     },
                     leadingIcon = { Icon(Icons.Filled.Bookmark, contentDescription = null) }
+                )
+                DropdownMenuItem(
+                    text = { Text("Organize in Collections...") },
+                    onClick = {
+                        showOverflow = false
+                        showOrganizeDialog = true
+                    },
+                    leadingIcon = { Icon(Icons.Outlined.Folder, contentDescription = null) }
+                )
+                DropdownMenuItem(
+                    text = { Text("Research Notes...") },
+                    onClick = {
+                        showOverflow = false
+                        showNotesDialog = true
+                    },
+                    leadingIcon = { Icon(Icons.Outlined.Description, contentDescription = null) }
                 )
                 DropdownMenuItem(
                     text = { Text("Copy BibTeX Citation") },
@@ -604,17 +722,25 @@ fun PaperPdfBadge(
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface
                 )
+                val statusSubtext = when {
+                    paper.lastReadPage > 1 && paper.totalPageCount > 0 -> {
+                        val pct = ((paper.lastReadPage.toFloat() / paper.totalPageCount) * 100).toInt()
+                        "Page ${paper.lastReadPage}/${paper.totalPageCount} ($pct%) · Tap to resume"
+                    }
+                    paper.lastReadPage > 1 -> "Page ${paper.lastReadPage} · Tap to resume"
+                    paper.pdfLocalPath.isNotBlank() -> "Downloaded in Vault (${PdfStore.getFormattedSize(paper.pdfLocalPath)}) · Tap to read"
+                    paper.openAccess -> "Open Access PDF · Tap to stream & read"
+                    else -> "Preprint Manuscript · Tap to read"
+                }
                 Text(
-                    if (paper.pdfLocalPath.isNotBlank()) "Downloaded in Vault (${PdfStore.getFormattedSize(paper.pdfLocalPath)}) · Tap to read"
-                    else if (paper.openAccess) "Open Access PDF · Tap to stream & read"
-                    else "Preprint Manuscript · Tap to read",
+                    statusSubtext,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
         Text(
-            if (isPdf) "Read PDF" else "Open ${format.label}",
+            if (paper.lastReadPage > 1) "Resume" else if (isPdf) "Read PDF" else "Open ${format.label}",
             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
             color = BrandBlue,
             modifier = Modifier

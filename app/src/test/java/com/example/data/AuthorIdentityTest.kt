@@ -41,7 +41,7 @@ class AuthorIdentityTest {
 
     @Test
     fun `a blank name yields the placeholder`() {
-        assertEquals("??", AuthorIdentity.initialsOf("   "))
+        assertEquals("", AuthorIdentity.initialsOf("   "))
     }
 
     @Test

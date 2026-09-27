@@ -1,7 +1,9 @@
 package com.example.network
 
 import android.util.Log
+import com.example.data.CollectionEntity
 import com.example.data.Comment
+import com.example.data.PaperCollectionEntry
 import com.example.data.SavedPaper
 import com.example.data.chat.ChatMessageEntity
 import kotlinx.coroutines.Dispatchers
@@ -12,6 +14,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -689,4 +692,501 @@ object SupabaseClient {
             Result.failure(e)
         }
     }
+
+    /**
+     * Uploads user avatar to Supabase Storage and synchronizes avatar_url in public.profiles.
+     */
+    suspend fun uploadAvatar(
+        userId: String,
+        imageFile: File,
+        accessToken: String
+    ): Result<String> = withContext(Dispatchers.IO) {
+        if (!imageFile.exists() || imageFile.length() <= 0) {
+            return@withContext Result.failure(IOException("Avatar file does not exist or is empty"))
+        }
+
+        try {
+            val fileName = "avatar_${userId}.jpg"
+            val bucket = "manuscripts" // Public bucket configured in Supabase
+            val storageUrl = "${SupabaseConfig.URL}/storage/v1/object/$bucket/avatars/$fileName"
+
+            val requestBody = imageFile.readBytes().toRequestBody("image/jpeg".toMediaType())
+            val uploadRequest = Request.Builder()
+                .url(storageUrl)
+                .header("apikey", SupabaseConfig.ANON_KEY)
+                .header("Authorization", "Bearer $accessToken")
+                .header("x-upsert", "true")
+                .header("Content-Type", "image/jpeg")
+                .post(requestBody)
+                .build()
+
+            val uploadResponse = httpClient.newCall(uploadRequest).execute()
+            if (!uploadResponse.isSuccessful && uploadResponse.code != 200 && uploadResponse.code != 201) {
+                val errorBody = uploadResponse.body?.string() ?: ""
+                Log.w(TAG, "Avatar storage upload returned ${uploadResponse.code}: $errorBody")
+            }
+
+            val publicUrl = "${SupabaseConfig.URL}/storage/v1/object/public/$bucket/avatars/$fileName"
+
+            // Update avatar_url in public.profiles
+            val profileUrl = "${SupabaseConfig.URL}/rest/v1/profiles?id=eq.$userId"
+            val profileBody = JSONObject().apply {
+                put("avatar_url", publicUrl)
+            }
+            val profileRequest = Request.Builder()
+                .url(profileUrl)
+                .header("apikey", SupabaseConfig.ANON_KEY)
+                .header("Authorization", "Bearer $accessToken")
+                .header("Content-Type", "application/json")
+                .patch(profileBody.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+
+            val profileResponse = httpClient.newCall(profileRequest).execute()
+            if (!profileResponse.isSuccessful) {
+                Log.w(TAG, "Profile avatar_url update returned ${profileResponse.code}")
+            }
+
+            Result.success(publicUrl)
+        } catch (e: Exception) {
+            Log.e(TAG, "uploadAvatar error", e)
+            Result.failure(e)
+        }
+    }
+
+    // ==========================================
+    // REPOSITORY & LIBRARY CLOUD SYNC
+    // ==========================================
+
+    private fun formatIsoTimestamp(millis: Long): String {
+        val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+        return format.format(java.util.Date(millis))
+    }
+
+    suspend fun pushUserCollections(
+        userId: String,
+        collections: List<CollectionEntity>,
+        accessToken: String
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        if (collections.isEmpty()) return@withContext Result.success(true)
+        try {
+            val array = JSONArray()
+            for (c in collections) {
+                val obj = JSONObject().apply {
+                    put("user_id", userId)
+                    put("id", c.id)
+                    put("name", c.name)
+                    put("description", c.description)
+                    put("color_hex", c.colorHex)
+                    put("icon_name", c.iconName)
+                    put("created_at", formatIsoTimestamp(c.createdAt))
+                    put("updated_at", formatIsoTimestamp(c.updatedAt))
+                }
+                array.put(obj)
+            }
+
+            val request = Request.Builder()
+                .url("${SupabaseConfig.URL}/rest/v1/user_collections?on_conflict=user_id,id")
+                .header("apikey", SupabaseConfig.ANON_KEY)
+                .header("Authorization", "Bearer $accessToken")
+                .header("Prefer", "resolution=merge-duplicates")
+                .header("Content-Type", "application/json")
+                .post(array.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) {
+                return@withContext Result.failure(IOException("Failed to push collections: ${response.code} ${response.body?.string()}"))
+            }
+            Result.success(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "pushUserCollections error", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun pullUserCollections(
+        userId: String,
+        accessToken: String
+    ): Result<List<CollectionEntity>> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${SupabaseConfig.URL}/rest/v1/user_collections?user_id=eq.$userId&order=updated_at.desc"
+            val request = Request.Builder()
+                .url(url)
+                .header("apikey", SupabaseConfig.ANON_KEY)
+                .header("Authorization", "Bearer $accessToken")
+                .get()
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            val body = response.body?.string() ?: ""
+
+            if (!response.isSuccessful) {
+                return@withContext Result.failure(IOException("Failed to pull collections: ${response.code} $body"))
+            }
+
+            val array = JSONArray(body)
+            val list = mutableListOf<CollectionEntity>()
+            for (i in 0 until array.length()) {
+                val row = array.getJSONObject(i)
+                list.add(
+                    CollectionEntity(
+                        id = row.getString("id"),
+                        name = row.getString("name"),
+                        description = row.optString("description", ""),
+                        colorHex = row.optString("color_hex", "#1A73E8"),
+                        iconName = row.optString("icon_name", "folder"),
+                        createdAt = parseIsoTimestamp(row.optString("created_at", "")),
+                        updatedAt = parseIsoTimestamp(row.optString("updated_at", ""))
+                    )
+                )
+            }
+            Result.success(list)
+        } catch (e: Exception) {
+            Log.e(TAG, "pullUserCollections error", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteUserCollection(
+        userId: String,
+        collectionId: String,
+        accessToken: String
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${SupabaseConfig.URL}/rest/v1/user_collections?user_id=eq.$userId&id=eq.$collectionId"
+            val request = Request.Builder()
+                .url(url)
+                .header("apikey", SupabaseConfig.ANON_KEY)
+                .header("Authorization", "Bearer $accessToken")
+                .delete()
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            Result.success(response.isSuccessful)
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteUserCollection error", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun pushUserCollectionEntries(
+        userId: String,
+        entries: List<PaperCollectionEntry>,
+        accessToken: String
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        if (entries.isEmpty()) return@withContext Result.success(true)
+        try {
+            val array = JSONArray()
+            for (e in entries) {
+                val obj = JSONObject().apply {
+                    put("user_id", userId)
+                    put("collection_id", e.collectionId)
+                    put("paper_id", e.paperId)
+                    put("added_at", formatIsoTimestamp(e.addedAt))
+                }
+                array.put(obj)
+            }
+
+            val request = Request.Builder()
+                .url("${SupabaseConfig.URL}/rest/v1/user_collection_papers?on_conflict=user_id,collection_id,paper_id")
+                .header("apikey", SupabaseConfig.ANON_KEY)
+                .header("Authorization", "Bearer $accessToken")
+                .header("Prefer", "resolution=merge-duplicates")
+                .header("Content-Type", "application/json")
+                .post(array.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) {
+                return@withContext Result.failure(IOException("Failed to push entries: ${response.code} ${response.body?.string()}"))
+            }
+            Result.success(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "pushUserCollectionEntries error", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun pullUserCollectionEntries(
+        userId: String,
+        accessToken: String
+    ): Result<List<PaperCollectionEntry>> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${SupabaseConfig.URL}/rest/v1/user_collection_papers?user_id=eq.$userId"
+            val request = Request.Builder()
+                .url(url)
+                .header("apikey", SupabaseConfig.ANON_KEY)
+                .header("Authorization", "Bearer $accessToken")
+                .get()
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            val body = response.body?.string() ?: ""
+
+            if (!response.isSuccessful) {
+                return@withContext Result.failure(IOException("Failed to pull entries: ${response.code} $body"))
+            }
+
+            val array = JSONArray(body)
+            val list = mutableListOf<PaperCollectionEntry>()
+            for (i in 0 until array.length()) {
+                val row = array.getJSONObject(i)
+                list.add(
+                    PaperCollectionEntry(
+                        paperId = row.getString("paper_id"),
+                        collectionId = row.getString("collection_id"),
+                        addedAt = parseIsoTimestamp(row.optString("added_at", ""))
+                    )
+                )
+            }
+            Result.success(list)
+        } catch (e: Exception) {
+            Log.e(TAG, "pullUserCollectionEntries error", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun removeUserCollectionEntry(
+        userId: String,
+        collectionId: String,
+        paperId: String,
+        accessToken: String
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${SupabaseConfig.URL}/rest/v1/user_collection_papers?user_id=eq.$userId&collection_id=eq.$collectionId&paper_id=eq.$paperId"
+            val request = Request.Builder()
+                .url(url)
+                .header("apikey", SupabaseConfig.ANON_KEY)
+                .header("Authorization", "Bearer $accessToken")
+                .delete()
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            Result.success(response.isSuccessful)
+        } catch (e: Exception) {
+            Log.e(TAG, "removeUserCollectionEntry error", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun pushUserLibraryPapers(
+        userId: String,
+        papers: List<SavedPaper>,
+        accessToken: String
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        if (papers.isEmpty()) return@withContext Result.success(true)
+        try {
+            val array = JSONArray()
+            for (p in papers) {
+                val obj = JSONObject().apply {
+                    put("user_id", userId)
+                    put("id", p.id)
+                    put("title", p.title)
+                    put("authors", p.authors)
+                    put("year", p.year)
+                    put("venue", p.venue)
+                    put("doi", p.doi)
+                    put("url", p.url)
+                    put("pdf_url", p.pdfUrl)
+                    put("abstract_text", p.abstractText)
+                    put("open_access", p.openAccess)
+                    put("content", p.content)
+                    put("author_name", p.authorName)
+                    put("author_initials", p.authorInitials)
+                    put("affiliation", p.affiliation)
+                    put("citation_override", p.citationOverride)
+                    put("reading_status", p.readingStatus)
+                    put("research_notes", p.researchNotes)
+                    put("is_bookmarked", p.isBookmarked)
+                    put("last_read_page", p.lastReadPage)
+                    put("total_page_count", p.totalPageCount)
+                    put("page_bookmarks", p.pageBookmarks)
+                    put("published_at", p.publishedAt)
+                    put("updated_at", formatIsoTimestamp(System.currentTimeMillis()))
+                }
+                array.put(obj)
+            }
+
+            val request = Request.Builder()
+                .url("${SupabaseConfig.URL}/rest/v1/user_library_papers?on_conflict=user_id,id")
+                .header("apikey", SupabaseConfig.ANON_KEY)
+                .header("Authorization", "Bearer $accessToken")
+                .header("Prefer", "resolution=merge-duplicates")
+                .header("Content-Type", "application/json")
+                .post(array.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) {
+                return@withContext Result.failure(IOException("Failed to push papers: ${response.code} ${response.body?.string()}"))
+            }
+            Result.success(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "pushUserLibraryPapers error", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun pullUserLibraryPapers(
+        userId: String,
+        accessToken: String
+    ): Result<List<SavedPaper>> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${SupabaseConfig.URL}/rest/v1/user_library_papers?user_id=eq.$userId&order=updated_at.desc"
+            val request = Request.Builder()
+                .url(url)
+                .header("apikey", SupabaseConfig.ANON_KEY)
+                .header("Authorization", "Bearer $accessToken")
+                .get()
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            val body = response.body?.string() ?: ""
+
+            if (!response.isSuccessful) {
+                return@withContext Result.failure(IOException("Failed to pull papers: ${response.code} $body"))
+            }
+
+            val array = JSONArray(body)
+            val list = mutableListOf<SavedPaper>()
+            for (i in 0 until array.length()) {
+                val row = array.getJSONObject(i)
+                val authorName = row.optString("author_name", "")
+                val authorInitials = row.optString("author_initials", "").ifBlank { getInitials(authorName) }
+                list.add(
+                    SavedPaper(
+                        id = row.getString("id"),
+                        authorInitials = authorInitials,
+                        authorName = authorName,
+                        affiliation = row.optString("affiliation", ""),
+                        content = row.optString("content", ""),
+                        title = row.optString("title", ""),
+                        authors = row.optString("authors", ""),
+                        year = row.optString("year", ""),
+                        venue = row.optString("venue", ""),
+                        doi = row.optString("doi", ""),
+                        url = row.optString("url", ""),
+                        publishedAt = row.optLong("published_at", parseIsoTimestamp(row.optString("created_at", ""))),
+                        citationOverride = row.optString("citation_override", ""),
+                        isEndorsed = false,
+                        endorsementCount = 0,
+                        commentCount = 0,
+                        repostCount = 0,
+                        isBookmarked = row.optBoolean("is_bookmarked", false),
+                        imageUri = "",
+                        quotedId = "",
+                        quotedAuthorName = "",
+                        quotedTitle = "",
+                        quotedContent = "",
+                        pdfUrl = row.optString("pdf_url", ""),
+                        pdfLocalPath = "",
+                        abstractText = row.optString("abstract_text", ""),
+                        openAccess = row.optBoolean("open_access", false),
+                        readingStatus = row.optString("reading_status", "TO_READ"),
+                        researchNotes = row.optString("research_notes", ""),
+                        lastReadPage = row.optInt("last_read_page", 1),
+                        totalPageCount = row.optInt("total_page_count", 0),
+                        pageBookmarks = row.optString("page_bookmarks", "")
+                    )
+                )
+            }
+            Result.success(list)
+        } catch (e: Exception) {
+            Log.e(TAG, "pullUserLibraryPapers error", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteUserLibraryPaper(
+        userId: String,
+        paperId: String,
+        accessToken: String
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${SupabaseConfig.URL}/rest/v1/user_library_papers?user_id=eq.$userId&id=eq.$paperId"
+            val request = Request.Builder()
+                .url(url)
+                .header("apikey", SupabaseConfig.ANON_KEY)
+                .header("Authorization", "Bearer $accessToken")
+                .delete()
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            Result.success(response.isSuccessful)
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteUserLibraryPaper error", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun syncUserPaperMeta(
+        userId: String,
+        paperId: String,
+        readingStatus: String,
+        notes: String,
+        isBookmarked: Boolean,
+        accessToken: String
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${SupabaseConfig.URL}/rest/v1/user_library_papers?user_id=eq.$userId&id=eq.$paperId"
+            val body = JSONObject().apply {
+                put("reading_status", readingStatus)
+                put("research_notes", notes)
+                put("is_bookmarked", isBookmarked)
+                put("updated_at", formatIsoTimestamp(System.currentTimeMillis()))
+            }
+            val request = Request.Builder()
+                .url(url)
+                .header("apikey", SupabaseConfig.ANON_KEY)
+                .header("Authorization", "Bearer $accessToken")
+                .header("Content-Type", "application/json")
+                .patch(body.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            Result.success(response.isSuccessful)
+        } catch (e: Exception) {
+            Log.e(TAG, "syncUserPaperMeta error", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun syncUserPaperReadingProgress(
+        userId: String,
+        paperId: String,
+        lastReadPage: Int,
+        totalPageCount: Int,
+        pageBookmarks: String,
+        readingStatus: String? = null,
+        accessToken: String
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${SupabaseConfig.URL}/rest/v1/user_library_papers?user_id=eq.$userId&id=eq.$paperId"
+            val body = JSONObject().apply {
+                put("last_read_page", lastReadPage)
+                put("total_page_count", totalPageCount)
+                put("page_bookmarks", pageBookmarks)
+                if (readingStatus != null) {
+                    put("reading_status", readingStatus)
+                }
+                put("updated_at", formatIsoTimestamp(System.currentTimeMillis()))
+            }
+            val request = Request.Builder()
+                .url(url)
+                .header("apikey", SupabaseConfig.ANON_KEY)
+                .header("Authorization", "Bearer $accessToken")
+                .header("Content-Type", "application/json")
+                .patch(body.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            Result.success(response.isSuccessful)
+        } catch (e: Exception) {
+            Log.e(TAG, "syncUserPaperReadingProgress error", e)
+            Result.failure(e)
+        }
+    }
 }
+

@@ -196,8 +196,8 @@ class UserSessionManager(
                     email = cleanEmail,
                     displayName = remoteDisplayName ?: cleanEmail.substringBefore('@'),
                     passwordHash = inputHash,
-                    affiliation = "Academic Institution",
-                    researchField = "All Disciplines",
+                    affiliation = "",
+                    researchField = "",
                     isActive = true,
                     createdAt = System.currentTimeMillis(),
                     lastLoginAt = System.currentTimeMillis()
@@ -292,8 +292,8 @@ class UserSessionManager(
             email = cleanEmail,
             displayName = cleanName,
             passwordHash = hashPassword(cleanPass),
-            affiliation = cleanAffiliation.ifBlank { "Independent Researcher" },
-            researchField = cleanField.ifBlank { "Interdisciplinary Research" },
+            affiliation = cleanAffiliation,
+            researchField = cleanField,
             isActive = true,
             createdAt = System.currentTimeMillis(),
             lastLoginAt = System.currentTimeMillis()
@@ -317,11 +317,11 @@ class UserSessionManager(
     }
 
     /**
-     * Instant clean Guest Researcher access with neutral profile.
+     * Instant clean Guest Researcher access with neutral empty profile.
      */
     suspend fun loginAsGuest(): AuthResult {
-        val guestEmail = "guest.researcher@citecircle.app"
-        val guestName = "Guest Researcher"
+        val guestEmail = ""
+        val guestName = ""
         val guestUid = "guest-" + UUID.randomUUID().toString().take(8)
 
         val guestUser = UserAccount(
@@ -329,8 +329,8 @@ class UserSessionManager(
             email = guestEmail,
             displayName = guestName,
             passwordHash = "",
-            affiliation = "Visiting Researcher",
-            researchField = "Academic Research",
+            affiliation = "",
+            researchField = "",
             isActive = true,
             createdAt = System.currentTimeMillis(),
             lastLoginAt = System.currentTimeMillis()
@@ -567,8 +567,64 @@ class UserSessionManager(
             it[keyUserName] = ""
             it[keyUserAffiliation] = ""
             it[keyUserField] = ""
+            it[keyUserHeadline] = ""
+            it[keyUserBio] = ""
+            it[keyUserLocation] = ""
+            it[keyUserAvatarUri] = ""
+            it[keyUserCoverUri] = ""
+            it[keyUserOrcid] = ""
+            it[keyUserWebsite] = ""
+            it[keyUserOpenTo] = ""
+            it[keyUserDegree] = ""
+            it[keyUserExperience] = ""
+            it[keyUserEducation] = ""
+            it[keyUserSkills] = ""
             it[keyAccessToken] = ""
             it[keyRefreshToken] = ""
+        }
+    }
+
+    /**
+     * Purges any legacy placeholder user profile information across DataStore and Room,
+     * resetting placeholder strings to clean empty defaults.
+     */
+    suspend fun purgePlaceholderData() {
+        val knownPlaceholders = setOf(
+            "Guest Researcher", "Dr. Alex Rivera", "Unattributed researcher", "Academic Researcher",
+            "Visiting Researcher", "Academic Institution", "Stanford University · AI & Quantum Lab",
+            "Affiliation unspecified", "Independent Researcher", "Academic Research", "All Disciplines",
+            "Interdisciplinary Research", "Computer Science & Machine Learning",
+            "Senior Research Scientist @ Stanford AI Lab | Cite Circle Fellow",
+            "Palo Alto, California, United States", "0009-0004-8921-4412",
+            "https://citecircle.org/author/arivera", "guest.researcher@citecircle.app",
+            "alex.rivera@citecircle.edu", "Research Collaborations · Peer Review", "(Ph.D.)"
+        )
+        store.edit { prefs ->
+            if (prefs[keyUserName] in knownPlaceholders) prefs[keyUserName] = ""
+            if (prefs[keyUserAffiliation] in knownPlaceholders) prefs[keyUserAffiliation] = ""
+            if (prefs[keyUserField] in knownPlaceholders) prefs[keyUserField] = ""
+            if (prefs[keyUserHeadline] in knownPlaceholders) prefs[keyUserHeadline] = ""
+            if (prefs[keyUserLocation] in knownPlaceholders) prefs[keyUserLocation] = ""
+            if (prefs[keyUserOrcid] in knownPlaceholders) prefs[keyUserOrcid] = ""
+            if (prefs[keyUserWebsite] in knownPlaceholders) prefs[keyUserWebsite] = ""
+            if (prefs[keyUserEmail] in knownPlaceholders) prefs[keyUserEmail] = ""
+            if (prefs[keyUserOpenTo] in knownPlaceholders) prefs[keyUserOpenTo] = ""
+            if (prefs[keyUserDegree] in knownPlaceholders) prefs[keyUserDegree] = ""
+        }
+        val activeUser = userDao.getActiveUserOnce()
+        if (activeUser != null) {
+            var updated = false
+            var name = activeUser.displayName
+            var affil = activeUser.affiliation
+            var field = activeUser.researchField
+            var email = activeUser.email
+            if (name in knownPlaceholders) { name = ""; updated = true }
+            if (affil in knownPlaceholders) { affil = ""; updated = true }
+            if (field in knownPlaceholders) { field = ""; updated = true }
+            if (email in knownPlaceholders) { email = ""; updated = true }
+            if (updated) {
+                userDao.insertUser(activeUser.copy(displayName = name, affiliation = affil, researchField = field, email = email))
+            }
         }
     }
 

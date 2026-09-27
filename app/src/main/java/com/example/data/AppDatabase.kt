@@ -3,6 +3,7 @@ package com.example.data
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
+import androidx.room.Fts4
 import androidx.room.Index
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -73,7 +74,14 @@ data class SavedPaper(
     val pdfUrl: String = "",
     val pdfLocalPath: String = "",
     val abstractText: String = "",
-    val openAccess: Boolean = false
+    val openAccess: Boolean = false,
+
+    // --- repository reading status & notes --------------------------------
+    val readingStatus: String = "TO_READ",
+    val researchNotes: String = "",
+    val lastReadPage: Int = 1,
+    val totalPageCount: Int = 0,
+    val pageBookmarks: String = ""
 )
 
 /**
@@ -82,6 +90,21 @@ data class SavedPaper(
  * field to every synced document.
  */
 val SavedPaper.isQuote: Boolean get() = quotedId.isNotBlank()
+
+/**
+ * SQLite C-native Full-Text Search virtual table for [SavedPaper].
+ * Enables zero-latency academic paper search across title, commentary,
+ * authors, venue, and abstract text using SQLite's native C FTS4 engine.
+ */
+@Entity(tableName = "saved_papers_fts")
+@Fts4(contentEntity = SavedPaper::class)
+data class SavedPaperFts(
+    val title: String,
+    val content: String,
+    val authors: String,
+    val venue: String,
+    val abstractText: String
+)
 
 /** A reply on a post. */
 @Entity(tableName = "comments", indices = [Index("paperId")])
@@ -152,6 +175,18 @@ interface SavedPaperDao {
     @Query("UPDATE saved_papers SET pdfLocalPath = :localPath WHERE id = :id")
     suspend fun updatePdfLocalPath(id: String, localPath: String)
 
+    @Query("UPDATE saved_papers SET readingStatus = :status WHERE id = :id")
+    suspend fun updateReadingStatus(id: String, status: String)
+
+    @Query("UPDATE saved_papers SET researchNotes = :notes WHERE id = :id")
+    suspend fun updateResearchNotes(id: String, notes: String)
+
+    @Query("UPDATE saved_papers SET lastReadPage = :page, totalPageCount = :total WHERE id = :id")
+    suspend fun updateReadingProgress(id: String, page: Int, total: Int)
+
+    @Query("UPDATE saved_papers SET pageBookmarks = :bookmarks WHERE id = :id")
+    suspend fun updatePageBookmarks(id: String, bookmarks: String)
+
     /** Database Query Limiter: Retrieves papers with strict pagination limits to avoid UI and memory freezing. */
     @Query("SELECT * FROM saved_papers ORDER BY publishedAt DESC LIMIT :limit OFFSET :offset")
     fun getPagedPapers(limit: Int, offset: Int): Flow<List<SavedPaper>>
@@ -178,6 +213,24 @@ interface SavedPaperDao {
     /** Clears all unbookmarked cache rows to free local storage. */
     @Query("DELETE FROM saved_papers WHERE isBookmarked = 0")
     suspend fun clearUnbookmarkedCache()
+
+    /**
+     * High-speed native full-text search using SQLite's native C-powered FTS4 engine.
+     * Searches across title, commentary content, authors, venue, and abstract text.
+     */
+    @Query("""
+        SELECT p.* FROM saved_papers p
+        JOIN saved_papers_fts fts ON p.rowid = fts.docid
+        WHERE saved_papers_fts MATCH :query
+        ORDER BY p.publishedAt DESC
+    """)
+    fun searchPapersFts(query: String): Flow<List<SavedPaper>>
+
+    @Query("SELECT * FROM saved_papers")
+    suspend fun getAllPapersOnce(): List<SavedPaper>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPapers(papers: List<SavedPaper>)
 }
 
 @Dao
@@ -208,12 +261,16 @@ interface CommentDao {
 @Database(
     entities = [
         SavedPaper::class,
+        SavedPaperFts::class,
         Comment::class,
         ConversationEntity::class,
         ChatMessageEntity::class,
-        UserAccount::class
+        UserAccount::class,
+        CollectionEntity::class,
+        PaperCollectionEntry::class,
+        ScholarConnection::class
     ],
-    version = 5,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -222,6 +279,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun conversationDao(): ConversationDao
     abstract fun chatMessageDao(): ChatMessageDao
     abstract fun userAccountDao(): UserAccountDao
+    abstract fun collectionDao(): CollectionDao
+    abstract fun scholarConnectionDao(): ScholarConnectionDao
 
     companion object {
         /**
@@ -383,6 +442,103 @@ abstract class AppDatabase : RoomDatabase() {
                 )
             }
         }
+
+        fun migration5To6(): Migration = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE VIRTUAL TABLE IF NOT EXISTS `saved_papers_fts` 
+                    USING FTS4(
+                        `title` TEXT NOT NULL, 
+                        `content` TEXT NOT NULL, 
+                        `authors` TEXT NOT NULL, 
+                        `venue` TEXT NOT NULL, 
+                        `abstractText` TEXT NOT NULL, 
+                        content=`saved_papers`
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO `saved_papers_fts`(`docid`, `title`, `content`, `authors`, `venue`, `abstractText`)
+                    SELECT `rowid`, `title`, `content`, `authors`, `venue`, `abstractText` FROM `saved_papers`
+                    """.trimIndent()
+                )
+            }
+        }
+
+        fun migration6To7(): Migration = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `collections` (
+                        `id` TEXT NOT NULL PRIMARY KEY,
+                        `name` TEXT NOT NULL,
+                        `description` TEXT NOT NULL,
+                        `colorHex` TEXT NOT NULL,
+                        `iconName` TEXT NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `paper_collection_entries` (
+                        `paperId` TEXT NOT NULL,
+                        `collectionId` TEXT NOT NULL,
+                        `addedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`paperId`, `collectionId`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_paper_collection_entries_collectionId` ON `paper_collection_entries` (`collectionId`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_paper_collection_entries_paperId` ON `paper_collection_entries` (`paperId`)"
+                )
+            }
+        }
+
+        fun migration7To8(): Migration = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `saved_papers` ADD COLUMN `readingStatus` TEXT NOT NULL DEFAULT 'TO_READ'")
+                db.execSQL("ALTER TABLE `saved_papers` ADD COLUMN `researchNotes` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        fun migration8To9(): Migration = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `saved_papers` ADD COLUMN `lastReadPage` INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE `saved_papers` ADD COLUMN `totalPageCount` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `saved_papers` ADD COLUMN `pageBookmarks` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        fun migration9To10(): Migration = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `scholar_connections` (
+                        `id` TEXT NOT NULL PRIMARY KEY,
+                        `name` TEXT NOT NULL,
+                        `initials` TEXT NOT NULL,
+                        `avatarUri` TEXT NOT NULL DEFAULT '',
+                        `affiliation` TEXT NOT NULL,
+                        `researchField` TEXT NOT NULL,
+                        `degree` TEXT NOT NULL DEFAULT '',
+                        `status` TEXT NOT NULL DEFAULT 'NOT_CONNECTED',
+                        `connectionReason` TEXT NOT NULL DEFAULT '',
+                        `personalNote` TEXT NOT NULL DEFAULT '',
+                        `mutualCount` INTEGER NOT NULL DEFAULT 0,
+                        `connectedAt` INTEGER NOT NULL DEFAULT 0,
+                        `isSuggested` INTEGER NOT NULL DEFAULT 1
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
     }
 }
 
@@ -396,6 +552,210 @@ class PaperRepository(private val database: AppDatabase) {
 
     private val dao = database.savedPaperDao()
     private val commentDao = database.commentDao()
+    private val collectionDao = database.collectionDao()
+    private val connectionDao = database.scholarConnectionDao()
+
+    val allConnections: Flow<List<ScholarConnection>> = connectionDao.getAllConnections()
+    val connectedScholars: Flow<List<ScholarConnection>> = connectionDao.getConnectedScholars()
+    val pendingInvitations: Flow<List<ScholarConnection>> = connectionDao.getPendingInvitations()
+    val sentRequests: Flow<List<ScholarConnection>> = connectionDao.getSentRequests()
+    val suggestedScholars: Flow<List<ScholarConnection>> = connectionDao.getSuggestedScholars()
+    val connectedCount: Flow<Int> = connectionDao.countConnected()
+    val pendingInvitationCount: Flow<Int> = connectionDao.countPendingInvitations()
+
+    suspend fun sendConnectionRequest(id: String, reason: String = "", personalNote: String = "") {
+        connectionDao.updateConnectionStatus(
+            id = id,
+            status = ConnectionStatus.PENDING_SENT.name,
+            reason = reason,
+            note = personalNote,
+            timestamp = System.currentTimeMillis()
+        )
+    }
+
+    suspend fun acceptConnection(id: String) {
+        connectionDao.updateConnectionStatus(
+            id = id,
+            status = ConnectionStatus.CONNECTED.name,
+            reason = "",
+            note = "",
+            timestamp = System.currentTimeMillis()
+        )
+    }
+
+    suspend fun ignoreConnection(id: String) {
+        connectionDao.updateConnectionStatus(
+            id = id,
+            status = ConnectionStatus.NOT_CONNECTED.name,
+            reason = "",
+            note = "",
+            timestamp = 0L
+        )
+    }
+
+    suspend fun removeConnection(id: String) {
+        connectionDao.updateConnectionStatus(
+            id = id,
+            status = ConnectionStatus.NOT_CONNECTED.name,
+            reason = "",
+            note = "",
+            timestamp = 0L
+        )
+    }
+
+    suspend fun seedDefaultScholarsIfEmpty() {
+        if (connectionDao.countAll() == 0) {
+            val defaults = listOf(
+                ScholarConnection(
+                    id = "scholar-invitation-1",
+                    name = "Dr. Elena Rostova",
+                    initials = "ER",
+                    affiliation = "Stanford University",
+                    researchField = "Quantum Computing & Information Theory",
+                    degree = "Ph.D.",
+                    status = ConnectionStatus.PENDING_RECEIVED.name,
+                    connectionReason = ConnectionReasons.READ_AND_CITED,
+                    personalNote = "Hi! I recently read your papers in Cite Circle and love your research methodology. Would be glad to connect and collaborate!",
+                    mutualCount = 14,
+                    connectedAt = System.currentTimeMillis() - 86400000L,
+                    isSuggested = false
+                ),
+                ScholarConnection(
+                    id = "scholar-sugg-1",
+                    name = "Prof. Marcus Vance",
+                    initials = "MV",
+                    affiliation = "MIT",
+                    researchField = "Distributed Systems & Cloud Consensus",
+                    degree = "Ph.D.",
+                    status = ConnectionStatus.NOT_CONNECTED.name,
+                    mutualCount = 22,
+                    isSuggested = true
+                ),
+                ScholarConnection(
+                    id = "scholar-sugg-2",
+                    name = "Dr. Aisha Patel",
+                    initials = "AP",
+                    affiliation = "Oxford University",
+                    researchField = "Biophysics & Molecular Biology",
+                    degree = "M.D., Ph.D.",
+                    status = ConnectionStatus.NOT_CONNECTED.name,
+                    mutualCount = 9,
+                    isSuggested = true
+                ),
+                ScholarConnection(
+                    id = "scholar-sugg-3",
+                    name = "Dr. Sarah Lin",
+                    initials = "SL",
+                    affiliation = "UC Berkeley",
+                    researchField = "Computer Science & AI",
+                    degree = "Ph.D.",
+                    status = ConnectionStatus.NOT_CONNECTED.name,
+                    mutualCount = 18,
+                    isSuggested = true
+                ),
+                ScholarConnection(
+                    id = "scholar-sugg-4",
+                    name = "Prof. David K. Miller",
+                    initials = "DM",
+                    affiliation = "Cambridge University",
+                    researchField = "Physics & Quantum Gravity",
+                    degree = "Sc.D.",
+                    status = ConnectionStatus.NOT_CONNECTED.name,
+                    mutualCount = 7,
+                    isSuggested = true
+                ),
+                ScholarConnection(
+                    id = "scholar-sugg-5",
+                    name = "Dr. Chen Wei",
+                    initials = "CW",
+                    affiliation = "Princeton University",
+                    researchField = "Mathematics & Cryptography",
+                    degree = "Ph.D.",
+                    status = ConnectionStatus.NOT_CONNECTED.name,
+                    mutualCount = 15,
+                    isSuggested = true
+                ),
+                ScholarConnection(
+                    id = "scholar-sugg-6",
+                    name = "Dr. Julian Thorne",
+                    initials = "JT",
+                    affiliation = "Harvard University",
+                    researchField = "Economics & Game Theory",
+                    degree = "Ph.D.",
+                    status = ConnectionStatus.NOT_CONNECTED.name,
+                    mutualCount = 11,
+                    isSuggested = true
+                ),
+                ScholarConnection(
+                    id = "scholar-sugg-7",
+                    name = "Dr. Maya Lin",
+                    initials = "ML",
+                    affiliation = "Columbia University",
+                    researchField = "Environmental & Climate Science",
+                    degree = "Ph.D.",
+                    status = ConnectionStatus.NOT_CONNECTED.name,
+                    mutualCount = 5,
+                    isSuggested = true
+                )
+            )
+            connectionDao.insertAll(defaults)
+        }
+    }
+
+    val collectionsWithCount: Flow<List<CollectionWithCount>> = collectionDao.getCollectionsWithCount()
+    val allCollections: Flow<List<CollectionEntity>> = collectionDao.getAllCollections()
+
+    fun papersInCollection(collectionId: String): Flow<List<SavedPaper>> =
+        collectionDao.getPapersInCollection(collectionId)
+
+    fun collectionIdsForPaper(paperId: String): Flow<List<String>> =
+        collectionDao.getCollectionIdsForPaper(paperId)
+
+    suspend fun collectionIdsForPaperOnce(paperId: String): List<String> =
+        collectionDao.getCollectionIdsForPaperOnce(paperId)
+
+    fun collectionsForPaper(paperId: String): Flow<List<CollectionEntity>> =
+        collectionDao.getCollectionsForPaper(paperId)
+
+    suspend fun saveCollection(collection: CollectionEntity) =
+        collectionDao.insertCollection(collection)
+
+    suspend fun updateCollection(collection: CollectionEntity) =
+        collectionDao.updateCollection(collection)
+
+    suspend fun deleteCollection(collectionId: String) {
+        database.withTransaction {
+            collectionDao.deleteEntriesForCollection(collectionId)
+            collectionDao.deleteCollection(collectionId)
+        }
+    }
+
+    suspend fun addPaperToCollection(paperId: String, collectionId: String) {
+        collectionDao.addPaperToCollection(
+            PaperCollectionEntry(paperId = paperId, collectionId = collectionId, addedAt = System.currentTimeMillis())
+        )
+    }
+
+    suspend fun removePaperFromCollection(paperId: String, collectionId: String) {
+        collectionDao.removePaperFromCollection(paperId, collectionId)
+    }
+
+    suspend fun setPaperCollections(paperId: String, selectedCollectionIds: Set<String>) {
+        database.withTransaction {
+            val current = collectionDao.getCollectionIdsForPaperOnce(paperId).toSet()
+            val toRemove = current - selectedCollectionIds
+            val toAdd = selectedCollectionIds - current
+
+            toRemove.forEach { collectionId ->
+                collectionDao.removePaperFromCollection(paperId, collectionId)
+            }
+            toAdd.forEach { collectionId ->
+                collectionDao.addPaperToCollection(
+                    PaperCollectionEntry(paperId = paperId, collectionId = collectionId, addedAt = System.currentTimeMillis())
+                )
+            }
+        }
+    }
 
     val allPapers: Flow<List<SavedPaper>> = dao.getAllPapers()
     val bookmarkedPapers: Flow<List<SavedPaper>> = dao.getBookmarkedPapers()
@@ -403,6 +763,18 @@ class PaperRepository(private val database: AppDatabase) {
     val recentQuotes: Flow<List<SavedPaper>> = dao.getRecentQuotes()
     val recentComments: Flow<List<Comment>> = commentDao.recentComments()
     val venueCounts: Flow<List<VenueCount>> = dao.getVenueCounts()
+
+    /**
+     * Executes instant full-text search against paper titles, abstracts, content, and authors
+     * using SQLite's native C FTS4 virtual table engine.
+     */
+    fun searchPapersFts(rawQuery: String): Flow<List<SavedPaper>> {
+        val sanitized = rawQuery.trim().replace(Regex("[^a-zA-Z0-9 ]"), " ").trim()
+        if (sanitized.isBlank()) return allPapers
+        val terms = sanitized.split(" ").filter { it.isNotBlank() }
+        val ftsQuery = terms.joinToString(" ") { "$it*" }
+        return dao.searchPapersFts(ftsQuery)
+    }
 
     fun pagedPapers(limit: Int = 50, offset: Int = 0): Flow<List<SavedPaper>> = dao.getPagedPapers(limit, offset)
     fun pagedVaultPapers(limit: Int = 50, offset: Int = 0): Flow<List<SavedPaper>> = dao.getPagedVaultPapers(limit, offset)
@@ -424,11 +796,14 @@ class PaperRepository(private val database: AppDatabase) {
     suspend fun savePaper(paper: SavedPaper) = dao.insertPaper(paper)
 
     suspend fun updatePdfLocalPath(id: String, localPath: String) = dao.updatePdfLocalPath(id, localPath)
+    suspend fun updateReadingStatus(id: String, status: String) = dao.updateReadingStatus(id, status)
+    suspend fun updateResearchNotes(id: String, notes: String) = dao.updateResearchNotes(id, notes)
 
     /** Removes a post and everything hanging off it. */
     suspend fun deletePaper(id: String) {
         database.withTransaction {
             commentDao.deleteForPaper(id)
+            collectionDao.deleteEntriesForPaper(id)
             dao.deletePaper(id)
         }
     }
@@ -475,4 +850,56 @@ class PaperRepository(private val database: AppDatabase) {
     }
 
     suspend fun findPaper(id: String): SavedPaper? = dao.findPaper(id)
+
+    suspend fun getAllPapersOnce(): List<SavedPaper> = dao.getAllPapersOnce()
+
+    suspend fun getAllCollectionsOnce(): List<CollectionEntity> = collectionDao.getAllCollectionsOnce()
+
+    suspend fun getAllEntriesOnce(): List<PaperCollectionEntry> = collectionDao.getAllEntriesOnce()
+
+    suspend fun updateReadingProgress(paperId: String, page: Int, total: Int) =
+        dao.updateReadingProgress(paperId, page, total)
+
+    suspend fun updatePageBookmarks(paperId: String, bookmarks: String) =
+        dao.updatePageBookmarks(paperId, bookmarks)
+
+    /**
+     * Merges cloud synced papers, collections, and folder entries into Room database.
+     * Safely preserves local file paths (PDFs, images) and merges reading status/notes.
+     */
+    suspend fun syncMergeLibrary(
+        remotePapers: List<SavedPaper>,
+        remoteCollections: List<CollectionEntity>,
+        remoteEntries: List<PaperCollectionEntry>
+    ) {
+        database.withTransaction {
+            if (remoteCollections.isNotEmpty()) {
+                collectionDao.insertCollections(remoteCollections)
+            }
+            if (remoteEntries.isNotEmpty()) {
+                collectionDao.insertEntries(remoteEntries)
+            }
+            if (remotePapers.isNotEmpty()) {
+                val localMap = dao.getAllPapersOnce().associateBy { it.id }
+                val mergedPapers = remotePapers.map { remote ->
+                    val local = localMap[remote.id]
+                    if (local != null) {
+                        remote.copy(
+                            pdfLocalPath = local.pdfLocalPath.ifBlank { remote.pdfLocalPath },
+                            imageUri = local.imageUri.ifBlank { remote.imageUri },
+                            readingStatus = if (remote.readingStatus != "TO_READ") remote.readingStatus else local.readingStatus,
+                            researchNotes = remote.researchNotes.ifBlank { local.researchNotes },
+                            isBookmarked = remote.isBookmarked || local.isBookmarked,
+                            lastReadPage = if (remote.lastReadPage > 1) remote.lastReadPage else local.lastReadPage,
+                            totalPageCount = if (remote.totalPageCount > 0) remote.totalPageCount else local.totalPageCount,
+                            pageBookmarks = remote.pageBookmarks.ifBlank { local.pageBookmarks }
+                        )
+                    } else {
+                        remote
+                    }
+                }
+                dao.insertPapers(mergedPapers)
+            }
+        }
+    }
 }

@@ -11,17 +11,15 @@ data class AuthorIdentity(
     val affiliation: String
 ) {
     companion object {
-        /** Placeholder for a signed-out user. Takes a Context so the copy can be translated. */
+        /** Fallback for a user with no specified name or affiliation. Returns empty strings. */
         private fun fallback(context: Context) = AuthorIdentity(
-            name = context.getString(R.string.identity_unattributed),
-            initials = UNKNOWN_INITIALS,
-            affiliation = context.getString(R.string.identity_affiliation_unspecified)
+            name = "",
+            initials = "",
+            affiliation = ""
         )
 
-        private const val UNKNOWN_INITIALS = "??"
-
         /**
-         * Reads the signed-in user, falling back to a placeholder.
+         * Reads the signed-in user, falling back to empty fields.
          *
          * Wrapped in a catch because `google-services.json` ships as a placeholder in this
          * repository: with no real Firebase project, touching FirebaseAuth can throw, and a
@@ -36,7 +34,7 @@ data class AuthorIdentity(
                 AuthorIdentity(
                     name = localUser.displayName,
                     initials = initialsOf(localUser.displayName),
-                    affiliation = localUser.affiliation.ifBlank { fallback(context).affiliation }
+                    affiliation = localUser.affiliation
                 )
             } else {
                 val user = FirebaseAuth.getInstance().currentUser
@@ -45,7 +43,7 @@ data class AuthorIdentity(
                 if (name == null) fallback(context) else AuthorIdentity(
                     name = name,
                     initials = initialsOf(name),
-                    affiliation = fallback(context).affiliation
+                    affiliation = ""
                 )
             }
         } catch (e: Exception) {
@@ -61,14 +59,14 @@ data class AuthorIdentity(
             "phd", "md", "dphil", "jr", "sr", "ii", "iii", "iv"
         )
 
-        /** "Dr. Jane Doe" -> "JD"; a single name yields its first two letters. */
+        /** "Dr. Jane Doe" -> "JD"; a single name yields its first two letters. Empty name yields "". */
         fun initialsOf(name: String): String {
             val words = name.trim()
                 .split(' ', '.', ',')
                 .filter { it.isNotBlank() }
                 .filterNot { it.lowercase() in NON_NAME_PARTS }
             return when {
-                words.isEmpty() -> UNKNOWN_INITIALS
+                words.isEmpty() -> ""
                 words.size == 1 -> words[0].take(2).uppercase()
                 else -> "${words.first().first()}${words.last().first()}".uppercase()
             }

@@ -112,8 +112,8 @@
     <string name="quote_footnote">The citation above travels with your entry, so your repost stays independently citable.</string>
 
     <!-- Composer -->
-    <string name="compose_title_new">New entry</string>
-    <string name="compose_title_edit">Edit entry</string>
+    <string name="compose_title_new">Deposit Research Paper</string>
+    <string name="compose_title_edit">Edit Paper Repository Entry</string>
     <string name="cd_discard_draft">Discard draft</string>
     <string name="section_commentary">Commentary</string>
     <string name="compose_commentary_placeholder">What should your circle know about this paper?</string>
@@ -162,8 +162,8 @@
     <string name="entry_withdrawn">Entry withdrawn</string>
 
     <!-- Identity fallback, used when no account is signed in -->
-    <string name="identity_unattributed">Unattributed researcher</string>
-    <string name="identity_affiliation_unspecified">Affiliation unspecified</string>
+    <string name="identity_unattributed"></string>
+    <string name="identity_affiliation_unspecified"></string>
 
     <!-- Sign-in -->
     <string name="auth_subtitle">Sign in to access your archival library</string>

@@ -5,11 +5,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.data.AuthorIdentity
+import com.example.data.CollectionEntity
+import com.example.data.CollectionWithCount
 import com.example.data.Comment
 import com.example.data.ImageStore
+import com.example.data.PaperCollectionEntry
 import com.example.data.PaperRepository
 import com.example.data.PdfStore
 import com.example.data.SavedPaper
+import com.example.data.ScholarConnection
 import com.example.data.SettingsRepository
 import com.example.data.VenueCount
 import kotlinx.coroutines.flow.Flow
@@ -191,11 +195,6 @@ class HomeViewModel(
         }
     }
 
-    init {
-        // Automatic startup check: if up to date, does not notify the user. If not up to date, notifies.
-        checkForUpdates(currentVersionCode = BuildConfig.VERSION_CODE, isManualCheck = false)
-    }
-
     val feed: StateFlow<ListState<SavedPaper>> = repository.allPapers
         .map { ListState(items = it, isLoading = false) }
         .stateIn(
@@ -220,6 +219,434 @@ class HomeViewModel(
             initialValue = ListState()
         )
 
+    val collections: StateFlow<ListState<CollectionWithCount>> = repository.collectionsWithCount
+        .map { ListState(items = it, isLoading = false) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = ListState()
+        )
+
+    val allCollections: Flow<List<CollectionEntity>> = repository.allCollections
+
+    val connectedScholars: StateFlow<ListState<ScholarConnection>> = repository.connectedScholars
+        .map { ListState(items = it, isLoading = false) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = ListState()
+        )
+
+    val pendingInvitations: StateFlow<ListState<ScholarConnection>> = repository.pendingInvitations
+        .map { ListState(items = it, isLoading = false) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = ListState()
+        )
+
+    val suggestedScholars: StateFlow<ListState<ScholarConnection>> = repository.suggestedScholars
+        .map { ListState(items = it, isLoading = false) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = ListState()
+        )
+
+    val connectedCount: StateFlow<Int> = repository.connectedCount
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0
+        )
+
+    val pendingInvitationCount: StateFlow<Int> = repository.pendingInvitationCount
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0
+        )
+
+    fun papersInCollection(collectionId: String): Flow<ListState<SavedPaper>> =
+        repository.papersInCollection(collectionId).map { ListState(items = it, isLoading = false) }
+
+    fun getCollectionIdsForPaper(paperId: String): Flow<List<String>> =
+        repository.collectionIdsForPaper(paperId)
+
+    fun getCollectionsForPaper(paperId: String): Flow<List<CollectionEntity>> =
+        repository.collectionsForPaper(paperId)
+
+    private val _isSyncingLibrary = MutableStateFlow(false)
+    val isSyncingLibrary: StateFlow<Boolean> = _isSyncingLibrary.asStateFlow()
+
+    private val _lastSyncedTimestamp = MutableStateFlow<Long>(0L)
+    val lastSyncedTimestamp: StateFlow<Long> = _lastSyncedTimestamp.asStateFlow()
+
+    /**
+     * Executes full two-way cloud synchronization for the user's research repository:
+     * - Pushes local custom collections, paper-collection mappings, and library papers (with reading status & notes)
+     * - Pulls remote collections, mappings, and library papers from Supabase PostgreSQL
+     * - Merges remote and local data in Room SQLite transaction without data loss
+     */
+    fun syncFullLibraryNow(showFeedback: Boolean = true) {
+        if (_isSyncingLibrary.value) return
+        viewModelScope.launch {
+            _isSyncingLibrary.value = true
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first().orEmpty()
+
+                if (userId.isBlank() || token.isBlank()) {
+                    if (showFeedback) report("Using local offline repository. Sign in to sync across devices.")
+                    return@launch
+                }
+
+                // 1. Gather local data
+                val localPapers = repository.getAllPapersOnce()
+                val localCollections = repository.getAllCollectionsOnce()
+                val localEntries = repository.getAllEntriesOnce()
+
+                // 2. Push local data to cloud (upsert via on_conflict)
+                if (localCollections.isNotEmpty()) {
+                    SupabaseClient.pushUserCollections(userId, localCollections, token)
+                }
+                if (localEntries.isNotEmpty()) {
+                    SupabaseClient.pushUserCollectionEntries(userId, localEntries, token)
+                }
+                if (localPapers.isNotEmpty()) {
+                    SupabaseClient.pushUserLibraryPapers(userId, localPapers, token)
+                }
+
+                // 3. Pull latest remote data from cloud
+                val remoteCollectionsRes = SupabaseClient.pullUserCollections(userId, token)
+                val remoteEntriesRes = SupabaseClient.pullUserCollectionEntries(userId, token)
+                val remotePapersRes = SupabaseClient.pullUserLibraryPapers(userId, token)
+
+                val remoteCollections = remoteCollectionsRes.getOrDefault(emptyList())
+                val remoteEntries = remoteEntriesRes.getOrDefault(emptyList())
+                val remotePapers = remotePapersRes.getOrDefault(emptyList())
+
+                // 4. Merge into local Room database
+                repository.syncMergeLibrary(remotePapers, remoteCollections, remoteEntries)
+
+                _lastSyncedTimestamp.value = System.currentTimeMillis()
+                if (showFeedback) {
+                    val count = remotePapers.size.coerceAtLeast(localPapers.size)
+                    report("Repository synchronized ($count papers)")
+                }
+            } catch (e: Exception) {
+                Log.e("HomeViewModel", "syncFullLibraryNow error", e)
+                if (showFeedback) report("Sync error. Offline changes preserved.")
+            } finally {
+                _isSyncingLibrary.value = false
+            }
+        }
+    }
+
+    fun createCollection(
+        name: String,
+        description: String = "",
+        colorHex: String = "#1A73E8",
+        iconName: String = "folder"
+    ) {
+        val trimmedName = name.trim()
+        if (trimmedName.isBlank()) return
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val collection = CollectionEntity(
+                id = UUID.randomUUID().toString(),
+                name = trimmedName,
+                description = description.trim(),
+                colorHex = colorHex,
+                iconName = iconName,
+                createdAt = now,
+                updatedAt = now
+            )
+            repository.saveCollection(collection)
+            report("Created collection '$trimmedName'")
+
+            // Cloud sync in background
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first().orEmpty()
+                if (userId.isNotBlank() && token.isNotBlank()) {
+                    SupabaseClient.pushUserCollections(userId, listOf(collection), token)
+                }
+            } catch (e: Exception) {
+                Log.w("HomeViewModel", "createCollection cloud sync error", e)
+            }
+        }
+    }
+
+    fun updateCollection(collection: CollectionEntity) {
+        viewModelScope.launch {
+            val updated = collection.copy(updatedAt = System.currentTimeMillis())
+            repository.updateCollection(updated)
+            report("Updated collection '${collection.name}'")
+
+            // Cloud sync in background
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first().orEmpty()
+                if (userId.isNotBlank() && token.isNotBlank()) {
+                    SupabaseClient.pushUserCollections(userId, listOf(updated), token)
+                }
+            } catch (e: Exception) {
+                Log.w("HomeViewModel", "updateCollection cloud sync error", e)
+            }
+        }
+    }
+
+    fun deleteCollection(collectionId: String, collectionName: String = "") {
+        viewModelScope.launch {
+            repository.deleteCollection(collectionId)
+            report(if (collectionName.isNotBlank()) "Deleted collection '$collectionName'" else "Collection deleted")
+
+            // Cloud sync in background
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first().orEmpty()
+                if (userId.isNotBlank() && token.isNotBlank()) {
+                    SupabaseClient.deleteUserCollection(userId, collectionId, token)
+                }
+            } catch (e: Exception) {
+                Log.w("HomeViewModel", "deleteCollection cloud sync error", e)
+            }
+        }
+    }
+
+    fun addPaperToCollection(paperId: String, collectionId: String) {
+        viewModelScope.launch {
+            repository.addPaperToCollection(paperId, collectionId)
+            report("Paper added to collection")
+
+            // Cloud sync in background
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first().orEmpty()
+                if (userId.isNotBlank() && token.isNotBlank()) {
+                    SupabaseClient.pushUserCollectionEntries(
+                        userId,
+                        listOf(PaperCollectionEntry(paperId, collectionId)),
+                        token
+                    )
+                }
+            } catch (e: Exception) {
+                Log.w("HomeViewModel", "addPaperToCollection cloud sync error", e)
+            }
+        }
+    }
+
+    fun removePaperFromCollection(paperId: String, collectionId: String) {
+        viewModelScope.launch {
+            repository.removePaperFromCollection(paperId, collectionId)
+            report("Paper removed from collection")
+
+            // Cloud sync in background
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first().orEmpty()
+                if (userId.isNotBlank() && token.isNotBlank()) {
+                    SupabaseClient.removeUserCollectionEntry(userId, collectionId, paperId, token)
+                }
+            } catch (e: Exception) {
+                Log.w("HomeViewModel", "removePaperFromCollection cloud sync error", e)
+            }
+        }
+    }
+
+    fun setPaperCollections(paperId: String, selectedCollectionIds: Set<String>) {
+        viewModelScope.launch {
+            repository.setPaperCollections(paperId, selectedCollectionIds)
+            report("Collections updated")
+
+            // Cloud sync in background
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first().orEmpty()
+                if (userId.isNotBlank() && token.isNotBlank()) {
+                    val entries = selectedCollectionIds.map { PaperCollectionEntry(paperId, it) }
+                    if (entries.isNotEmpty()) {
+                        SupabaseClient.pushUserCollectionEntries(userId, entries, token)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("HomeViewModel", "setPaperCollections cloud sync error", e)
+            }
+        }
+    }
+
+    fun setReadingStatus(paperId: String, status: String) {
+        viewModelScope.launch {
+            repository.updateReadingStatus(paperId, status)
+            val label = when (status.uppercase()) {
+                "READING" -> "Marked as Reading"
+                "COMPLETED", "READ" -> "Marked as Read"
+                else -> "Marked as To Read"
+            }
+            report(label)
+
+            // Cloud sync in background
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first().orEmpty()
+                if (userId.isNotBlank() && token.isNotBlank()) {
+                    val paper = repository.findPaper(paperId)
+                    SupabaseClient.syncUserPaperMeta(
+                        userId,
+                        paperId,
+                        status,
+                        paper?.researchNotes.orEmpty(),
+                        paper?.isBookmarked ?: false,
+                        token
+                    )
+                }
+            } catch (e: Exception) {
+                Log.w("HomeViewModel", "setReadingStatus cloud sync error", e)
+            }
+        }
+    }
+
+    fun saveResearchNotes(paperId: String, notes: String) {
+        viewModelScope.launch {
+            repository.updateResearchNotes(paperId, notes)
+            report("Research notes saved")
+
+            // Cloud sync in background
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first().orEmpty()
+                if (userId.isNotBlank() && token.isNotBlank()) {
+                    val paper = repository.findPaper(paperId)
+                    SupabaseClient.syncUserPaperMeta(
+                        userId,
+                        paperId,
+                        paper?.readingStatus ?: "TO_READ",
+                        notes,
+                        paper?.isBookmarked ?: false,
+                        token
+                    )
+                }
+            } catch (e: Exception) {
+                Log.w("HomeViewModel", "saveResearchNotes cloud sync error", e)
+            }
+        }
+    }
+
+    fun paper(paperId: String): Flow<SavedPaper?> = repository.paper(paperId)
+
+    fun updateReadingProgress(paperId: String, page: Int, totalPages: Int) {
+        viewModelScope.launch {
+            val current = repository.findPaper(paperId)
+            val newTotal = if (totalPages > 0) totalPages else (current?.totalPageCount ?: 0)
+            repository.updateReadingProgress(paperId, page, newTotal)
+
+            // Auto-advance reading status from TO_READ to READING if reader moves past page 1
+            var updatedStatus = current?.readingStatus
+            if (current != null && current.readingStatus == "TO_READ" && page > 1) {
+                repository.updateReadingStatus(paperId, "READING")
+                updatedStatus = "READING"
+            }
+
+            // Cloud sync in background
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first().orEmpty()
+                if (userId.isNotBlank() && token.isNotBlank()) {
+                    SupabaseClient.syncUserPaperReadingProgress(
+                        userId = userId,
+                        paperId = paperId,
+                        lastReadPage = page,
+                        totalPageCount = newTotal,
+                        pageBookmarks = current?.pageBookmarks.orEmpty(),
+                        readingStatus = updatedStatus,
+                        accessToken = token
+                    )
+                }
+            } catch (e: Exception) {
+                Log.w("HomeViewModel", "updateReadingProgress cloud sync error", e)
+            }
+        }
+    }
+
+    fun togglePageBookmark(paperId: String, page: Int) {
+        viewModelScope.launch {
+            val paper = repository.findPaper(paperId) ?: return@launch
+            val currentList = paper.pageBookmarks
+                .split(",")
+                .mapNotNull { it.trim().toIntOrNull() }
+                .toMutableSet()
+
+            val isAdded = if (currentList.contains(page)) {
+                currentList.remove(page)
+                false
+            } else {
+                currentList.add(page)
+                true
+            }
+
+            val newCsv = currentList.sorted().joinToString(",")
+            repository.updatePageBookmarks(paperId, newCsv)
+            report(if (isAdded) "Page $page bookmarked" else "Bookmark removed for page $page")
+
+            // Cloud sync in background
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first().orEmpty()
+                if (userId.isNotBlank() && token.isNotBlank()) {
+                    SupabaseClient.syncUserPaperReadingProgress(
+                        userId = userId,
+                        paperId = paperId,
+                        lastReadPage = paper.lastReadPage,
+                        totalPageCount = paper.totalPageCount,
+                        pageBookmarks = newCsv,
+                        readingStatus = null,
+                        accessToken = token
+                    )
+                }
+            } catch (e: Exception) {
+                Log.w("HomeViewModel", "togglePageBookmark cloud sync error", e)
+            }
+        }
+    }
+
+    fun appendExcerptToNotes(
+        paperId: String,
+        pageNumber: Int,
+        tag: String,
+        excerpt: String,
+        commentary: String = ""
+    ) {
+        viewModelScope.launch {
+            val paper = repository.findPaper(paperId) ?: return@launch
+            val cleanExcerpt = excerpt.trim()
+            if (cleanExcerpt.isBlank()) return@launch
+
+            val tagHeader = if (tag.isNotBlank()) "📌 [$tag] " else "📌 "
+            val pageHeader = if (pageNumber > 0) "Page $pageNumber" else "Excerpt"
+            val commentaryBlock = if (commentary.isNotBlank()) "\n💭 Note: ${commentary.trim()}" else ""
+
+            val entry = "$tagHeader$pageHeader:\n\"$cleanExcerpt\"$commentaryBlock"
+
+            val existingNotes = paper.researchNotes.trim()
+            val newNotes = if (existingNotes.isEmpty()) entry else "$existingNotes\n\n---\n$entry"
+
+            saveResearchNotes(paperId, newNotes)
+            report("Excerpt saved to Research Notes")
+        }
+    }
+
     /** Convenience for screens that only need to look a post up by id. */
     val savedPapers: StateFlow<List<SavedPaper>> = repository.allPapers
         .stateIn(
@@ -227,6 +654,11 @@ class HomeViewModel(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
+
+    /**
+     * Executes SQLite C-native Full-Text Search across papers.
+     */
+    fun searchPapersFts(query: String): Flow<List<SavedPaper>> = repository.searchPapersFts(query)
 
     fun comments(paperId: String): Flow<ListState<Comment>> {
         viewModelScope.launch {
@@ -291,7 +723,8 @@ class HomeViewModel(
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     /**
-     * Pull-to-refresh: synchronizes the public feed from Supabase PostgreSQL.
+     * Pull-to-refresh: synchronizes the public feed, research preprints,
+     * venues, and activity alerts from Supabase PostgreSQL.
      */
     fun refresh() {
         if (_isRefreshing.value) return
@@ -299,6 +732,13 @@ class HomeViewModel(
             _isRefreshing.value = true
             try {
                 syncFromSupabase()
+                syncFullLibraryNow(showFeedback = false)
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first() ?: SupabaseConfig.ANON_KEY
+                if (userId.isNotBlank()) {
+                    fetchRemoteNotifications(userId, token)
+                }
             } catch (e: Exception) {
                 report(appContext.getString(R.string.sync_failed))
             } finally {
@@ -335,9 +775,10 @@ class HomeViewModel(
 
     init {
         viewModelScope.launch {
+            repository.seedDefaultScholarsIfEmpty()
             syncFromSupabase()
+            syncFullLibraryNow(showFeedback = false)
             setupRealtimeNotifications()
-            checkForUpdates()
         }
     }
 
@@ -423,6 +864,9 @@ class HomeViewModel(
                 val token = session?.currentAccessToken?.first() ?: SupabaseConfig.ANON_KEY
                 if (userId.isNotBlank()) {
                     SupabaseClient.createPost(paper, userId, token)
+                    if (token != SupabaseConfig.ANON_KEY) {
+                        SupabaseClient.pushUserLibraryPapers(userId, listOf(paper), token)
+                    }
                 }
             } catch (e: Exception) {
                 // Post saved locally in Room SQLite
@@ -476,6 +920,16 @@ class HomeViewModel(
             repository.deletePaper(paper.id)
             report(appContext.getString(R.string.entry_withdrawn)) {
                 restorePaper(paper, orphanedComments)
+            }
+            try {
+                val session = (appContext.applicationContext as? MyApplication)?.sessionManager
+                val userId = session?.currentUserUid?.first().orEmpty()
+                val token = session?.currentAccessToken?.first().orEmpty()
+                if (userId.isNotBlank() && token.isNotBlank()) {
+                    SupabaseClient.deleteUserLibraryPaper(userId, paper.id, token)
+                }
+            } catch (e: Exception) {
+                // Deletion handled locally
             }
         }
     }
@@ -558,6 +1012,34 @@ class HomeViewModel(
 
     fun deleteComment(comment: Comment) {
         viewModelScope.launch { repository.deleteComment(comment) }
+    }
+
+    fun sendConnectionRequest(scholarId: String, reason: String = "", note: String = "") {
+        viewModelScope.launch {
+            repository.sendConnectionRequest(scholarId, reason, note)
+            report("Connection invitation sent")
+        }
+    }
+
+    fun acceptConnection(scholarId: String, scholarName: String = "") {
+        viewModelScope.launch {
+            repository.acceptConnection(scholarId)
+            report(if (scholarName.isNotBlank()) "Connected with $scholarName" else "Connection accepted")
+        }
+    }
+
+    fun ignoreConnection(scholarId: String) {
+        viewModelScope.launch {
+            repository.ignoreConnection(scholarId)
+            report("Invitation ignored")
+        }
+    }
+
+    fun removeConnection(scholarId: String, scholarName: String = "") {
+        viewModelScope.launch {
+            repository.removeConnection(scholarId)
+            report(if (scholarName.isNotBlank()) "Removed $scholarName from connections" else "Connection removed")
+        }
     }
 
     override fun onCleared() {

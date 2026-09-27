@@ -7,21 +7,125 @@ const corsHeaders = {
 };
 
 // Canonical Version & Release Configuration
-export const LATEST_VERSION_NAME = "1.4";
-export const LATEST_VERSION_CODE = 4;
+export const LATEST_VERSION_NAME = "2.2";
+export const LATEST_VERSION_CODE = 12;
 export const DOWNLOAD_URL = "https://cxxtrtglmxfuyihxwiza.supabase.co/storage/v1/object/public/app-releases/CiteCircle-latest.apk";
-export const FILE_SIZE_MB = 28.2;
+export const FILE_SIZE_MB = 28.6;
 
 export const LATEST_RELEASE_NOTES = [
-  "Academic AI Research Guardrails: Constrained Gemini AI strictly to peer-reviewed research topics with anti-extraction and prompt injection defenses",
-  "Messenger Navigation Stability: Fixed backstack loop trapping with singleTop navigation and added header back button",
-  "Fully Editable Academic Profile: Complete editing for Experience, Education, Skills, and Degree title suffix with DataStore persistence",
-  "Owner Profile Actions: Added Open to, Edit Profile, Share, and More action suite with clean left-aligned typography",
-  "UI Standardization: Removed all gradient brushes and decorative emojis for an authentic, high-contrast academic aesthetic",
-  "About App Cleanliness: Cleaned platform version metadata and removed internal architectural notes"
+  "📖 In-App PDF Reader & Highlighter: Built-in document reader with page bookmarking, quick-jump navigation, and progress tracking",
+  "🔖 Page Bookmarks & Auto-Resume: Bookmark pages on the fly and seamlessly resume where you left off",
+  "💡 Excerpt Highlighter & Annotator: Highlight key passages, tag by category (Key Finding, Methodology, Result), and append to notes",
+  "📝 In-Reader Research Notes Sheet: Review and edit personal literature notes without exiting the PDF manuscript",
+  "☁️ Cloud Synced Progress: Reading progress and page bookmarks persist across devices via Room SQLite v9 and Supabase PostgreSQL"
 ].join("\n");
 
 export const RELEASE_HISTORY = [
+  {
+    version: "2.2",
+    version_code: 12,
+    release_date: "2026-09-25",
+    title: "In-App PDF Viewer, Page Bookmarking & Excerpt Highlighter",
+    highlights: [
+      "Built-in PDF reader with auto-resume to lastReadPage and dynamic percentage progress indicator",
+      "Page bookmarking with fast-jump dropdown menu",
+      "Excerpt highlighter dialog with 6 academic category tags (Key Finding, Methodology, Result, Limitation, Idea, General)",
+      "In-reader Research Notes bottom sheet for immediate annotation while reading",
+      "Interactive reading progress badges on library and post cards",
+      "Room schema migration 9 and Supabase PostgreSQL cloud synchronization"
+    ]
+  },
+  {
+    version: "2.1",
+    version_code: 11,
+    release_date: "2026-09-25",
+    title: "Multi-Device Cloud Sync for Collections, Papers & Study Notes",
+    highlights: [
+      "Bidirectional library synchronization to Supabase PostgreSQL",
+      "Syncs custom collections, paper assignments, reading statuses, and personal research notes",
+      "Smart merge protecting local PDF Vault files and cached images",
+      "Interactive 1-tap Cloud Sync button in Library header with live spinner",
+      "PostgreSQL user_library_papers, user_collections, user_collection_papers tables with RLS"
+    ]
+  },
+  {
+    version: "2.0",
+    version_code: 10,
+    release_date: "2026-09-25",
+    title: "Multi-Faceted Filtering, Study Notes & Batch BibTeX Export",
+    highlights: [
+      "Multi-faceted filter and sort drawer across reading status, document type, and dates",
+      "Interactive 1-tap reading status badge (To Read, Reading, Read)",
+      "Personal research notes dialog with card preview snippets",
+      "Batch BibTeX bibliography export for collections and filtered libraries",
+      "Room schema migration 8 with backward compatibility"
+    ]
+  },
+  {
+    version: "1.9",
+    version_code: 9,
+    release_date: "2026-09-25",
+    title: "Repository Collections & Folders Architecture",
+    highlights: [
+      "Dynamic Collections & Folders bar in Library with live paper count badges",
+      "Custom collection creation with 8 academic colors and 6 topic icons",
+      "Universal paper organization dialog accessible from feed and library",
+      "Compact color collection badges on research paper cards",
+      "Room schema migration 7 with many-to-many indexing and cascade cleanup"
+    ]
+  },
+  {
+    version: "1.8",
+    version_code: 8,
+    release_date: "2026-09-25",
+    title: "Research Paper Ingestion Hub & Clean Slate Architecture",
+    highlights: [
+      "1-tap DOI & arXiv import via Crossref, OpenAlex, and native arXiv Atom APIs",
+      "Automated open-access manuscript PDF downloading directly into Paper Vault",
+      "Smart PDF metadata extraction parsing embedded DOIs, XMP, and PDF Info dictionaries",
+      "Exposed complete scholarly metadata schema: Venue, DOI, URL, Abstract, Open Access",
+      "Purged all mock user placeholders and streamlined peer messaging access"
+    ]
+  },
+  {
+    version: "1.7",
+    version_code: 7,
+    release_date: "2026-09-25",
+    title: "Profile Interface & Messenger Keyboard Alignment",
+    highlights: [
+      "Fixed message input text box alignment to anchor directly above software keyboard",
+      "Resolved ProfileScreen and ChatThreadScreen top bar header squashing bug",
+      "Restructured Profile action buttons into responsive layout preventing button truncation",
+      "Added navigation bar padding across Profile and Opportunities scroll streams",
+      "Responsive height constraints on modal dialogs during text input"
+    ]
+  },
+  {
+    version: "1.6",
+    version_code: 6,
+    release_date: "2026-09-21",
+    title: "Universal Swipe-Down Refresh & Streamlined Entry Composer",
+    highlights: [
+      "Swipe-down pull-to-refresh added across all navigation pages, menus, and detail views",
+      "Streamlined entry composer eliminating DOI, venue, URL, PDF link, and abstract fields",
+      "High-speed C++20 parsing engine with zero-copy BibTeX tokenization and magic byte detection",
+      "SQLite C-powered FTS4 virtual table search in Room with database migration 5 to 6"
+    ]
+  },
+  {
+    version: "1.5",
+    version_code: 5,
+    release_date: "2026-09-21",
+    title: "Profile Picture Autonomy, Non-Intrusive Updates & Clean Slate Registration",
+    highlights: [
+      "Modern Android photo picker with automatic downsampling and square cropping",
+      "Persistent sandboxed internal storage preventing Android URI permission expiration",
+      "Cloud avatar synchronization with Supabase Storage and profiles table",
+      "Interactive avatar options: Change Photo, Full-Screen Preview, and Remove Photo",
+      "Startup update check popups removed; manual user-controlled updates enabled",
+      "Zero hardcoded mock data for new users; clean authentic registration slate"
+    ]
+  },
   {
     version: "1.4",
     version_code: 4,

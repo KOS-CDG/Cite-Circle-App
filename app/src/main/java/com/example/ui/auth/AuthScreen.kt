@@ -10,7 +10,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.AccountCircle
@@ -69,21 +68,8 @@ fun AuthScreen(
     var regPassword by remember { mutableStateOf("") }
     var regPasswordVisible by remember { mutableStateOf(false) }
     var regAffiliation by remember { mutableStateOf("") }
-    var regField by remember { mutableStateOf("Computer Science & AI") }
+    var regField by remember { mutableStateOf("") }
     var regAcceptedPrivacy by remember { mutableStateOf(false) }
-    var fieldDropdownExpanded by remember { mutableStateOf(false) }
-
-    val researchFields = listOf(
-        "Computer Science & AI",
-        "Biophysics & Molecular Biology",
-        "Medicine & Clinical Trials",
-        "Physics & Quantum Computing",
-        "Mathematics & Statistics",
-        "Economics & Social Sciences",
-        "Chemistry & Materials Science",
-        "Environmental & Climate Science",
-        "Interdisciplinary Research"
-    )
 
     Column(
         modifier = Modifier
@@ -359,7 +345,7 @@ fun AuthScreen(
                         regName = it
                         errorMessage = null
                     },
-                    label = { Text("Full Name (e.g. Dr. Jane Doe)") },
+                    label = { Text("Full Name") },
                     leadingIcon = { Icon(Icons.Outlined.AccountCircle, contentDescription = null) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -412,44 +398,28 @@ fun AuthScreen(
                         regAffiliation = it
                         errorMessage = null
                     },
-                    label = { Text("Institution / University") },
+                    label = { Text("School or University") },
+                    placeholder = { Text("School or University") },
                     leadingIcon = { Icon(Icons.Outlined.School, contentDescription = null) },
-                    placeholder = { Text("e.g. MIT, Stanford, Oxford") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(Modifier.height(10.dp))
 
-                // Research Field selector
-                ExposedDropdownMenuBox(
-                    expanded = fieldDropdownExpanded,
-                    onExpandedChange = { fieldDropdownExpanded = !fieldDropdownExpanded },
+                // Primary Research Field text field (free-form)
+                OutlinedTextField(
+                    value = regField,
+                    onValueChange = {
+                        regField = it
+                        errorMessage = null
+                    },
+                    label = { Text("Primary Research Field") },
+                    placeholder = { Text("Primary Research Field") },
+                    leadingIcon = { Icon(Icons.Outlined.Science, contentDescription = null) },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
-                ) {
-                    OutlinedTextField(
-                        value = regField,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Primary Research Field") },
-                        trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = fieldDropdownExpanded,
-                        onDismissRequest = { fieldDropdownExpanded = false }
-                    ) {
-                        researchFields.forEach { field ->
-                            DropdownMenuItem(
-                                text = { Text(field) },
-                                onClick = {
-                                    regField = field
-                                    fieldDropdownExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
+                )
 
                 Spacer(Modifier.height(14.dp))
 

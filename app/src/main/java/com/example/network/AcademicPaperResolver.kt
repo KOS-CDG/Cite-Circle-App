@@ -312,11 +312,71 @@ object AcademicPaperResolver {
         }
     }
 
+    fun resolveFromArxivApi(arxivId: String): ResolvedPaperMetadata? {
+        try {
+            val url = "https://export.arxiv.org/api/query?id_list=$arxivId"
+            val request = Request.Builder().url(url).get().build()
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) return null
+            val xml = response.body?.string().orEmpty()
+            if (xml.isBlank() || !xml.contains("<entry>")) return null
+
+            val titleMatcher = Pattern.compile("<entry>.*?<title>(.*?)</title>", Pattern.DOTALL).matcher(xml)
+            val title = if (titleMatcher.find()) titleMatcher.group(1)?.replace(Regex("\\s+"), " ")?.trim().orEmpty() else ""
+            if (title.isBlank()) return null
+
+            val summaryMatcher = Pattern.compile("<summary>(.*?)</summary>", Pattern.DOTALL).matcher(xml)
+            val abstractText = if (summaryMatcher.find()) summaryMatcher.group(1)?.replace(Regex("\\s+"), " ")?.trim().orEmpty() else ""
+
+            val publishedMatcher = Pattern.compile("<published>(\\d{4})").matcher(xml)
+            val year = if (publishedMatcher.find()) publishedMatcher.group(1).orEmpty() else ""
+
+            val authorMatcher = Pattern.compile("<author>\\s*<name>(.*?)</name>\\s*</author>", Pattern.DOTALL).matcher(xml)
+            val authorList = mutableListOf<String>()
+            while (authorMatcher.find()) {
+                val fullName = authorMatcher.group(1)?.trim().orEmpty()
+                if (fullName.isNotBlank()) {
+                    val parts = fullName.split(" ")
+                    val formatted = if (parts.size > 1) {
+                        "${parts.last()}, ${parts.dropLast(1).joinToString(" ")}"
+                    } else {
+                        fullName
+                    }
+                    authorList.add(formatted)
+                }
+            }
+
+            val pdfUrl = "https://arxiv.org/pdf/$arxivId.pdf"
+            val landingUrl = "https://arxiv.org/abs/$arxivId"
+
+            return ResolvedPaperMetadata(
+                title = title,
+                authors = authorList.joinToString("; "),
+                year = year,
+                venue = "arXiv",
+                doi = "arXiv:$arxivId",
+                url = landingUrl,
+                pdfUrl = pdfUrl,
+                abstractText = abstractText,
+                isOpenAccess = true
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "arXiv Atom API lookup failed for $arxivId", e)
+            return null
+        }
+    }
+
     private fun resolveArxiv(arxivId: String): ResolvedPaperMetadata {
         val pdfUrl = "https://arxiv.org/pdf/$arxivId.pdf"
         val landingUrl = "https://arxiv.org/abs/$arxivId"
 
-        // Attempt to fetch title from OpenAlex for arXiv ID
+        // 1. Try native arXiv Atom API first (fastest and most accurate for arXiv)
+        val arxivApiMeta = resolveFromArxivApi(arxivId)
+        if (arxivApiMeta != null && arxivApiMeta.title.isNotBlank()) {
+            return arxivApiMeta
+        }
+
+        // 2. Attempt to fetch title from OpenAlex for arXiv ID
         val openAlexMeta = resolveFromOpenAlex("10.48550/arXiv.$arxivId")
         if (openAlexMeta != null && openAlexMeta.title.isNotBlank()) {
             return openAlexMeta.copy(

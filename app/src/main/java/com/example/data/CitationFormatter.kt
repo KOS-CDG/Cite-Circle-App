@@ -193,6 +193,13 @@ object CitationFormatter {
         ExportFormat.RIS -> ris(paper)
     }
 
+    /** Exports multiple papers into a single aggregated bibliography document. */
+    fun exportBatch(papers: List<SavedPaper>, format: ExportFormat = ExportFormat.BIBTEX): String {
+        val delimiter = if (format == ExportFormat.BIBTEX) "\n\n" else "\r\n"
+        return papers.filter { it.title.isNotBlank() || it.citationOverride.isNotBlank() }
+            .joinToString(delimiter) { export(it, format).trim() }
+    }
+
     private fun bibtex(paper: SavedPaper): String {
         val authors = Author.parseList(paper.authors)
         val fields = buildList {

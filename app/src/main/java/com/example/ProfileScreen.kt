@@ -2,8 +2,11 @@ package com.example
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
+import androidx.compose.material3.CircularProgressIndicator
+import com.example.data.ProfileImageHelper
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,6 +19,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -146,31 +151,7 @@ data class EducationItem(
 )
 
 private fun parseExperienceJson(json: String): List<ExperienceItem> {
-    if (json.isBlank()) {
-        return listOf(
-            ExperienceItem(
-                title = "Postdoctoral Research Fellow",
-                institution = "Stanford AI & Quantum Lab",
-                duration = "2024 – Present · 2 yrs",
-                location = "Palo Alto, California · Full-time",
-                description = "Investigating quantum foundation model reasoning, distributed parameter sharding, and reproducible peer review verification."
-            ),
-            ExperienceItem(
-                title = "Doctoral Researcher & Teaching Fellow",
-                institution = "MIT CSAIL",
-                duration = "2020 – 2024 · 4 yrs",
-                location = "Cambridge, Massachusetts",
-                description = "Published 6 first-author manuscripts across NeurIPS, ICML, and ICLR on transformer attention mechanics."
-            ),
-            ExperienceItem(
-                title = "Visiting Research Scientist",
-                institution = "Google DeepMind / Quantum AI",
-                duration = "Summer 2023 · 5 mos",
-                location = "Mountain View, California",
-                description = "Co-developed tensor-network representations for scalable quantum circuit simulation."
-            )
-        )
-    }
+    if (json.isBlank()) return emptyList()
     return try {
         val array = JSONArray(json)
         val list = mutableListOf<ExperienceItem>()
@@ -209,22 +190,7 @@ private fun serializeExperienceList(list: List<ExperienceItem>): String {
 }
 
 private fun parseEducationJson(json: String): List<EducationItem> {
-    if (json.isBlank()) {
-        return listOf(
-            EducationItem(
-                school = "Massachusetts Institute of Technology (MIT)",
-                degree = "Doctor of Philosophy (Ph.D.), Computer Science & AI",
-                years = "2020 – 2024",
-                details = "Dissertation: 'Scalable Attention Dynamics in Non-Euclidean Latent Spaces'"
-            ),
-            EducationItem(
-                school = "University of California, Berkeley",
-                degree = "Bachelor of Science (B.S.), Electrical Engineering & Computer Sciences",
-                years = "2016 – 2020",
-                details = "Summa Cum Laude · Regents' and Chancellor's Scholar"
-            )
-        )
-    }
+    if (json.isBlank()) return emptyList()
     return try {
         val array = JSONArray(json)
         val list = mutableListOf<EducationItem>()
@@ -278,6 +244,8 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
     val clipboardManager = LocalClipboardManager.current
 
     // Observe persistent profile data
+    val currentUserId by sessionManager.currentUserUid.collectAsStateWithLifecycle(initialValue = "")
+    val currentAccessToken by sessionManager.currentAccessToken.collectAsStateWithLifecycle(initialValue = "")
     val currentName by sessionManager.currentUserName.collectAsStateWithLifecycle(initialValue = "")
     val currentHeadline by sessionManager.currentUserHeadline.collectAsStateWithLifecycle(initialValue = "")
     val currentAffiliation by sessionManager.currentUserAffiliation.collectAsStateWithLifecycle(initialValue = "")
@@ -295,21 +263,21 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
     val currentEducationJson by sessionManager.currentUserEducationJson.collectAsStateWithLifecycle(initialValue = "")
     val currentSkillsCsv by sessionManager.currentUserSkillsCsv.collectAsStateWithLifecycle(initialValue = "")
 
-    // Fallbacks
+    // User profile information from session
     val authorIdentity = remember(context) { AuthorIdentity.current(context) }
-    val displayName = currentName.ifBlank { authorIdentity.name.ifBlank { "Dr. Alex Rivera" } }
-    val affiliation = currentAffiliation.ifBlank { "Stanford University · AI & Quantum Lab" }
-    val headline = currentHeadline.ifBlank { "Senior Research Scientist @ Stanford AI Lab | Cite Circle Fellow" }
-    val researchField = currentField.ifBlank { "Computer Science & Machine Learning" }
-    val location = currentLocation.ifBlank { "Palo Alto, California, United States" }
-    val bio = currentBio.ifBlank {
-        "Lead researcher investigating foundation model reasoning, distributed systems scalability, and open peer review reproducibility. Passionate about transparent preprint dissemination and interdisciplinary collaboration."
+    val displayName = currentName.ifBlank { authorIdentity.name }
+    val affiliation = currentAffiliation
+    val headline = currentHeadline
+    val researchField = currentField
+    val location = currentLocation
+    val bio = currentBio
+    val orcid = currentOrcid
+    val website = currentWebsite
+    val email = currentEmail.ifBlank {
+        authorIdentity.name.takeIf { it.contains("@") } ?: ""
     }
-    val orcid = currentOrcid.ifBlank { "0009-0004-8921-4412" }
-    val website = currentWebsite.ifBlank { "https://citecircle.org/author/arivera" }
-    val email = currentEmail.ifBlank { "alex.rivera@citecircle.edu" }
-    val openTo = currentOpenTo.ifBlank { "Research Collaborations · Peer Review" }
-    val degreeSuffix = currentDegree.ifBlank { "(Ph.D.)" }
+    val openTo = currentOpenTo
+    val degreeSuffix = currentDegree
 
     val stats = remember(feed.items) { ProfileStats.from(feed.items) }
     val initials = remember(displayName) { AuthorIdentity.initialsOf(displayName) }
@@ -322,6 +290,14 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
     var showConnectionsDialog by remember { mutableStateOf(false) }
     var showAnalyticsDialog by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
+
+    // Avatar & Cover Management States
+    var showAvatarOptionsDialog by remember { mutableStateOf(false) }
+    var showCoverOptionsDialog by remember { mutableStateOf(false) }
+    var showAvatarPreviewDialog by remember { mutableStateOf(false) }
+    var showCoverPreviewDialog by remember { mutableStateOf(false) }
+    var isAvatarProcessing by remember { mutableStateOf(false) }
+    var isCoverProcessing by remember { mutableStateOf(false) }
 
     // Academic Experience, Education, and Skills state
     val experiences = remember(currentExperienceJson) {
@@ -336,52 +312,85 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
     var showAddEditEducationDialog by remember { mutableStateOf(false) }
     var educationToEdit by remember { mutableStateOf<EducationItem?>(null) }
 
-    val defaultSkillNames = remember {
-        listOf(
-            "Deep Learning & PyTorch",
-            "Quantum Information Science",
-            "Distributed System Architecture",
-            "Academic Peer Review & Ethics",
-            "Transformer Model Alignment"
-        )
-    }
     val skillNames = remember(currentSkillsCsv) {
         if (currentSkillsCsv.isNotBlank()) {
             currentSkillsCsv.split(",").map { it.trim() }.filter { it.isNotBlank() }
         } else {
-            defaultSkillNames
+            emptyList()
         }
     }
     val skills = remember(skillNames) {
-        skillNames.mapIndexed { idx, name ->
-            SkillItem(name, 48 - idx * 7, false)
+        skillNames.map { name ->
+            SkillItem(name, 0, false)
         }.toMutableStateList()
     }
     var showAddSkillDialog by remember { mutableStateOf(false) }
 
-    var connectionCount by remember { mutableIntStateOf(1248) }
+    val connectionCount by viewModel.connectedCount.collectAsStateWithLifecycle()
     var selectedActivityTab by remember { mutableIntStateOf(0) }
     var isBioExpanded by remember { mutableStateOf(false) }
 
-    // Photo pickers
+    // Photo pickers using modern PickVisualMedia
     val coverPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         uri?.let {
             coroutineScope.launch {
-                sessionManager.updateCoverUri(it.toString())
-                viewModel.report("Cover banner updated successfully.")
+                isCoverProcessing = true
+                try {
+                    val localPath = ProfileImageHelper.persistCover(
+                        context = context,
+                        source = it,
+                        userId = currentUserId
+                    )
+                    if (localPath != null) {
+                        sessionManager.updateCoverUri(localPath)
+                        viewModel.report("Cover banner updated successfully.")
+                    } else {
+                        viewModel.report("Failed to process cover banner.")
+                    }
+                } catch (e: Exception) {
+                    viewModel.report("Error saving cover banner: ${e.localizedMessage}")
+                } finally {
+                    isCoverProcessing = false
+                }
             }
         }
     }
 
     val avatarPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         uri?.let {
             coroutineScope.launch {
-                sessionManager.updateAvatarUri(it.toString())
-                viewModel.report("Profile photo updated successfully.")
+                isAvatarProcessing = true
+                try {
+                    val localPath = ProfileImageHelper.persistAvatar(
+                        context = context,
+                        source = it,
+                        userId = currentUserId
+                    )
+                    if (localPath != null) {
+                        sessionManager.updateAvatarUri(localPath)
+                        viewModel.report("Profile photo updated successfully.")
+                        // Background cloud upload if authenticated
+                        if (currentUserId.isNotBlank() && currentAccessToken.isNotBlank()) {
+                            coroutineScope.launch {
+                                com.example.network.SupabaseClient.uploadAvatar(
+                                    userId = currentUserId,
+                                    imageFile = java.io.File(localPath),
+                                    accessToken = currentAccessToken
+                                )
+                            }
+                        }
+                    } else {
+                        viewModel.report("Failed to process profile photo.")
+                    }
+                } catch (e: Exception) {
+                    viewModel.report("Error saving profile photo: ${e.localizedMessage}")
+                } finally {
+                    isAvatarProcessing = false
+                }
             }
         }
     }
@@ -399,45 +408,46 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                 color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 0.5.dp
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .height(54.dp)
-                        .padding(horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.cd_back),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
+                Column(modifier = Modifier.fillMaxWidth().statusBarsPadding()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                            .padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.cd_back),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
 
-                    Text(
-                        text = displayName,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    IconButton(onClick = { navController.navigate("fields") }) {
-                        Icon(
-                            Icons.Filled.Search,
-                            contentDescription = "Search",
-                            tint = MaterialTheme.colorScheme.onSurface
+                        Text(
+                            text = displayName,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                    }
 
-                    IconButton(onClick = { navController.navigate("settings") }) {
-                        Icon(
-                            Icons.Outlined.Settings,
-                            contentDescription = "Settings",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
+                        IconButton(onClick = { navController.navigate("fields") }) {
+                            Icon(
+                                Icons.Filled.Search,
+                                contentDescription = "Search",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        IconButton(onClick = { navController.navigate("settings") }) {
+                            Icon(
+                                Icons.Outlined.Settings,
+                                contentDescription = "Settings",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
             }
@@ -474,6 +484,7 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                         .fillMaxWidth()
                                         .height(135.dp)
                                         .background(MaterialTheme.colorScheme.primary)
+                                        .clickable { showCoverOptionsDialog = true }
                                 ) {
                                     if (currentCoverUri.isNotBlank()) {
                                         AsyncImage(
@@ -481,6 +492,13 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                             contentDescription = "Cover Banner",
                                             contentScale = ContentScale.Crop,
                                             modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
+
+                                    if (isCoverProcessing) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.align(Alignment.Center).size(32.dp),
+                                            color = Color.White
                                         )
                                     }
 
@@ -492,7 +510,7 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                             .size(36.dp)
                                             .clip(CircleShape)
                                             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
-                                            .clickable { coverPickerLauncher.launch("image/*") },
+                                            .clickable { showCoverOptionsDialog = true },
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
@@ -517,7 +535,8 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                             .size(106.dp)
                                             .clip(CircleShape)
                                             .background(MaterialTheme.colorScheme.surface)
-                                            .border(3.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                                            .border(3.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                                            .clickable { showAvatarOptionsDialog = true },
                                         contentAlignment = Alignment.Center
                                     ) {
                                         if (currentAvatarUri.isNotBlank()) {
@@ -532,6 +551,22 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                         } else {
                                             Avatar(initials, 98.dp)
                                         }
+
+                                        if (isAvatarProcessing) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(98.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color.Black.copy(alpha = 0.45f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(28.dp),
+                                                    color = Color.White,
+                                                    strokeWidth = 2.5.dp
+                                                )
+                                            }
+                                        }
                                     }
 
                                     // Camera badge on Avatar
@@ -542,7 +577,7 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                             .clip(CircleShape)
                                             .background(MaterialTheme.colorScheme.primary)
                                             .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
-                                            .clickable { avatarPickerLauncher.launch("image/*") },
+                                            .clickable { showAvatarOptionsDialog = true },
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
@@ -559,7 +594,7 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                     modifier = Modifier
                                         .align(Alignment.BottomEnd)
                                         .padding(end = 12.dp, bottom = 4.dp)
-                                ) {
+                                    ) {
                                     IconButton(
                                         onClick = { showEditIntroDialog = true },
                                         modifier = Modifier.size(38.dp)
@@ -580,63 +615,68 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                     .fillMaxWidth()
                                     .padding(horizontal = 16.dp, vertical = 6.dp)
                             ) {
-                                // Name + Verified Checkmark + Pronouns
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Text(
-                                        text = displayName,
-                                        style = MaterialTheme.typography.titleLarge.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 22.sp
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Icon(
-                                        Icons.Filled.Verified,
-                                        contentDescription = "Verified Scholar",
-                                        tint = BrandBlue,
-                                        modifier = Modifier
-                                            .size(20.dp)
-                                            .clickable { showVerificationDialog = true }
-                                    )
-                                    if (degreeSuffix.isNotBlank()) {
+                                // Name + Verified Checkmark + Degree Suffix
+                                if (displayName.isNotBlank()) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
                                         Text(
-                                            text = degreeSuffix,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            text = displayName,
+                                            style = MaterialTheme.typography.titleLarge.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 22.sp
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
+                                        Icon(
+                                            Icons.Filled.Verified,
+                                            contentDescription = "Verified Scholar",
+                                            tint = BrandBlue,
+                                            modifier = Modifier
+                                                .size(20.dp)
+                                                .clickable { showVerificationDialog = true }
+                                        )
+                                        if (degreeSuffix.isNotBlank()) {
+                                            Text(
+                                                text = degreeSuffix,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
+                                    Spacer(Modifier.height(4.dp))
                                 }
 
-                                Spacer(Modifier.height(4.dp))
-
                                 // Professional Headline
-                                Text(
-                                    text = headline,
-                                    style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 19.sp),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-
-                                Spacer(Modifier.height(6.dp))
-
-                                // Current Institution / School
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Outlined.School,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
+                                if (headline.isNotBlank()) {
                                     Text(
-                                        text = affiliation,
-                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                        text = headline,
+                                        style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 19.sp),
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
+                                }
+
+                                if (affiliation.isNotBlank()) {
+                                    Spacer(Modifier.height(6.dp))
+
+                                    // Current Institution / School
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Outlined.School,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = affiliation,
+                                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
                                 }
 
                                 Spacer(Modifier.height(4.dp))
@@ -646,22 +686,24 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Icon(
-                                        Icons.Outlined.LocationOn,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Text(
-                                        text = location,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = "·",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    if (location.isNotBlank()) {
+                                        Icon(
+                                            Icons.Outlined.LocationOn,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Text(
+                                            text = location,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = "·",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                     Text(
                                         text = "Contact info",
                                         style = MaterialTheme.typography.bodySmall.copy(
@@ -681,45 +723,46 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                         fontWeight = FontWeight.SemiBold,
                                         color = BrandBlue
                                     ),
-                                    modifier = Modifier.clickable { showConnectionsDialog = true }
+                                    modifier = Modifier.clickable { navController.navigate("network") }
                                 )
 
-                                Spacer(Modifier.height(10.dp))
-
-                                // "Open to" Badge Container (Classic LinkedIn)
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = BrandBlue.copy(alpha = 0.08f),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, BrandBlue.copy(alpha = 0.25f)),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { showOpenToDialog = true }
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                if (openTo.isNotBlank()) {
+                                    Spacer(Modifier.height(10.dp))
+                                    // "Open to" Badge Container (Classic LinkedIn)
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = BrandBlue.copy(alpha = 0.08f),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, BrandBlue.copy(alpha = 0.25f)),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { showOpenToDialog = true }
                                     ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "Open to academic opportunities",
-                                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                                color = BrandBlue
-                                            )
-                                            Text(
-                                                text = openTo,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = "Open to academic opportunities",
+                                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                    color = BrandBlue
+                                                )
+                                                Text(
+                                                    text = openTo,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            Icon(
+                                                Icons.Outlined.Edit,
+                                                contentDescription = null,
+                                                tint = BrandBlue,
+                                                modifier = Modifier.size(16.dp)
                                             )
                                         }
-                                        Icon(
-                                            Icons.Outlined.Edit,
-                                            contentDescription = null,
-                                            tint = BrandBlue,
-                                            modifier = Modifier.size(16.dp)
-                                        )
                                     }
                                 }
 
@@ -736,12 +779,13 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                         onClick = { showOpenToDialog = true },
                                         shape = RoundedCornerShape(20.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
-                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         Text(
                                             "Open to",
-                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                            maxLines = 1
                                         )
                                     }
 
@@ -749,8 +793,8 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                     OutlinedButton(
                                         onClick = { showEditIntroDialog = true },
                                         shape = RoundedCornerShape(20.dp),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                                        modifier = Modifier.weight(1.2f)
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                                        modifier = Modifier.weight(1f)
                                     ) {
                                         Icon(
                                             Icons.Outlined.Edit,
@@ -760,29 +804,25 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                         Spacer(Modifier.width(4.dp))
                                         Text(
                                             "Edit Profile",
-                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                            maxLines = 1
                                         )
                                     }
 
-                                    // 3. Share Profile (Outlined Pill)
+                                    // 3. Share Profile (Outlined Circular Button)
                                     OutlinedButton(
                                         onClick = {
                                             clipboardManager.setText(AnnotatedString(website))
                                             viewModel.report("Profile URL copied to clipboard")
                                         },
-                                        shape = RoundedCornerShape(20.dp),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                                        modifier = Modifier.weight(1f)
+                                        shape = CircleShape,
+                                        contentPadding = PaddingValues(0.dp),
+                                        modifier = Modifier.size(38.dp)
                                     ) {
                                         Icon(
                                             Icons.Outlined.Share,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(15.dp)
-                                        )
-                                        Spacer(Modifier.width(4.dp))
-                                        Text(
-                                            "Share",
-                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+                                            contentDescription = "Share",
+                                            modifier = Modifier.size(17.dp)
                                         )
                                     }
 
@@ -792,7 +832,7 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                             onClick = { showMoreMenu = true },
                                             shape = CircleShape,
                                             contentPadding = PaddingValues(0.dp),
-                                            modifier = Modifier.size(36.dp)
+                                            modifier = Modifier.size(38.dp)
                                         ) {
                                             Icon(
                                                 Icons.Filled.MoreHoriz,
@@ -813,18 +853,6 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                                     viewModel.report("Profile URL copied to clipboard")
                                                 },
                                                 leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null) }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text("Send Profile in Direct Message") },
-                                                onClick = {
-                                                    showMoreMenu = false
-                                                    navController.navigate("messenger") {
-                                                        popUpTo("feed") { saveState = true }
-                                                        launchSingleTop = true
-                                                        restoreState = true
-                                                    }
-                                                },
-                                                leadingIcon = { Icon(Icons.Outlined.Email, contentDescription = null) }
                                             )
                                             DropdownMenuItem(
                                                 text = { Text("Export Academic CV (BibTeX)") },
@@ -904,7 +932,7 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                 Box(modifier = Modifier.weight(1f)) {
                                     AnalyticsMetricTile(
                                         icon = Icons.Outlined.Visibility,
-                                        value = "1,280",
+                                        value = "0",
                                         label = "profile views",
                                         subtext = "Past 7 days"
                                     )
@@ -912,17 +940,17 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                 Box(modifier = Modifier.weight(1f)) {
                                     AnalyticsMetricTile(
                                         icon = Icons.Outlined.AutoGraph,
-                                        value = "3,420",
+                                        value = "0",
                                         label = "post impressions",
-                                        subtext = "+18% this week"
+                                        subtext = "This week"
                                     )
                                 }
                                 Box(modifier = Modifier.weight(1f)) {
                                     AnalyticsMetricTile(
                                         icon = Icons.Filled.Search,
-                                        value = "412",
+                                        value = "0",
                                         label = "search appearances",
-                                        subtext = "Top scholar search"
+                                        subtext = "Scholar search"
                                     )
                                 }
                             }
@@ -966,52 +994,62 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
 
                             Spacer(Modifier.height(8.dp))
 
-                            Text(
-                                text = bio,
-                                style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 21.sp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = if (isBioExpanded) Int.MAX_VALUE else 3,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.animateContentSize()
-                            )
+                            if (bio.isBlank()) {
+                                Text(
+                                    text = "No bio added yet. Tap edit to introduce your research background to colleagues.",
+                                    style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                Text(
+                                    text = bio,
+                                    style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 21.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = if (isBioExpanded) Int.MAX_VALUE else 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.animateContentSize()
+                                )
 
-                            Text(
-                                text = if (isBioExpanded) "see less" else "...see more",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = BrandBlue),
-                                modifier = Modifier
-                                    .padding(top = 4.dp)
-                                    .clickable { isBioExpanded = !isBioExpanded }
-                            )
-
-                            Spacer(Modifier.height(14.dp))
-                            HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
-                            Spacer(Modifier.height(12.dp))
-
-                            Text(
-                                text = "Top Specialties & Research Domains",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-
-                            Spacer(Modifier.height(8.dp))
+                                Text(
+                                    text = if (isBioExpanded) "see less" else "...see more",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = BrandBlue),
+                                    modifier = Modifier
+                                        .padding(top = 4.dp)
+                                        .clickable { isBioExpanded = !isBioExpanded }
+                                )
+                            }
 
                             val specialties = remember(researchField, skillNames) {
                                 (listOf(researchField) + skillNames).distinct().filter { it.isNotBlank() }.take(6)
                             }
 
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(specialties) { domain ->
-                                    Surface(
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = SurfaceInset,
-                                        modifier = Modifier.padding(vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = domain,
-                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                                        )
+                            if (specialties.isNotEmpty()) {
+                                Spacer(Modifier.height(14.dp))
+                                HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
+                                Spacer(Modifier.height(12.dp))
+
+                                Text(
+                                    text = "Top Specialties & Research Domains",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+
+                                Spacer(Modifier.height(8.dp))
+
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    items(specialties) { domain ->
+                                        Surface(
+                                            shape = RoundedCornerShape(16.dp),
+                                            color = SurfaceInset,
+                                            modifier = Modifier.padding(vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = domain,
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1224,8 +1262,7 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                                         is ActivityItem.Cited -> navController.navigate("post/${item.quote.quotedId}")
                                         is ActivityItem.Endorsed -> navController.navigate("post/${item.paperId}")
                                         is ActivityItem.Messaged -> {
-                                            if (item.targetPaperId.isNotBlank()) navController.navigate("chat_thread/${item.targetPaperId}")
-                                            else navController.navigate("messenger")
+                                            // Direct message access disabled for now
                                         }
                                     }
                                 }
@@ -1527,7 +1564,10 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                     }
                 }
 
-                item { Spacer(Modifier.height(16.dp)) }
+                item {
+                    Spacer(Modifier.navigationBarsPadding())
+                    Spacer(Modifier.height(16.dp))
+                }
             }
         }
     }
@@ -1559,7 +1599,7 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(380.dp),
+                        .heightIn(max = 380.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     item {
@@ -1696,37 +1736,43 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                     ContactItemRow(
                         icon = Icons.Outlined.Email,
                         title = "Institutional Email",
-                        value = email,
-                        actionLabel = "Copy",
-                        onAction = {
-                            clipboardManager.setText(AnnotatedString(email))
-                            viewModel.report("Email copied to clipboard.")
-                        }
+                        value = email.ifBlank { "Not specified" },
+                        actionLabel = if (email.isNotBlank()) "Copy" else null,
+                        onAction = if (email.isNotBlank()) {
+                            {
+                                clipboardManager.setText(AnnotatedString(email))
+                                viewModel.report("Email copied to clipboard.")
+                            }
+                        } else null
                     )
                     ContactItemRow(
                         icon = Icons.Outlined.Verified,
                         title = "ORCID Identifier",
-                        value = orcid,
-                        actionLabel = "Copy",
-                        onAction = {
-                            clipboardManager.setText(AnnotatedString("https://orcid.org/$orcid"))
-                            viewModel.report("ORCID URL copied.")
-                        }
+                        value = orcid.ifBlank { "Not linked" },
+                        actionLabel = if (orcid.isNotBlank()) "Copy" else null,
+                        onAction = if (orcid.isNotBlank()) {
+                            {
+                                clipboardManager.setText(AnnotatedString("https://orcid.org/$orcid"))
+                                viewModel.report("ORCID URL copied.")
+                            }
+                        } else null
                     )
                     ContactItemRow(
                         icon = Icons.Outlined.Language,
                         title = "Scholar Homepage / Lab",
-                        value = website,
-                        actionLabel = "Copy",
-                        onAction = {
-                            clipboardManager.setText(AnnotatedString(website))
-                            viewModel.report("Website link copied.")
-                        }
+                        value = website.ifBlank { "Not linked" },
+                        actionLabel = if (website.isNotBlank()) "Copy" else null,
+                        onAction = if (website.isNotBlank()) {
+                            {
+                                clipboardManager.setText(AnnotatedString(website))
+                                viewModel.report("Website link copied.")
+                            }
+                        } else null
                     )
                     ContactItemRow(
                         icon = Icons.Outlined.LocationOn,
                         title = "Campus Office & Coordinates",
-                        value = location,
+                        value = location.ifBlank { "Not specified" },
                         actionLabel = null,
                         onAction = null
                     )
@@ -1808,7 +1854,7 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                         if (openCollab) choices.add("Research Collaborations")
                         if (openReview) choices.add("Peer Review")
                         if (openPostdoc) choices.add("Faculty/Postdoctoral Roles")
-                        val resultStr = if (choices.isEmpty()) "Open to academic inquiries" else choices.joinToString(" · ")
+                        val resultStr = choices.joinToString(" · ")
                         coroutineScope.launch {
                             sessionManager.updateOpenTo(resultStr)
                             showOpenToDialog = false
@@ -1842,10 +1888,12 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Researcher: $displayName", fontWeight = FontWeight.SemiBold)
-                    Text("Affiliation: $affiliation", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("ORCID: $orcid (Cryptographically Verified)", color = BrandBlue, fontWeight = FontWeight.SemiBold)
-                    Text("Institutional Domain: $email (.edu certified)", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (displayName.isNotBlank()) {
+                        Text("Researcher: $displayName", fontWeight = FontWeight.SemiBold)
+                    }
+                    Text("Affiliation: ${affiliation.ifBlank { "Not specified" }}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("ORCID: ${if (orcid.isNotBlank()) "$orcid (Cryptographically Verified)" else "Not linked"}", color = BrandBlue, fontWeight = FontWeight.SemiBold)
+                    Text("Institutional Domain: ${if (email.isNotBlank()) email else "Not specified"}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("Status: Active Peer Reviewer & Verified Scholar", style = MaterialTheme.typography.bodySmall, color = AccentGreen)
                 }
             },
@@ -1868,17 +1916,25 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "$displayName is connected with $connectionCount verified scholars across Stanford, MIT, Harvard, Berkeley, and Oxford.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "• 89 Mutual Circle Connections\n• 42 Co-authors in common\n• 500+ Cross-citations in preprint library",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 18.sp
-                    )
+                    if (connectionCount == 0) {
+                        Text(
+                            "You have not connected with any researchers yet.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "• Connect with peers in your field to build your academic circle\n• Exchange preprint reviews, co-authorships, and citations",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 18.sp
+                        )
+                    } else {
+                        val who = if (displayName.isNotBlank()) displayName else "You are"
+                        Text(
+                            "$who connected with $connectionCount verified scholars in your circle.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -1902,16 +1958,276 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Private academic performance report (past 7 days):", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        AnalyticsStatRow(label = "Profile Views", value = "1,280 (+14% vs last week)")
-                        AnalyticsStatRow(label = "Paper Impressions on Feed", value = "3,420")
-                        AnalyticsStatRow(label = "Search Appearances", value = "412 for 'Quantum Machine Learning'")
-                        AnalyticsStatRow(label = "Author h-index", value = "18")
-                        AnalyticsStatRow(label = "i10-index", value = "24")
+                        AnalyticsStatRow(label = "Profile Views", value = "0")
+                        AnalyticsStatRow(label = "Paper Impressions on Feed", value = "0")
+                        AnalyticsStatRow(label = "Search Appearances", value = "0")
+                        AnalyticsStatRow(label = "Author h-index", value = "0")
+                        AnalyticsStatRow(label = "i10-index", value = "0")
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showAnalyticsDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    // =============================================================
+    // Dialog: Profile Photo Options Modal
+    // =============================================================
+    if (showAvatarOptionsDialog) {
+        AlertDialog(
+            onDismissRequest = { showAvatarOptionsDialog = false },
+            title = {
+                Text("Profile Photo", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            showAvatarOptionsDialog = false
+                            avatarPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            Icon(Icons.Outlined.CameraAlt, contentDescription = null, tint = BrandBlue)
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                if (currentAvatarUri.isNotBlank()) "Change Profile Photo" else "Upload Profile Photo",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    if (currentAvatarUri.isNotBlank()) {
+                        TextButton(
+                            onClick = {
+                                showAvatarOptionsDialog = false
+                                showAvatarPreviewDialog = true
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                Icon(Icons.Outlined.Visibility, contentDescription = null, tint = BrandBlue)
+                                Spacer(Modifier.width(12.dp))
+                                Text("View Full Photo", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+                            }
+                        }
+
+                        TextButton(
+                            onClick = {
+                                showAvatarOptionsDialog = false
+                                coroutineScope.launch {
+                                    val oldUri = currentAvatarUri
+                                    sessionManager.updateAvatarUri("")
+                                    ProfileImageHelper.deleteImage(context, oldUri)
+                                    viewModel.report("Profile photo removed.")
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                Icon(Icons.Outlined.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                Spacer(Modifier.width(12.dp))
+                                Text("Remove Profile Photo", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAvatarOptionsDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // =============================================================
+    // Dialog: Full-Size Profile Photo Preview Modal
+    // =============================================================
+    if (showAvatarPreviewDialog && currentAvatarUri.isNotBlank()) {
+        AlertDialog(
+            onDismissRequest = { showAvatarPreviewDialog = false },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Profile Photo Preview", fontWeight = FontWeight.Bold)
+                    IconButton(onClick = { showAvatarPreviewDialog = false }) {
+                        Icon(Icons.Filled.Close, contentDescription = "Close")
+                    }
+                }
+            },
+            text = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(280.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = currentAvatarUri,
+                        contentDescription = "Profile Photo Preview",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAvatarPreviewDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    // =============================================================
+    // Dialog: Cover Banner Options Modal
+    // =============================================================
+    if (showCoverOptionsDialog) {
+        AlertDialog(
+            onDismissRequest = { showCoverOptionsDialog = false },
+            title = {
+                Text("Cover Banner", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            showCoverOptionsDialog = false
+                            coverPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            Icon(Icons.Outlined.CameraAlt, contentDescription = null, tint = BrandBlue)
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                if (currentCoverUri.isNotBlank()) "Change Cover Banner" else "Upload Cover Banner",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    if (currentCoverUri.isNotBlank()) {
+                        TextButton(
+                            onClick = {
+                                showCoverOptionsDialog = false
+                                showCoverPreviewDialog = true
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                Icon(Icons.Outlined.Visibility, contentDescription = null, tint = BrandBlue)
+                                Spacer(Modifier.width(12.dp))
+                                Text("View Cover Banner", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+                            }
+                        }
+
+                        TextButton(
+                            onClick = {
+                                showCoverOptionsDialog = false
+                                coroutineScope.launch {
+                                    val oldUri = currentCoverUri
+                                    sessionManager.updateCoverUri("")
+                                    ProfileImageHelper.deleteImage(context, oldUri)
+                                    viewModel.report("Cover banner removed.")
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                Icon(Icons.Outlined.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                Spacer(Modifier.width(12.dp))
+                                Text("Remove Cover Banner", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCoverOptionsDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // =============================================================
+    // Dialog: Full-Size Cover Banner Preview Modal
+    // =============================================================
+    if (showCoverPreviewDialog && currentCoverUri.isNotBlank()) {
+        AlertDialog(
+            onDismissRequest = { showCoverPreviewDialog = false },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Cover Banner Preview", fontWeight = FontWeight.Bold)
+                    IconButton(onClick = { showCoverPreviewDialog = false }) {
+                        Icon(Icons.Filled.Close, contentDescription = "Close")
+                    }
+                }
+            },
+            text = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = currentCoverUri,
+                        contentDescription = "Cover Banner Preview",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(8.dp))
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCoverPreviewDialog = false }) {
                     Text("Close")
                 }
             }
@@ -1943,7 +2259,7 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(340.dp),
+                        .heightIn(max = 340.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     item {
@@ -1977,7 +2293,7 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                         OutlinedTextField(
                             value = expLocation,
                             onValueChange = { expLocation = it },
-                            label = { Text("Location (e.g., Stanford, CA)") },
+                            label = { Text("Location (City, Country)") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -2094,7 +2410,7 @@ fun ProfileScreen(viewModel: HomeViewModel, navController: NavController) {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(300.dp),
+                        .heightIn(max = 300.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     item {

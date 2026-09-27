@@ -15,8 +15,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.AddPhotoAlternate
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.PictureAsPdf
+import androidx.compose.material.icons.outlined.School
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -41,6 +45,7 @@ import com.example.data.CitationStyle
 import com.example.data.ImageStore
 import com.example.data.PdfStore
 import com.example.data.SavedPaper
+import com.example.data.PaperMetadataExtractor
 import com.example.data.security.DocumentFormat
 import com.example.data.security.ValidationResult
 import com.example.network.AcademicPaperResolver
@@ -72,7 +77,6 @@ fun ComposePostScreen(
     var imagePath by rememberSaveable { mutableStateOf(existing?.imageUri.orEmpty()) }
     var pdfLocalPath by rememberSaveable { mutableStateOf(existing?.pdfLocalPath.orEmpty()) }
     var pdfUrl by rememberSaveable { mutableStateOf(existing?.pdfUrl.orEmpty()) }
-    var abstractText by rememberSaveable { mutableStateOf(existing?.abstractText.orEmpty()) }
     var openAccess by rememberSaveable { mutableStateOf(existing?.openAccess ?: false) }
     var title by rememberSaveable { mutableStateOf(existing?.title.orEmpty()) }
     var authors by rememberSaveable { mutableStateOf(existing?.authors.orEmpty()) }
@@ -80,13 +84,17 @@ fun ComposePostScreen(
     var venue by rememberSaveable { mutableStateOf(existing?.venue.orEmpty()) }
     var doi by rememberSaveable { mutableStateOf(existing?.doi.orEmpty()) }
     var url by rememberSaveable { mutableStateOf(existing?.url.orEmpty()) }
+    var abstractText by rememberSaveable { mutableStateOf(existing?.abstractText.orEmpty()) }
     var affiliation by rememberSaveable {
         mutableStateOf(existing?.affiliation ?: identity.affiliation)
     }
     var previewStyle by rememberSaveable { mutableStateOf(CitationStyle.DEFAULT) }
     var showErrors by rememberSaveable { mutableStateOf(false) }
-    var isResolvingDoi by remember { mutableStateOf(false) }
-    var doiStatusMessage by remember { mutableStateOf("") }
+
+    // Ingestion Hub State
+    var importQuery by rememberSaveable { mutableStateOf("") }
+    var isImporting by rememberSaveable { mutableStateOf(false) }
+    var extractionBanner by rememberSaveable { mutableStateOf<String?>(null) }
 
     // The image and pdf the post already had. Only *newly* picked files should be cleaned up on
     // discard — deleting these would strip attachments off the saved post.
@@ -172,6 +180,20 @@ fun ComposePostScreen(
                             if (previous.isNotBlank() && previous != originalPdf) {
                                 PdfStore.delete(context, previous)
                             }
+                            val originalName = PaperMetadataExtractor.resolveDisplayName(context, uri)
+                            val extracted = PaperMetadataExtractor.extractFromFile(File(stored), originalName)
+                            if (title.isBlank() && extracted.title.isNotBlank()) title = extracted.title
+                            if (authors.isBlank() && extracted.authors.isNotBlank()) authors = extracted.authors
+                            if (year.isBlank() && extracted.year.isNotBlank()) year = extracted.year
+                            if (venue.isBlank() && extracted.venue.isNotBlank()) venue = extracted.venue
+                            if (doi.isBlank() && extracted.doi.isNotBlank()) doi = extracted.doi
+                            if (url.isBlank() && extracted.url.isNotBlank()) url = extracted.url
+                            if (abstractText.isBlank() && extracted.abstractText.isNotBlank()) abstractText = extracted.abstractText
+                            if (extracted.isOpenAccess) openAccess = true
+                            if (extracted.source.isNotBlank()) {
+                                extractionBanner = "Auto-extracted from ${extracted.source}"
+                                viewModel.report("Extracted metadata: ${extracted.source}")
+                            }
                         } else {
                             viewModel.report("Unable to process selected document.")
                         }
@@ -237,313 +259,418 @@ fun ComposePostScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
         ) {
-            Spacer(Modifier.height(12.dp))
-            SectionLabel(stringResource(R.string.section_commentary))
-        EditorialTextField(
-            value = commentary,
-            onValueChange = { commentary = it },
-            placeholder = stringResource(R.string.compose_commentary_placeholder),
-            minLines = 4
-        )
+            Spacer(Modifier.height(14.dp))
 
-        Spacer(Modifier.height(20.dp))
-        SectionLabel(stringResource(R.string.section_attachment))
-        if (imagePath.isBlank()) {
-            OutlinedButton(
-                onClick = {
-                    imagePicker.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                },
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape = MaterialTheme.shapes.extraLarge,
+            // 1. PAPER INGESTION HUB CARD
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
-                Icon(
-                    Icons.Outlined.AddPhotoAlternate,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    stringResource(R.string.action_add_figure),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Outlined.AutoAwesome,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Paper Ingestion Hub",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Auto-import metadata and open-access PDFs by DOI or arXiv ID, or upload a manuscript below.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = importQuery,
+                            onValueChange = { importQuery = it },
+                            modifier = Modifier.weight(1f),
+                            placeholder = { Text("DOI or arXiv ID (e.g. 10.1038/... or 2301.07041)", fontSize = 12.sp) },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodyMedium,
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                if (importQuery.isNotBlank() && !isImporting) {
+                                    isImporting = true
+                                    scope.launch {
+                                        try {
+                                            val meta = AcademicPaperResolver.resolveDoi(importQuery)
+                                            if (meta != null && meta.title.isNotBlank()) {
+                                                title = meta.title
+                                                authors = meta.authors
+                                                year = meta.year
+                                                venue = meta.venue
+                                                doi = meta.doi
+                                                url = meta.url
+                                                abstractText = meta.abstractText
+                                                openAccess = meta.isOpenAccess
+                                                if (meta.pdfUrl.isNotBlank() && pdfLocalPath.isBlank()) {
+                                                    val downloaded = PdfStore.downloadPdf(context, meta.pdfUrl)
+                                                    if (downloaded != null) {
+                                                        pdfLocalPath = downloaded
+                                                        pdfUrl = meta.pdfUrl
+                                                    }
+                                                }
+                                                val src = if (meta.venue.isNotBlank()) meta.venue else "Academic Registry"
+                                                extractionBanner = "Successfully imported from $src"
+                                                viewModel.report("Imported: ${meta.title}")
+                                            } else {
+                                                viewModel.report("Could not find paper for identifier: $importQuery")
+                                            }
+                                        } catch (e: Exception) {
+                                            viewModel.report("Import failed: ${e.message}")
+                                        } finally {
+                                            isImporting = false
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = importQuery.isNotBlank() && !isImporting,
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                            modifier = Modifier.height(52.dp)
+                        ) {
+                            if (isImporting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Text("Auto-Fill", fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                    if (extractionBanner != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                extractionBanner!!,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
             }
-        } else {
-            Box(modifier = Modifier.fillMaxWidth()) {
-                AsyncImage(
-                    model = File(imagePath),
-                    contentDescription = stringResource(R.string.cd_attached_figure),
-                    contentScale = ContentScale.Crop,
+
+            Spacer(Modifier.height(18.dp))
+
+            // 2. ATTACHED MANUSCRIPT
+            SectionLabel("Research Manuscript")
+            if (pdfLocalPath.isBlank()) {
+                OutlinedButton(
+                    onClick = { documentPicker.launch(allowedDocumentMimeTypes) },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Icon(
+                        Icons.Outlined.Description,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Attach Manuscript (PDF, Word, Text)",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            } else {
+                val format = PdfStore.getDocumentFormat(pdfLocalPath)
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 240.dp)
                         .clip(MaterialTheme.shapes.small)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .border(
                             1.dp,
                             MaterialTheme.colorScheme.outlineVariant,
                             MaterialTheme.shapes.small
                         )
+                        .padding(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                if (format == DocumentFormat.PDF) Icons.Outlined.PictureAsPdf else Icons.Outlined.Description,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    "Manuscript Attached (${format.label})",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    PdfStore.getFormattedSize(pdfLocalPath),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        IconButton(
+                            onClick = {
+                                val pending = pdfLocalPath
+                                pdfLocalPath = ""
+                                scope.launch { PdfStore.delete(context, pending) }
+                            }
+                        ) {
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = "Remove Paper",
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Spacer(Modifier.height(20.dp))
+
+            // 3. STRUCTURED REPOSITORY METADATA
+            SectionLabel(stringResource(R.string.section_paper_details))
+            EditorialTextField(
+                value = title,
+                onValueChange = { title = it },
+                placeholder = stringResource(R.string.field_title),
+                isError = showErrors && titleError
+            )
+            if (showErrors && titleError) {
+                FieldError(stringResource(R.string.error_title_required))
+            }
+
+            Spacer(Modifier.height(10.dp))
+            EditorialTextField(
+                value = authors,
+                onValueChange = { authors = it },
+                placeholder = stringResource(R.string.field_authors)
+            )
+            FieldHint(stringResource(R.string.hint_authors))
+
+            Spacer(Modifier.height(10.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Box(modifier = Modifier.weight(0.35f)) {
+                    EditorialTextField(
+                        value = year,
+                        onValueChange = { year = it },
+                        placeholder = stringResource(R.string.field_year),
+                        keyboardType = KeyboardType.Number,
+                        isError = showErrors && yearError
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Box(modifier = Modifier.weight(0.65f)) {
+                    EditorialTextField(
+                        value = venue,
+                        onValueChange = { venue = it },
+                        placeholder = "Venue / Journal (e.g. NeurIPS, Nature)"
+                    )
+                }
+            }
+            if (showErrors && yearError) FieldError(stringResource(R.string.error_year))
+
+            Spacer(Modifier.height(10.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Box(modifier = Modifier.weight(0.5f)) {
+                    EditorialTextField(
+                        value = doi,
+                        onValueChange = { doi = it },
+                        placeholder = "DOI (e.g. 10.xxxx/...)"
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Box(modifier = Modifier.weight(0.5f)) {
+                    EditorialTextField(
+                        value = url,
+                        onValueChange = { url = it },
+                        placeholder = "Repository Link / URL"
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            EditorialTextField(
+                value = abstractText,
+                onValueChange = { abstractText = it },
+                placeholder = "Abstract / Executive Summary",
+                minLines = 3
+            )
+
+            Spacer(Modifier.height(10.dp))
+            EditorialTextField(
+                value = affiliation,
+                onValueChange = { affiliation = it },
+                placeholder = stringResource(R.string.field_affiliation)
+            )
+
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Open Access Manuscript",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Permits reading and downloading by all researchers",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = openAccess,
+                    onCheckedChange = { openAccess = it }
                 )
-                IconButton(
+            }
+
+            Spacer(Modifier.height(20.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Spacer(Modifier.height(20.dp))
+
+            // 4. RESEARCHER COMMENTARY & NOTES
+            SectionLabel(stringResource(R.string.section_commentary))
+            EditorialTextField(
+                value = commentary,
+                onValueChange = { commentary = it },
+                placeholder = stringResource(R.string.compose_commentary_placeholder),
+                minLines = 3
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            // 5. FIGURE / VISUAL ABSTRACT
+            SectionLabel("Visual Abstract / Figure")
+            if (imagePath.isBlank()) {
+                OutlinedButton(
                     onClick = {
-                        val pending = imagePath
-                        imagePath = ""
-                        scope.launch { ImageStore.delete(context, pending) }
+                        imagePicker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
                     },
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                        .clip(MaterialTheme.shapes.extraLarge)
-                        .background(MaterialTheme.colorScheme.surface)
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Icon(
-                        Icons.Filled.Close,
-                        contentDescription = stringResource(R.string.cd_remove_figure),
+                        Icons.Outlined.AddPhotoAlternate,
+                        contentDescription = null,
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onSurface
                     )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(10.dp))
-        if (pdfLocalPath.isBlank()) {
-            OutlinedButton(
-                onClick = { documentPicker.launch(allowedDocumentMimeTypes) },
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape = MaterialTheme.shapes.extraLarge,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-            ) {
-                Icon(
-                    Icons.Outlined.Description,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "Attach Paper (PDF, Word, Text)",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        } else {
-            val format = PdfStore.getDocumentFormat(pdfLocalPath)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.small)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.outlineVariant,
-                        MaterialTheme.shapes.small
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        stringResource(R.string.action_add_figure),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    .padding(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            if (format == DocumentFormat.PDF) Icons.Outlined.PictureAsPdf else Icons.Outlined.Description,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                "Research Paper Attached (${format.label})",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurface
+                }
+            } else {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    AsyncImage(
+                        model = File(imagePath),
+                        contentDescription = stringResource(R.string.cd_attached_figure),
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 240.dp)
+                            .clip(MaterialTheme.shapes.small)
+                            .border(
+                                1.dp,
+                                MaterialTheme.colorScheme.outlineVariant,
+                                MaterialTheme.shapes.small
                             )
-                            Text(
-                                PdfStore.getFormattedSize(pdfLocalPath),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
+                    )
                     IconButton(
                         onClick = {
-                            val pending = pdfLocalPath
-                            pdfLocalPath = ""
-                            scope.launch { PdfStore.delete(context, pending) }
-                        }
+                            val pending = imagePath
+                            imagePath = ""
+                            scope.launch { ImageStore.delete(context, pending) }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .clip(MaterialTheme.shapes.extraLarge)
+                            .background(MaterialTheme.colorScheme.surface)
                     ) {
                         Icon(
                             Icons.Filled.Close,
-                            contentDescription = "Remove Paper",
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            contentDescription = stringResource(R.string.cd_remove_figure),
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
             }
-        }
 
-        Spacer(Modifier.height(28.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(24.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Spacer(Modifier.height(24.dp))
 
-        SectionLabel(stringResource(R.string.section_paper_details))
-        EditorialTextField(
-            value = title,
-            onValueChange = { title = it },
-            placeholder = stringResource(R.string.field_title),
-            isError = showErrors && titleError
-        )
-        if (showErrors && titleError) {
-            FieldError(stringResource(R.string.error_title_required))
-        }
-
-        Spacer(Modifier.height(12.dp))
-        EditorialTextField(
-            value = authors,
-            onValueChange = { authors = it },
-            placeholder = stringResource(R.string.field_authors)
-        )
-        FieldHint(stringResource(R.string.hint_authors))
-
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(modifier = Modifier.weight(1f)) {
-                EditorialTextField(
-                    value = year,
-                    onValueChange = { year = it },
-                    placeholder = stringResource(R.string.field_year),
-                    keyboardType = KeyboardType.Number,
-                    isError = showErrors && yearError
-                )
-            }
-            Column(modifier = Modifier.weight(2f)) {
-                EditorialTextField(
-                    value = venue,
-                    onValueChange = { venue = it },
-                    placeholder = stringResource(R.string.field_venue)
-                )
-            }
-        }
-        if (showErrors && yearError) FieldError(stringResource(R.string.error_year))
-
-        Spacer(Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(modifier = Modifier.weight(1f)) {
-                EditorialTextField(
-                    value = doi,
-                    onValueChange = {
-                        doi = it
-                        doiStatusMessage = ""
-                    },
-                    placeholder = stringResource(R.string.field_doi),
-                    keyboardType = KeyboardType.Uri
-                )
-            }
-            Button(
-                onClick = {
-                    if (doi.isNotBlank()) {
-                        isResolvingDoi = true
-                        doiStatusMessage = ""
-                        scope.launch {
-                            val resolved = AcademicPaperResolver.resolveDoi(doi)
-                            isResolvingDoi = false
-                            if (resolved != null) {
-                                if (title.isBlank() || title == existing?.title) title = resolved.title
-                                if (authors.isBlank() || authors == existing?.authors) authors = resolved.authors
-                                if (year.isBlank() || year == existing?.year) year = resolved.year
-                                if (venue.isBlank() || venue == existing?.venue) venue = resolved.venue
-                                if (url.isBlank() || url == existing?.url) url = resolved.url
-                                if (abstractText.isBlank() || abstractText == existing?.abstractText) abstractText = resolved.abstractText
-                                if (pdfUrl.isBlank() || pdfUrl == existing?.pdfUrl) pdfUrl = resolved.pdfUrl
-                                if (resolved.isOpenAccess) openAccess = true
-                                doiStatusMessage = if (resolved.pdfUrl.isNotBlank()) "Metadata & Open-Access PDF imported!" else "Metadata imported from catalog!"
-                            } else {
-                                doiStatusMessage = "Could not resolve DOI. Enter details manually."
-                            }
-                        }
-                    }
-                },
-                enabled = doi.isNotBlank() && !isResolvingDoi,
-                shape = MaterialTheme.shapes.small,
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
-            ) {
-                if (isResolvingDoi) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text("Auto-fill", style = MaterialTheme.typography.labelSmall)
-                }
-            }
-        }
-        if (doiStatusMessage.isNotBlank()) {
-            Text(
-                doiStatusMessage,
-                style = MaterialTheme.typography.bodySmall,
-                color = if (doiStatusMessage.startsWith("Metadata")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(top = 4.dp)
+            // 6. CITATION PREVIEW
+            SectionLabel(stringResource(R.string.section_citation_preview))
+            CitationPreview(
+                draft = draft,
+                style = previewStyle,
+                onStyleChange = { previewStyle = it }
             )
-        }
 
-        Spacer(Modifier.height(12.dp))
-        EditorialTextField(
-            value = url,
-            onValueChange = { url = it },
-            placeholder = stringResource(R.string.field_url),
-            keyboardType = KeyboardType.Uri
-        )
-
-        Spacer(Modifier.height(12.dp))
-        EditorialTextField(
-            value = pdfUrl,
-            onValueChange = { pdfUrl = it },
-            placeholder = "Open-Access PDF Link (e.g. arXiv / preprint link)",
-            keyboardType = KeyboardType.Uri
-        )
-
-        Spacer(Modifier.height(12.dp))
-        EditorialTextField(
-            value = abstractText,
-            onValueChange = { abstractText = it },
-            placeholder = "Abstract (auto-populated from DOI or enter manually)",
-            minLines = 3
-        )
-
-        Spacer(Modifier.height(12.dp))
-        EditorialTextField(
-            value = affiliation,
-            onValueChange = { affiliation = it },
-            placeholder = stringResource(R.string.field_affiliation)
-        )
-
-        Spacer(Modifier.height(28.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Spacer(Modifier.height(28.dp))
-
-        SectionLabel(stringResource(R.string.section_citation_preview))
-        CitationPreview(
-            draft = draft,
-            style = previewStyle,
-            onStyleChange = { previewStyle = it }
-        )
-
-        Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(28.dp))
 
         Button(
             onClick = {
@@ -566,10 +693,16 @@ fun ComposePostScreen(
                                 quotedAuthorName = existing.quotedAuthorName,
                                 quotedTitle = existing.quotedTitle,
                                 quotedContent = existing.quotedContent,
+                                title = title.trim(),
+                                authors = authors.trim(),
+                                year = year.trim(),
+                                venue = venue.trim(),
+                                doi = doi.trim(),
+                                url = url.trim(),
                                 imageUri = imagePath,
-                                pdfLocalPath = pdfLocalPath,
-                                pdfUrl = pdfUrl,
-                                abstractText = abstractText,
+                                pdfLocalPath = pdfLocalPath.trim(),
+                                pdfUrl = pdfUrl.trim(),
+                                abstractText = abstractText.trim(),
                                 openAccess = openAccess || pdfUrl.isNotBlank()
                             )
                         } else {

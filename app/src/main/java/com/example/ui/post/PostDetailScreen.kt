@@ -37,6 +37,7 @@ import com.example.R
 import com.example.data.Comment
 import com.example.data.formatTimeAgo
 import com.example.ui.components.CommentSkeleton
+import com.example.ui.components.RefreshableBox
 import com.example.ui.theme.BrandBlue
 import com.example.ui.theme.DividerLight
 import com.example.ui.theme.PageNeutral
@@ -60,6 +61,7 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
     val commentFlow = remember(paperId) { viewModel.comments(paperId) }
     val commentState by commentFlow.collectAsStateWithLifecycle(initialValue = ListState())
     val comments = commentState.items
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
 
     var draft by rememberSaveable { mutableStateOf("") }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
@@ -126,11 +128,11 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
                 .height(56.dp)
                 .padding(end = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -168,10 +170,15 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
             }
         }
 
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(bottom = 16.dp)
+        RefreshableBox(
+            isRefreshing = isRefreshing,
+            onRefresh = viewModel::refresh,
+            modifier = Modifier.weight(1f)
         ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 16.dp)
+            ) {
             item {
                 // onClick null: already on the detail screen, so the card is not a link.
                 PostCard(paper, viewModel, navController, onClick = null)
@@ -210,22 +217,6 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
                             },
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    TextButton(
-                        onClick = {
-                            val app = context.applicationContext as com.example.MyApplication
-                            scope.launch {
-                                val convId = app.chatRepository.startOrGetConversationForPaper(paper)
-                                navController.navigate("chat_thread/$convId")
-                            }
-                        }
-                    ) {
-                        Text(
-                            "Message Author",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -313,6 +304,7 @@ fun PostDetailScreen(paperId: String, viewModel: HomeViewModel, navController: N
 
             item { Spacer(Modifier.height(8.dp)) }
         }
+    }
 
         CommentComposer(
             value = draft,

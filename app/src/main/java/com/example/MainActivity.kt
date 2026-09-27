@@ -11,6 +11,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,6 +20,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -126,7 +129,6 @@ private data class NavItem(
 private val NavItems = listOf(
   NavItem("feed", R.string.nav_home, Icons.Filled.Home, Icons.Outlined.Home),
   NavItem("fields", R.string.nav_discover, Icons.Filled.Groups, Icons.Outlined.Groups),
-  NavItem("messenger", R.string.cd_messages, Icons.Filled.Chat, Icons.Outlined.ChatBubbleOutline),
   NavItem("lists", R.string.nav_saved, Icons.Filled.Bookmark, Icons.Outlined.BookmarkBorder),
   NavItem("notifications", R.string.cd_activity, Icons.Filled.Notifications, Icons.Outlined.NotificationsNone),
   NavItem("menu", R.string.nav_profile, Icons.Filled.Menu, Icons.Outlined.Menu)
@@ -155,6 +157,7 @@ fun FolioApp(viewModel: HomeViewModel) {
     currentRoute == "chat" ||
     currentRoute == "opps" ||
     currentRoute == "profile" ||
+    currentRoute == "network" ||
     currentRoute.startsWith("share/") ||
     currentRoute.startsWith("post/") ||
     currentRoute.startsWith("quote/") ||
@@ -196,6 +199,7 @@ fun FolioApp(viewModel: HomeViewModel) {
   Scaffold(
     modifier = Modifier.fillMaxSize(),
     containerColor = MaterialTheme.colorScheme.background,
+    contentWindowInsets = WindowInsets(0, 0, 0, 0),
     snackbarHost = { SnackbarHost(snackbarHostState) },
     topBar = { if (currentRoute == "feed") AppTopBar(navController, viewModel) },
     bottomBar = { if (!chromeless) AppBottomBar(navController, currentRoute, viewModel) }
@@ -264,6 +268,7 @@ fun FolioApp(viewModel: HomeViewModel) {
         )
       }
       composable("profile") { ProfileScreen(viewModel, navController) }
+      composable("network") { com.example.ui.network.NetworkScreen(viewModel, navController) }
       composable("menu") { MenuScreen(viewModel, navController) }
       composable("settings") {
         com.example.ui.settings.SettingsScreen(
@@ -274,7 +279,7 @@ fun FolioApp(viewModel: HomeViewModel) {
       composable("chat") { com.example.ui.chat.ChatScreen(navController = navController) }
       composable("messenger") {
         val app = context.applicationContext as MyApplication
-        com.example.ui.chat.MessengerScreen(app.chatRepository, navController)
+        com.example.ui.chat.MessengerScreen(app.chatRepository, navController, viewModel)
       }
       composable(
         route = "chat_thread/{convId}",
@@ -360,8 +365,12 @@ fun FolioApp(viewModel: HomeViewModel) {
         )
       }
       composable(
-        route = "pdf_viewer?path={path}&url={url}&title={title}",
+        route = "pdf_viewer?paperId={paperId}&path={path}&url={url}&title={title}",
         arguments = listOf(
+          navArgument("paperId") {
+            type = NavType.StringType
+            defaultValue = ""
+          },
           navArgument("path") {
             type = NavType.StringType
             defaultValue = ""
@@ -376,15 +385,18 @@ fun FolioApp(viewModel: HomeViewModel) {
           }
         )
       ) { entry ->
+        val paperId = entry.arguments?.getString("paperId").orEmpty()
         val rawPath = entry.arguments?.getString("path").orEmpty()
         val rawUrl = entry.arguments?.getString("url").orEmpty()
         val title = entry.arguments?.getString("title").orEmpty()
         val decodedPath = if (rawPath.isNotBlank()) Uri.decode(rawPath) else ""
         val decodedUrl = if (rawUrl.isNotBlank()) Uri.decode(rawUrl) else ""
         com.example.ui.post.PdfViewerScreen(
+          paperId = paperId,
           initialLocalPath = decodedPath,
           remoteUrl = decodedUrl,
           paperTitle = title,
+          viewModel = viewModel,
           onBack = { navController.popBackStack() }
         )
       }
@@ -393,11 +405,17 @@ fun FolioApp(viewModel: HomeViewModel) {
 }
 
 /** Navigates safely to in-app PDF viewer with encoded arguments */
-fun NavController.navigateToPdf(path: String = "", url: String = "", title: String = "Paper") {
+fun NavController.navigateToPdf(
+  paperId: String = "",
+  path: String = "",
+  url: String = "",
+  title: String = "Paper"
+) {
+  val encId = if (paperId.isNotBlank()) Uri.encode(paperId) else ""
   val encPath = if (path.isNotBlank()) Uri.encode(path) else ""
   val encUrl = if (url.isNotBlank()) Uri.encode(url) else ""
   val encTitle = if (title.isNotBlank()) Uri.encode(title) else "Paper"
-  this.navigate("pdf_viewer?path=$encPath&url=$encUrl&title=$encTitle")
+  this.navigate("pdf_viewer?paperId=$encId&path=$encPath&url=$encUrl&title=$encTitle")
 }
 
 /**
@@ -464,46 +482,6 @@ private fun AppTopBar(navController: NavController, viewModel: HomeViewModel) {
               modifier = Modifier.size(22.dp),
               tint = MaterialTheme.colorScheme.onSurface
             )
-          }
-          // Messenger button with badge
-          Box(
-            modifier = Modifier
-              .size(38.dp)
-              .clip(CircleShape)
-              .background(SurfaceInset)
-              .clickable {
-                navController.navigate("messenger") {
-                  popUpTo("feed") { saveState = true }
-                  launchSingleTop = true
-                  restoreState = true
-                }
-              },
-            contentAlignment = Alignment.Center
-          ) {
-            val count = unreadMessages ?: 0
-            Icon(
-              Icons.Outlined.ChatBubbleOutline,
-              contentDescription = stringResource(R.string.cd_messages),
-              modifier = Modifier.size(22.dp),
-              tint = MaterialTheme.colorScheme.onSurface
-            )
-            if (count > 0) {
-              Box(
-                modifier = Modifier
-                  .size(16.dp)
-                  .clip(CircleShape)
-                  .background(MaterialTheme.colorScheme.error)
-                  .align(Alignment.TopEnd)
-                  .offset(x = 4.dp, y = (-4).dp),
-                contentAlignment = Alignment.Center
-              ) {
-                Text(
-                  if (count > 9) "9+" else count.toString(),
-                  style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                  color = MaterialTheme.colorScheme.onError
-                )
-              }
-            }
           }
         }
       }
@@ -982,12 +960,21 @@ fun Avatar(
       .background(MaterialTheme.colorScheme.primary),
     contentAlignment = Alignment.Center
   ) {
-    Text(
-      initials,
-      color = MaterialTheme.colorScheme.onPrimary,
-      fontWeight = FontWeight.SemiBold,
-      fontSize = (size.value / 2.6f).sp
-    )
+    if (initials.isNotBlank() && initials != "??") {
+      Text(
+        initials,
+        color = MaterialTheme.colorScheme.onPrimary,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = (size.value / 2.6f).sp
+      )
+    } else {
+      Icon(
+        Icons.Outlined.Person,
+        contentDescription = null,
+        modifier = Modifier.size(size * 0.55f),
+        tint = MaterialTheme.colorScheme.onPrimary
+      )
+    }
   }
 }
 
@@ -1072,6 +1059,8 @@ fun NotificationsScreen(viewModel: HomeViewModel, navController: NavController) 
     }
   }
 
+  val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+
   Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
     // Facebook-style header
     Column(
@@ -1113,42 +1102,55 @@ fun NotificationsScreen(viewModel: HomeViewModel, navController: NavController) 
       HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
     }
 
-    when {
-      activity.isLoading -> Column(
-        modifier = Modifier.padding(horizontal = Gutter),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-      ) { repeat(3) { ListRowSkeleton() } }
+    RefreshableBox(
+      isRefreshing = isRefreshing,
+      onRefresh = viewModel::refresh,
+      modifier = Modifier
+        .fillMaxWidth()
+        .weight(1f)
+    ) {
+      when {
+        activity.isLoading -> Column(
+          modifier = Modifier
+            .padding(horizontal = Gutter)
+            .verticalScroll(rememberScrollState()),
+          verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) { repeat(3) { ListRowSkeleton() } }
 
-      displayedActivity.isEmpty() -> EmptyState(
-        title = if (notifTab == 1) "No Mentions Yet" else stringResource(R.string.activity_empty_title),
-        message = if (notifTab == 1) "Citations and replies referencing your research or mentioning you will appear here." else stringResource(R.string.activity_empty_message),
-        icon = if (notifTab == 1) Icons.Outlined.Repeat else Icons.Outlined.Notifications,
-        actionLabel = "Explore Research Fields",
-        onAction = { navController.navigate("fields") }
-      )
+        displayedActivity.isEmpty() -> Box(
+          modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+          contentAlignment = Alignment.Center
+        ) {
+          EmptyState(
+            title = if (notifTab == 1) "No Mentions Yet" else stringResource(R.string.activity_empty_title),
+            message = if (notifTab == 1) "Citations and replies referencing your research or mentioning you will appear here." else stringResource(R.string.activity_empty_message),
+            icon = if (notifTab == 1) Icons.Outlined.Repeat else Icons.Outlined.Notifications,
+            actionLabel = "Explore Research Fields",
+            onAction = { navController.navigate("fields") }
+          )
+        }
 
-      else -> LazyColumn(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface),
-        contentPadding = PaddingValues(bottom = 16.dp)
-      ) {
-        items(displayedActivity, key = { it.timestamp.toString() + it.targetPaperId }) { item ->
-          ActivityRow(item) {
-            when (item) {
-              is ActivityItem.Messaged -> {
-                if (item.targetPaperId.isNotBlank()) {
-                  navController.navigate("chat_thread/${item.targetPaperId}")
-                } else {
-                  navController.navigate("messenger")
+        else -> LazyColumn(
+          modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface),
+          contentPadding = PaddingValues(bottom = 16.dp)
+        ) {
+          items(displayedActivity, key = { it.timestamp.toString() + it.targetPaperId }) { item ->
+            ActivityRow(item) {
+              when (item) {
+                is ActivityItem.Messaged -> {
+                  // Direct message access disabled for now
                 }
-              }
-              else -> {
-                if (item.targetPaperId.isNotBlank()) {
-                  navController.navigate("post/${item.targetPaperId}")
+                else -> {
+                  if (item.targetPaperId.isNotBlank()) {
+                    navController.navigate("post/${item.targetPaperId}")
+                  }
                 }
               }
             }
+            HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
           }
-          HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
         }
       }
     }
@@ -1293,6 +1295,8 @@ fun FieldsScreen(viewModel: HomeViewModel, navController: NavController) {
     )
   }
 
+  val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+
   val trimmed = query.trim()
   val matchingVenues = venues.items.filter { it.name.contains(trimmed, ignoreCase = true) }
   val matchingPosts = if (trimmed.isBlank()) emptyList() else feed.items.filter {
@@ -1323,6 +1327,13 @@ fun FieldsScreen(viewModel: HomeViewModel, navController: NavController) {
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
           )
+          IconButton(onClick = { navController.navigate("network") }) {
+            Icon(
+              imageVector = Icons.Filled.People,
+              contentDescription = "My Network",
+              tint = BrandBlue
+            )
+          }
           IconButton(onClick = { navController.navigate("compose") }) {
             Icon(
               imageVector = Icons.Filled.Add,
@@ -1372,6 +1383,50 @@ fun FieldsScreen(viewModel: HomeViewModel, navController: NavController) {
       shape = RoundedCornerShape(20.dp)
     )
 
+    // Academic Network Quick Banner
+    Surface(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = Gutter, vertical = 4.dp)
+        .clickable { navController.navigate("network") },
+      shape = RoundedCornerShape(12.dp),
+      color = BrandBlue.copy(alpha = 0.08f),
+      border = BorderStroke(1.dp, BrandBlue.copy(alpha = 0.2f))
+    ) {
+      Row(
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Icon(
+          Icons.Filled.People,
+          contentDescription = null,
+          tint = BrandBlue,
+          modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+          Text(
+            text = "Connect with Scholars",
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+            color = BrandBlue
+          )
+          Text(
+            text = "Find suggested peers by school, field, and citations",
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+        }
+        Icon(
+          Icons.AutoMirrored.Filled.ArrowForward,
+          contentDescription = null,
+          tint = BrandBlue,
+          modifier = Modifier.size(16.dp)
+        )
+      }
+    }
+
+    Spacer(Modifier.height(4.dp))
+
     // Topic exploration pills
     LazyRow(
       contentPadding = PaddingValues(horizontal = Gutter),
@@ -1398,8 +1453,13 @@ fun FieldsScreen(viewModel: HomeViewModel, navController: NavController) {
 
     HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
 
-    when {
-      venues.isLoading -> Column(
+    RefreshableBox(
+      isRefreshing = isRefreshing,
+      onRefresh = viewModel::refresh,
+      modifier = Modifier.weight(1f)
+    ) {
+      when {
+        venues.isLoading -> Column(
         modifier = Modifier.padding(horizontal = Gutter),
         verticalArrangement = Arrangement.spacedBy(8.dp)
       ) { repeat(3) { ListRowSkeleton() } }
@@ -1487,6 +1547,7 @@ fun FieldsScreen(viewModel: HomeViewModel, navController: NavController) {
     }
   }
 }
+}
 
 @Composable
 private fun DiscoverHeading(text: String, modifier: Modifier = Modifier) {
@@ -1503,6 +1564,7 @@ private fun DiscoverHeading(text: String, modifier: Modifier = Modifier) {
 fun VenueScreen(venue: String, viewModel: HomeViewModel, navController: NavController) {
   val flow = remember(venue) { viewModel.papersInVenue(venue) }
   val papers by flow.collectAsStateWithLifecycle(initialValue = ListState())
+  val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
 
   Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
     Row(
@@ -1529,32 +1591,38 @@ fun VenueScreen(venue: String, viewModel: HomeViewModel, navController: NavContr
     }
     HorizontalDivider(thickness = 0.5.dp, color = DividerLight)
 
-    when {
-      papers.isLoading -> Column(
-        modifier = Modifier.padding(horizontal = Gutter, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-      ) { repeat(2) { PostCardSkeleton() } }
+    RefreshableBox(
+      isRefreshing = isRefreshing,
+      onRefresh = viewModel::refresh,
+      modifier = Modifier.weight(1f)
+    ) {
+      when {
+        papers.isLoading -> Column(
+          modifier = Modifier.padding(horizontal = Gutter, vertical = 12.dp),
+          verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) { repeat(2) { PostCardSkeleton() } }
 
-      papers.isEmpty -> EmptyState(
-        title = stringResource(R.string.venue_empty_title),
-        message = stringResource(R.string.venue_empty_message),
-        icon = Icons.Outlined.Search,
-        actionLabel = "Publish in $venue",
-        onAction = { navController.navigate("compose") }
-      )
+        papers.isEmpty -> EmptyState(
+          title = stringResource(R.string.venue_empty_title),
+          message = stringResource(R.string.venue_empty_message),
+          icon = Icons.Outlined.Search,
+          actionLabel = "Publish in $venue",
+          onAction = { navController.navigate("compose") }
+        )
 
-      else -> LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 16.dp)
-      ) {
-        items(papers.items, key = { it.id }) { paper ->
-          PostCard(paper, viewModel, navController)
-          Spacer(
-            modifier = Modifier
-              .fillMaxWidth()
-              .height(8.dp)
-              .background(PageNeutral)
-          )
+        else -> LazyColumn(
+          modifier = Modifier.fillMaxSize(),
+          contentPadding = PaddingValues(bottom = 16.dp)
+        ) {
+          items(papers.items, key = { it.id }) { paper ->
+            PostCard(paper, viewModel, navController)
+            Spacer(
+              modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .background(PageNeutral)
+            )
+          }
         }
       }
     }

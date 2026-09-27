@@ -1,5 +1,6 @@
 package com.example.ui.chat
 
+import com.example.data.formatTimeAgo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -77,7 +78,9 @@ import com.example.data.SavedPaper
 import com.example.data.chat.ChatRepository
 import com.example.data.chat.ConversationEntity
 import com.example.data.formatTimeAgo
+import com.example.HomeViewModel
 import com.example.ui.components.EmptyState
+import com.example.ui.components.RefreshableBox
 import kotlinx.coroutines.flow.flowOf
 
 import com.example.ui.theme.AccentGreen
@@ -94,7 +97,8 @@ private data class CollaboratorContact(
 @Composable
 fun MessengerScreen(
     chatRepository: ChatRepository,
-    navController: NavController
+    navController: NavController,
+    viewModel: HomeViewModel? = null
 ) {
     val context = LocalContext.current
     val identity = remember(context) { AuthorIdentity.current(context) }
@@ -112,6 +116,9 @@ fun MessengerScreen(
 
     val conversations by chatRepository.conversations.collectAsStateWithLifecycle(initialValue = emptyList())
     var searchQuery by rememberSaveable { mutableStateOf("") }
+    var localRefreshing by remember { mutableStateOf(false) }
+    val vmRefreshing by (viewModel?.isRefreshing?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(false) })
+    val isRefreshing = localRefreshing || vmRefreshing
 
     val filtered = remember(conversations, searchQuery) {
         val q = searchQuery.trim().lowercase()
@@ -295,12 +302,28 @@ fun MessengerScreen(
         }
 
         // ── Main list ─────────────────────────────────────────────────────────
-        LazyColumn(
+        RefreshableBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                scope.launch {
+                    localRefreshing = true
+                    try {
+                        chatRepository.syncLoungeMessages()
+                        viewModel?.refresh()
+                        kotlinx.coroutines.delay(400)
+                    } finally {
+                        localRefreshing = false
+                    }
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
-            contentPadding = PaddingValues(bottom = 24.dp)
+                .weight(1f)
         ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
             // Item A: Gemini AI Assistant banner (Messenger-style inset card)
             item(key = "banner_ai") {
                 Box(
@@ -493,6 +516,7 @@ fun MessengerScreen(
             }
         }
     }
+}
 
     if (showCameraModal) {
         AlertDialog(

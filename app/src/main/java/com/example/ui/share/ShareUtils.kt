@@ -88,6 +88,38 @@ object ShareUtils {
         launchChooser(context, intent, context.getString(R.string.share_chooser_citation))
     }
 
+    /** Shares arbitrary text (e.g. batch BibTeX citations) via system chooser. */
+    fun shareText(context: Context, text: String, title: String = "Cite Circle") {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, title)
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+        launchChooser(context, intent, title)
+    }
+
+    /** Exports multiple papers into a .bib file and shares it. */
+    suspend fun shareBatchExport(
+        context: Context,
+        papers: List<SavedPaper>,
+        format: ExportFormat = ExportFormat.BIBTEX,
+        fileName: String = "citations"
+    ) {
+        val uri = withContext(Dispatchers.IO) {
+            val name = safeFileName(fileName, "citations")
+            val file = File(sharedDir(context), "$name.${format.extension}")
+            file.writeText(CitationFormatter.exportBatch(papers, format))
+            fileUri(context, file)
+        }
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = format.mimeType
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, "$fileName - Bibliography")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        launchChooser(context, intent, "Export ${format.label} Bibliography")
+    }
+
     /**
      * Writes [bitmap] to the shared cache as a PNG and offers it to any app that accepts
      * images. [caption] rides along as EXTRA_TEXT so composers that support both prefill it.

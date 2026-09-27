@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,12 +46,14 @@ import androidx.navigation.NavController
 import com.example.Avatar
 import com.example.HomeViewModel
 import com.example.R
+import com.example.data.AuthorIdentity
 import com.example.data.CitationFormatter
 import com.example.data.CitationStyle
 import com.example.data.SavedPaper
 import com.example.data.chat.ChatMessageEntity
 import com.example.data.chat.ChatRepository
 import com.example.data.formatTimeAgo
+import com.example.ui.components.RefreshableBox
 import com.example.ui.theme.AccentGreen
 import com.example.ui.theme.BrandBlue
 import com.example.ui.theme.DividerLight
@@ -74,6 +77,7 @@ fun ChatThreadScreen(
     var inputText by rememberSaveable { mutableStateOf("") }
     var isActionsExpanded by rememberSaveable { mutableStateOf(false) }
     var selectedPaperToCite by remember { mutableStateOf<SavedPaper?>(null) }
+    var isRefreshing by remember { mutableStateOf(false) }
     var showPaperPicker by remember { mutableStateOf(false) }
     var showVoiceCallDialog by remember { mutableStateOf(false) }
     var showVideoCallDialog by remember { mutableStateOf(false) }
@@ -156,16 +160,16 @@ fun ChatThreadScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             Surface(
                 color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 0.dp
             ) {
-                Column {
+                Column(modifier = Modifier.statusBarsPadding()) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .statusBarsPadding()
                             .height(56.dp)
                             .padding(horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -541,17 +545,35 @@ fun ChatThreadScreen(
             }
         }
     ) { innerPadding ->
-        LazyColumn(
-            state = listState,
+        RefreshableBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                scope.launch {
+                    isRefreshing = true
+                    try {
+                        chatRepository.syncLoungeMessages()
+                        homeViewModel.refresh()
+                        kotlinx.coroutines.delay(400)
+                    } finally {
+                        isRefreshing = false
+                    }
+                }
+            },
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .padding(innerPadding),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(innerPadding)
         ) {
-            items(messages, key = { it.id }) { message ->
-                ChatMessageBubble(message = message, navController = navController)
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(messages, key = { it.id }) { message ->
+                    ChatMessageBubble(message = message, navController = navController)
+                }
             }
         }
     }

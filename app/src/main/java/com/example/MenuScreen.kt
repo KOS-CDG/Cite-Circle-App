@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.PhoneAndroid
@@ -57,8 +58,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.ContentScale
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.data.AuthorIdentity
+import com.example.ui.components.RefreshableBox
 import com.example.ui.theme.BrandBlue
 import com.example.ui.theme.DividerLight
 import com.example.ui.theme.PageNeutral
@@ -72,6 +77,14 @@ import com.example.ui.theme.SurfaceInset
 fun MenuScreen(viewModel: HomeViewModel, navController: NavController) {
     val context = LocalContext.current
     val identity = remember(context) { AuthorIdentity.current(context) }
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val sessionManager = remember(context) {
+        (context.applicationContext as? MyApplication)?.sessionManager
+    }
+    val currentAvatarUri by (sessionManager?.currentUserAvatarUri?.collectAsStateWithLifecycle(initialValue = "")
+        ?: remember { mutableStateOf("") })
+    val currentUserName by (sessionManager?.currentUserName?.collectAsStateWithLifecycle(initialValue = "")
+        ?: remember { mutableStateOf("") })
 
     var showHelp by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
@@ -90,20 +103,14 @@ fun MenuScreen(viewModel: HomeViewModel, navController: NavController) {
 
     val shortcuts = listOf(
         Shortcut(
-            icon = Icons.Filled.Chat,
+            icon = Icons.Filled.People,
             badgeColor = BrandBlue,
-            title = "Messenger",
-            onClick = {
-                navController.navigate("messenger") {
-                    popUpTo("feed") { saveState = true }
-                    launchSingleTop = true
-                    restoreState = true
-                }
-            }
+            title = "My Network & Connect",
+            onClick = { navController.navigate("network") }
         ),
         Shortcut(
             icon = Icons.Filled.Groups,
-            badgeColor = BrandBlue,
+            badgeColor = Color(0xFF1E88E5),
             title = "Research Fields",
             onClick = { navController.navigate("fields") }
         ),
@@ -135,11 +142,15 @@ fun MenuScreen(viewModel: HomeViewModel, navController: NavController) {
 
     val shortcutRows = shortcuts.chunked(2)
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+    RefreshableBox(
+        isRefreshing = isRefreshing,
+        onRefresh = viewModel::refresh
     ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+        ) {
 
         // ----------------------------------------------------------------
         // Section 1: Header Row
@@ -196,18 +207,31 @@ fun MenuScreen(viewModel: HomeViewModel, navController: NavController) {
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Avatar(
-                    initials = identity.initials,
-                    size = 48.dp
-                )
+                if (currentAvatarUri.isNotBlank()) {
+                    AsyncImage(
+                        model = currentAvatarUri,
+                        contentDescription = "Profile Photo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                    )
+                } else {
+                    Avatar(
+                        initials = if (currentUserName.isNotBlank()) AuthorIdentity.initialsOf(currentUserName) else "",
+                        size = 48.dp
+                    )
+                }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = identity.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    if (currentUserName.isNotBlank()) {
+                        Text(
+                            text = currentUserName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                     Text(
                         text = "View your profile",
                         style = MaterialTheme.typography.bodySmall,
@@ -378,6 +402,7 @@ fun MenuScreen(viewModel: HomeViewModel, navController: NavController) {
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
+}
 
     if (showConferencesDialog) {
         AlertDialog(
