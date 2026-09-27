@@ -7,20 +7,35 @@ const corsHeaders = {
 };
 
 // Canonical Version & Release Configuration
-export const LATEST_VERSION_NAME = "2.3";
-export const LATEST_VERSION_CODE = 13;
+export const LATEST_VERSION_NAME = "2.4";
+export const LATEST_VERSION_CODE = 14;
 export const DOWNLOAD_URL = "https://cxxtrtglmxfuyihxwiza.supabase.co/storage/v1/object/public/app-releases/CiteCircle-latest.apk";
 export const FILE_SIZE_MB = 28.6;
 
 export const LATEST_RELEASE_NOTES = [
-  "⚡ Facebook-Grade Performance: Audited and optimized under 1,000-user concurrency, reaching 813.7 req/s peak throughput",
-  "🚀 Sub-65ms Database Throughput: 8 new composite B-Tree indexes on posts, likes, messages, library, and notifications",
-  "💬 Atomic Set-Based Messaging Triggers: Eradicated lock contention and cursor loops during high-volume chat discussions",
-  "📚 Smart Batch Room Persistence: Zero-lag SQLite merging eliminates UI micro-stutters during paper browsing and reading",
-  "🌐 High-Throughput Network Engine: Expanded OkHttp connection pool to 16 idle connections for parallel manuscript loading"
+  "🤖 AI Research Co-Pilot: Grounded manuscript analysis (Methodology, Contributions, Limitations, Review Summary) directly inside the PDF Reader",
+  "🔍 Global Scholarly Discovery Engine: Multi-source search across 250M+ open-access papers on CrossRef, arXiv, and OpenAlex",
+  "💡 In-Reader Excerpt AI Explainer: Instant deep-dive explanations on highlighted manuscript passages",
+  "📥 1-Tap Vault Ingestion: Save discovered papers to offline Room SQLite vault with PDF caching in one tap",
+  "⚡ Triple-Engine Resilience: Automatic fallback between CrossRef, arXiv, and OpenAlex ensures uninterrupted research search"
 ].join("\n");
 
 export const RELEASE_HISTORY = [
+  {
+    version: "2.4",
+    version_code: 14,
+    release_date: "2026-09-27",
+    title: "AI Research Co-Pilot & Global Scholarly Discovery Engine",
+    highlights: [
+      "In-Reader Gemini 2.5 Flash AI Co-Pilot with grounded manuscript analysis",
+      "Instant prompt chips: Methodology, Key Contributions, Limitations, Peer Review Summary",
+      "1-tap Append to Research Notes with Room SQLite & Supabase cloud sync",
+      "Global Scholarly Discovery Engine searching 250M+ papers across CrossRef, arXiv, and OpenAlex",
+      "Triple-engine resilience: seamless fallback prevents rate-limiting disruption",
+      "1-tap 'Save to Vault' with offline PDF download and immediate reader access",
+      "In-reader Excerpt Highlighter 'Explain with AI' integration"
+    ]
+  },
   {
     version: "2.3",
     version_code: 13,

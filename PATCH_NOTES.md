@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [2.4] — 2026-09-27 (Build 14)
+
+### Highlights
+Cite Circle v2.4 introduces the **In-App AI Research Co-Pilot** and the **Global Scholarly Discovery Engine**. Researchers can now instantly query, analyze, and critique academic manuscripts directly within the in-app PDF reader powered by Gemini 2.5 Flash, and search across **250M+ open-access papers** spanning CrossRef, arXiv, and OpenAlex with triple-engine resilience and 1-tap vault ingestion.
+
+### 🤖 In-Reader AI Research Co-Pilot
+- **Grounded Manuscript Analysis**: Seamless slide-up bottom sheet directly inside `PdfViewerScreen` contextualized with the current paper's title, authors, venue, DOI, and abstract.
+- **Instant Academic Prompt Chips**: 1-tap quick actions for **Methodology Breakdown**, **Key Contributions**, **Limitations & Threats to Validity**, and **Peer Review Summary**.
+- **Contextual Excerpt AI Explainer**: Highlighting any text passage in the reader now offers an **[Explain with AI]** option in `ExcerptHighlighterDialog` that immediately feeds into the Co-Pilot with full surrounding context.
+- **1-Tap Save to Research Notes**: Every AI insight features a **[+ Note]** button that instantly appends the grounded explanation directly into the user's permanent `SavedPaper.researchNotes` in Room SQLite and syncs to Supabase PostgreSQL.
+- **Copy to Clipboard**: Quick copying of generated summaries and mathematical notations.
+
+### 🔍 Global Scholarly Discovery Engine
+- **Triple-Engine Multi-Source Discovery**: Real-time federated querying across **CrossRef** (DOI registry), **arXiv** (preprints), and **OpenAlex** (250M+ open-access works).
+- **Graceful Fallback & Rate-Limit Resilience**: Dynamic multi-source aggregation ensures research discovery remains fully operational even if a single upstream catalog is throttled.
+- **1-Tap Save to Vault**: Discovered papers can be saved directly to the user's offline Room SQLite vault with 1 tap, automatically fetching open-access PDFs and initializing reading progress tracking.
+- **Direct PDF Reading & Feed Citation**: Immediate navigation from search results into the in-app `PdfViewerScreen` or into the post creation composer with pre-filled citations.
+- **Trending Academic Prompts**: Quick exploration tags including Transformer Architectures, Quantum Computing, CRISPR Gene Editing, Diffusion Models, and Dark Matter.
+
+### 🧭 Navigation & Polish
+- **Global Discovery Screen**: Dedicated search hub accessible from the top app bar search button and the menu drawer.
+- **Clean Responsive UI**: Dynamic chips, badge indicators (Open Access, Citations count, Source provenance), and error-resilient state handling.
+
+
+
 ## [2.3] — 2026-09-27 (Build 13)
 
 ### Highlights

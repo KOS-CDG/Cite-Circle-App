@@ -21,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DarkMode
@@ -34,6 +35,8 @@ import androidx.compose.material.icons.outlined.FormatQuote
 import androidx.compose.material.icons.outlined.Notes
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.example.ui.theme.BrandBlue
+import com.example.ui.theme.PageNeutral
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -103,6 +106,8 @@ fun PdfViewerScreen(
     // Modal dialog and bottom sheet states
     var showExcerptDialog by remember { mutableStateOf(false) }
     var showNotesSheet by remember { mutableStateOf(false) }
+    var showAiCoPilotSheet by remember { mutableStateOf(false) }
+    var coPilotInitialPrompt by remember { mutableStateOf("") }
     var showBookmarksMenu by remember { mutableStateOf(false) }
     var jumpToPageTarget by remember { mutableStateOf<Int?>(null) }
 
@@ -222,6 +227,18 @@ fun PdfViewerScreen(
                                 Icons.Outlined.Notes,
                                 contentDescription = "Research Notes",
                                 tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        // AI Research Co-Pilot action
+                        IconButton(onClick = {
+                            coPilotInitialPrompt = ""
+                            showAiCoPilotSheet = true
+                        }) {
+                            Icon(
+                                Icons.Filled.AutoAwesome,
+                                contentDescription = "AI Research Co-Pilot",
+                                tint = BrandBlue
                             )
                         }
                     }
@@ -383,6 +400,11 @@ fun PdfViewerScreen(
                 ExcerptHighlighterDialog(
                     pageNumber = activePage,
                     onDismiss = { showExcerptDialog = false },
+                    onExplainWithAi = { excerpt ->
+                        coPilotInitialPrompt = "Explain this excerpt from page $activePage in context of the paper's core contributions: \"$excerpt\""
+                        showExcerptDialog = false
+                        showAiCoPilotSheet = true
+                    },
                     onSaveExcerpt = { tag, excerpt, commentary ->
                         viewModel.appendExcerptToNotes(
                             paperId = paperId,
@@ -404,6 +426,33 @@ fun PdfViewerScreen(
                     onDismiss = { showNotesSheet = false },
                     onSaveNotes = { notes ->
                         viewModel.saveResearchNotes(paperId, notes)
+                    }
+                )
+            }
+
+            // AI Research Co-Pilot Sheet
+            if (showAiCoPilotSheet) {
+                PaperAiCoPilotSheet(
+                    paperId = paperId,
+                    paperTitle = paperTitle,
+                    paperAuthors = paperState?.authors.orEmpty(),
+                    paperYear = paperState?.year.orEmpty(),
+                    paperVenue = paperState?.venue.orEmpty(),
+                    paperDoi = paperState?.doi.orEmpty(),
+                    paperAbstract = paperState?.abstractText.orEmpty(),
+                    initialPrompt = coPilotInitialPrompt,
+                    onAppendToNotes = { insight ->
+                        if (paperId.isNotBlank() && viewModel != null) {
+                            val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date())
+                            val noteEntry = "### 🤖 AI Co-Pilot Insight ($dateStr)\n$insight"
+                            val currentNotes = paperState?.researchNotes?.trim().orEmpty()
+                            val updatedNotes = if (currentNotes.isEmpty()) noteEntry else "$currentNotes\n\n---\n$noteEntry"
+                            viewModel.saveResearchNotes(paperId, updatedNotes)
+                        }
+                    },
+                    onDismiss = {
+                        showAiCoPilotSheet = false
+                        coPilotInitialPrompt = ""
                     }
                 )
             }
@@ -706,6 +755,7 @@ private fun PdfPageItem(
 fun ExcerptHighlighterDialog(
     pageNumber: Int,
     onDismiss: () -> Unit,
+    onExplainWithAi: ((String) -> Unit)? = null,
     onSaveExcerpt: (tag: String, excerpt: String, commentary: String) -> Unit
 ) {
     var selectedTag by remember { mutableStateOf("Key Finding") }
@@ -800,15 +850,36 @@ fun ExcerptHighlighterDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    if (excerptText.isNotBlank()) {
-                        onSaveExcerpt(selectedTag, excerptText, commentaryText)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (onExplainWithAi != null) {
+                    OutlinedButton(
+                        onClick = {
+                            if (excerptText.isNotBlank()) {
+                                onExplainWithAi(excerptText)
+                            }
+                        },
+                        enabled = excerptText.isNotBlank()
+                    ) {
+                        Icon(
+                            Icons.Filled.AutoAwesome,
+                            contentDescription = null,
+                            tint = BrandBlue,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("Explain with AI", style = MaterialTheme.typography.labelSmall)
                     }
-                },
-                enabled = excerptText.isNotBlank()
-            ) {
-                Text("Append to Notes")
+                }
+                Button(
+                    onClick = {
+                        if (excerptText.isNotBlank()) {
+                            onSaveExcerpt(selectedTag, excerptText, commentaryText)
+                        }
+                    },
+                    enabled = excerptText.isNotBlank()
+                ) {
+                    Text("Append to Notes")
+                }
             }
         },
         dismissButton = {

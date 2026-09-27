@@ -109,6 +109,12 @@ fun MenuScreen(viewModel: HomeViewModel, navController: NavController) {
             onClick = { navController.navigate("network") }
         ),
         Shortcut(
+            icon = Icons.Filled.Search,
+            badgeColor = Color(0xFF0288D1),
+            title = "Global Discovery",
+            onClick = { navController.navigate("discovery") }
+        ),
+        Shortcut(
             icon = Icons.Filled.Groups,
             badgeColor = Color(0xFF1E88E5),
             title = "Research Fields",

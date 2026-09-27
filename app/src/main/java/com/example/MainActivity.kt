@@ -158,6 +158,7 @@ fun FolioApp(viewModel: HomeViewModel) {
     currentRoute == "opps" ||
     currentRoute == "profile" ||
     currentRoute == "network" ||
+    currentRoute == "discovery" ||
     currentRoute.startsWith("share/") ||
     currentRoute.startsWith("post/") ||
     currentRoute.startsWith("quote/") ||
@@ -260,6 +261,13 @@ fun FolioApp(viewModel: HomeViewModel) {
       }
       composable("feed") { HomeScreen(viewModel, navController) }
       composable("fields") { FieldsScreen(viewModel, navController) }
+      composable("discovery") {
+        com.example.ui.discovery.GlobalDiscoveryScreen(
+          viewModel = viewModel,
+          navController = navController,
+          onBack = { navController.popBackStack() }
+        )
+      }
       composable("lists") { com.example.ui.lists.ReadingListsScreen(viewModel, navController) }
       composable("opps") {
         com.example.ui.opportunities.OpportunitiesScreen(
@@ -473,7 +481,7 @@ private fun AppTopBar(navController: NavController, viewModel: HomeViewModel) {
               .size(38.dp)
               .clip(CircleShape)
               .background(SurfaceInset)
-              .clickable { navController.navigate("fields") },
+              .clickable { navController.navigate("discovery") },
             contentAlignment = Alignment.Center
           ) {
             Icon(
